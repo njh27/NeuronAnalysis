@@ -102,7 +102,7 @@ class Neuron(object):
         self.optimal_pursuit_vector = -1 * phase
 
     def compute_ACG(self, time_window, lag_window, dt, trial_names, block_name, n_block_occurence=0):
-
+        raise RuntimeError("this is still old code not updated")
         if self.nan_saccades:
             print("NANING SACCADES NOT IMPLEMENTED IN CCG CALCULATION YET !!!")
 
