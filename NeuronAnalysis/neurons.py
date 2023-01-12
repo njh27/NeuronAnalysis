@@ -23,7 +23,10 @@ class Neuron(object):
         self.check_stability()
 
     def check_stability(self):
-        stable_wins = find_stable_ranges(self.ms_spikes(), win_size, duration, tol_percent=25)
+        seg_bins, bin_rates, bin_t_wins = find_stable_ranges(self.get_spikes_ms(),
+                                            win_size, duration, tol_percent=25,
+                                            min_rate=0.05)
+        get_stable_time_wins(seg_bins, bin_rates, bin_t_wins)
 
     def fit_FR_model(self, blocks, trials, dataseries):
         pass
@@ -146,15 +149,112 @@ class Neuron(object):
         CV2s = 2 * diff_ISI / sum_ISI
         return CV2s
 
-    def ms_spikes(self):
+    def get_spikes_ms(self):
         """ Convert spike times in units of indices to units of milliseconds. """
-        ms_spikes = self.spike_indices / (Neuron.sampling_rate / 1000)
-        return ms_spikes
+        spikes_ms = self.spike_indices / (Neuron.sampling_rate / 1000)
+        return spikes_ms
 
-def find_stable_ranges(spikes_ms, win_size, duration, tol_percent=25):
+def find_stable_ranges(spikes_ms, win_size, duration, tol_percent=25, min_rate=0.05):
     """ Duration is in units of 'win_size', i.e. for a duration of N win_sizes. """
+    tol_percent = abs(tol_percent)
     if tol_percent > 1:
         tol_percent = tol_percent / 100
-    stable_wins = []
+    duration = int(max(duration, 1)) # duration must be at least 1 bin
 
-    return stable_wins
+    t_start = 0
+    bin_rates = []
+    bin_t_wins = []
+    # Get all the binned firing rates
+    while t_start < ms_spikes[-1]:
+        t_stop = min(t_start + win_size, ms_spikes[-1] + 1)
+        bin_spikes = np.count_nonzero((ms_spikes >= t_start) & (ms_spikes < t_stop))
+        bin_rates.append(1000* bin_spikes / (t_stop - t_start))
+        bin_rates[-1] = max(1e-6, bin_rates[-1]) # avoid zero division later
+        bin_t_wins.append([t_start, t_stop])
+        if t_start < win_size * duration * 2:
+            bin_rates[-1] = 20.
+        t_start = t_stop
+
+    # Need to find segments of "stability"
+    seg_bins = [[]]
+    curr_seg = 0
+    nbin = 0
+    found_start = False
+    # Look for "duration" number of stable bins for a new seg starting point
+    while nbin < len(bin_rates):
+        if nbin == len(bin_rates)-1:
+            # Last bin, just append if still going
+            if ( (bin_rates[nbin] >= min_rate) and (found_start) ):
+                seg_bins[curr_seg].append(nbin)
+                break # Finished
+        if not found_start:
+            # Need to find a stable start point to begin a segment
+            max_check_bin = min(nbin + duration, len(bin_rates)-1)
+            for bin_ind in range(nbin, max_check_bin):
+                if ( ((abs(bin_rates[bin_ind + 1] - bin_rates[bin_ind]) / bin_rates[bin_ind]) > tol_percent)
+                    or (bin_rates[bin_ind + 1] < min_rate) ):
+                    # Jump between bins over threshold within the duration window
+                    found_start = False
+                    nbin += 1
+                    break
+                # Made it here on last iteration then we found a stable start point of at least length "duration"
+                found_start = True
+            if found_start:
+                for bin_rs in range(nbin, max_check_bin):
+                    seg_bins[curr_seg].append(bin_rs)
+                nbin = max_check_bin
+        else:
+            if ( ((abs(bin_rates[nbin + 1] - bin_rates[nbin]) / bin_rates[nbin]) > tol_percent)
+                or (bin_rates[nbin + 1] < min_rate) ):
+                # Found a sudden change point
+                consec_bad_bins = []
+                max_check_bin = min(nbin + duration, len(bin_rates)-1)
+                for bin_ind in range(nbin, max_check_bin):
+                    # Contrast nbin with all next bins to see if firing rate returns
+                    if ( ((abs(bin_rates[bin_ind + 1] - bin_rates[nbin]) / bin_rates[nbin]) > tol_percent)
+                        or (bin_rates[bin_ind + 1] < min_rate) ):
+                        consec_bad_bins.append(bin_ind + 1)
+                    else:
+                        # We found a bin that recovered
+                        break
+                if len(consec_bad_bins) >= duration:
+                    # Found enough changed bins that we start a new segment
+                    seg_bins[curr_seg].append(nbin)
+                    curr_seg += 1
+                    seg_bins.append([])
+                    found_start = False
+                    nbin += 1
+                else:
+                    # Changed bins were too short of a blip so just keep going
+                    seg_bins[curr_seg].append(nbin)
+                    for cbb in consec_bad_bins:
+                        # Only add if this is over min_rate
+                        if bin_rates[cbb] < min_rate:
+                            curr_seg += 1
+                            seg_bins.append([])
+                        else:
+                            seg_bins[curr_seg].append(cbb)
+                    nbin = bin_ind + 1 # pick up at the first bin that didnt get added to consec_bad_bins
+            else:
+                seg_bins[curr_seg].append(nbin)
+                nbin += 1
+
+    # One easy check for something going terribly wrong in the above confusing logic
+    for sb in seg_bins:
+        unique_sb = np.unique(sb)
+        array_sb = np.sort(np.array(sb))
+        if ~np.all(unique_sb == array_sb):
+            raise RuntimeError("Must have double counted or skipped something!")
+    # Want numpy array output for easy indexing later
+    for sb_ind in range(0, len(seg_bins)):
+        seg_bins[sb_ind] = np.array(seg_bins[sb_ind])
+    bin_rates = np.array(bin_rates)
+
+    return seg_bins, bin_rates, bin_t_wins
+
+def get_stable_time_wins(seg_bins, bin_rates, bin_t_wins, tol_percent=25):
+    """
+    """
+    tol_percent = abs(tol_percent)
+    if tol_percent > 1:
+        tol_percent = tol_percent / 100
