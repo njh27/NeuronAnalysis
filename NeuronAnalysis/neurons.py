@@ -23,10 +23,12 @@ class Neuron(object):
         self.check_stability()
 
     def check_stability(self):
+        win_size = 60000
+        duration = 3
         seg_bins, bin_rates, bin_t_wins = find_stable_ranges(self.get_spikes_ms(),
-                                            win_size, duration, tol_percent=25,
+                                            win_size, duration, tol_percent=20,
                                             min_rate=0.05)
-        get_stable_time_wins(seg_bins, bin_rates, bin_t_wins)
+        self.stable_time_wins = get_stable_time_wins(seg_bins, bin_rates, bin_t_wins, tol_percent=15)
 
     def fit_FR_model(self, blocks, trials, dataseries):
         pass
@@ -154,7 +156,50 @@ class Neuron(object):
         spikes_ms = self.spike_indices / (Neuron.sampling_rate / 1000)
         return spikes_ms
 
-def find_stable_ranges(spikes_ms, win_size, duration, tol_percent=25, min_rate=0.05):
+
+def zero_phase_kernel(x, x_center):
+    """ Zero pads the 1D kernel x, so that it is aligned with the current element
+        of x located at x_center.  This ensures that convolution with the kernel
+        x will be zero phase with respect to x_center.
+    """
+
+    kernel_offset = x.size - 2 * x_center - 1 # -1 To center ON the x_center index
+    kernel_size = np.abs(kernel_offset) + x.size
+    if kernel_size // 2 == 0: # Kernel must be odd
+        kernel_size -= 1
+        kernel_offset -= 1
+    kernel = np.zeros(kernel_size)
+    if kernel_offset > 0:
+        kernel_slice = slice(kernel_offset, kernel.size)
+    elif kernel_offset < 0:
+        kernel_slice = slice(0, kernel.size + kernel_offset)
+    else:
+        kernel_slice = slice(0, kernel.size)
+    kernel[kernel_slice] = x
+
+    return kernel
+
+
+def gauss_convolve(data, sigma, cutoff_sigma=4, pad_data=True):
+    """ Uses Gaussian kernel to smooth "data" with width cutoff_sigma"""
+    if cutoff_sigma > 0.5*len(data):
+        raise ValueError("{0} data points is not enough for cutoff sigma of {1}.".format(len(data), cutoff_sigma))
+    x_win = int(np.around(sigma * cutoff_sigma))
+    xvals = np.arange(-1 * x_win, x_win + 1)
+    kernel = np.exp(-.5 * (xvals / sigma) ** 2)
+    kernel = kernel / np.sum(kernel)
+    kernel = zero_phase_kernel(kernel, x_win)
+    if pad_data:
+        padded = np.hstack([[data[0]]*int(np.ceil(cutoff_sigma)), data, [data[-1]]*int(np.ceil(cutoff_sigma))])
+        convolved_data = np.convolve(padded, kernel, mode='same')
+        convolved_data = convolved_data[cutoff_sigma:-cutoff_sigma]
+    else:
+        convolved_data = np.convolve(data, kernel, mode='same')
+
+    return convolved_data
+
+
+def find_stable_ranges(spikes_ms, win_size, duration, tol_percent=20, min_rate=0.05, sigma_smooth=None):
     """ Duration is in units of 'win_size', i.e. for a duration of N win_sizes. """
     tol_percent = abs(tol_percent)
     if tol_percent > 1:
@@ -165,15 +210,19 @@ def find_stable_ranges(spikes_ms, win_size, duration, tol_percent=25, min_rate=0
     bin_rates = []
     bin_t_wins = []
     # Get all the binned firing rates
-    while t_start < ms_spikes[-1]:
-        t_stop = min(t_start + win_size, ms_spikes[-1] + 1)
-        bin_spikes = np.count_nonzero((ms_spikes >= t_start) & (ms_spikes < t_stop))
+    while t_start < spikes_ms[-1]:
+        t_stop = min(t_start + win_size, spikes_ms[-1] + 1)
+        bin_spikes = np.count_nonzero((spikes_ms >= t_start) & (spikes_ms < t_stop))
         bin_rates.append(1000* bin_spikes / (t_stop - t_start))
         bin_rates[-1] = max(1e-6, bin_rates[-1]) # avoid zero division later
         bin_t_wins.append([t_start, t_stop])
-        if t_start < win_size * duration * 2:
-            bin_rates[-1] = 20.
         t_start = t_stop
+    bin_rates = np.array(bin_rates)
+
+    if sigma_smooth is not None:
+        if sigma_smooth <= 0.:
+            raise ValueError("sigma_smooth must be greater than zero but {0} was given.".format(sigma_smooth))
+        bin_rates = gauss_convolve(bin_rates, sigma_smooth)
 
     # Need to find segments of "stability"
     seg_bins = [[]]
@@ -234,27 +283,116 @@ def find_stable_ranges(spikes_ms, win_size, duration, tol_percent=25, min_rate=0
                             seg_bins.append([])
                         else:
                             seg_bins[curr_seg].append(cbb)
-                    nbin = bin_ind + 1 # pick up at the first bin that didnt get added to consec_bad_bins
+                    nbin = cbb + 1 # pick up at the first bin that didnt get added to consec_bad_bins
             else:
                 seg_bins[curr_seg].append(nbin)
                 nbin += 1
 
     # One easy check for something going terribly wrong in the above confusing logic
-    for sb in seg_bins:
+    for sb_ind, sb in enumerate(seg_bins):
         unique_sb = np.unique(sb)
         array_sb = np.sort(np.array(sb))
         if ~np.all(unique_sb == array_sb):
-            raise RuntimeError("Must have double counted or skipped something!")
+            raise RuntimeError("Must have double counted or skipped something for seg {0}!".format(sb_ind))
     # Want numpy array output for easy indexing later
     for sb_ind in range(0, len(seg_bins)):
         seg_bins[sb_ind] = np.array(seg_bins[sb_ind])
-    bin_rates = np.array(bin_rates)
+    bin_t_wins = np.array(bin_t_wins)
 
     return seg_bins, bin_rates, bin_t_wins
 
-def get_stable_time_wins(seg_bins, bin_rates, bin_t_wins, tol_percent=25):
+def get_stable_time_wins(seg_bins, bin_rates, bin_t_wins, tol_percent=15):
     """
     """
     tol_percent = abs(tol_percent)
     if tol_percent > 1:
         tol_percent = tol_percent / 100
+
+    seg_medians = []
+    all_valid_median = []
+    for sb in seg_bins:
+        seg_rates = bin_rates[sb]
+        seg_medians.append(np.median(seg_rates))
+        all_valid_median.extend(seg_rates)
+    all_valid_median = np.median(all_valid_median)
+
+    # Try to determine best "main" segment
+    best_dist = np.inf
+    best_duration = 0
+    best_seg_num = 0
+    check_duration = False
+    for sm_ind, sm in enumerate(seg_medians):
+        curr_dist = np.abs(sm - all_valid_median)
+        curr_duration = len(seg_bins[sm_ind])
+        if curr_duration > len(bin_rates):
+            # This seg has duration over half of the entire recording so take it as base point
+            best_dist = curr_dist
+            best_duration = curr_duration
+            best_seg_num = sm_ind
+            break
+        elif ( ((curr_dist/all_valid_median) < tol_percent) and (curr_duration > best_duration) ):
+            # Prefer longer duration near median than absolute nearest median segment
+            best_dist = curr_dist
+            best_duration = curr_duration
+            best_seg_num = sm_ind
+            check_duration = True
+        elif ( (curr_dist < best_dist) and (not check_duration) ):
+            # If we haven't selected anything based on duration above, simply choose the closest median
+            best_dist = curr_dist
+            best_duration = curr_duration
+            best_seg_num = sm_ind
+
+    # Temporally attempt to join adjacent good segments
+    keep_segs = []
+    keep_segs.append(seg_bins[best_seg_num])
+    if best_seg_num > 0:
+        # Check backward from best
+        ref_seg_ind = best_seg_num
+        for com_seg_ind in range(best_seg_num-1, -1, -1):
+            curr_dist = np.abs(bin_rates[seg_bins[ref_seg_ind][0]] - bin_rates[seg_bins[com_seg_ind][-1]])
+            if (curr_dist / (bin_rates[seg_bins[ref_seg_ind][0]])) < tol_percent:
+                # Connect/add this seg for keeping
+                keep_segs.append(seg_bins[com_seg_ind])
+                ref_seg_ind = com_seg_ind
+    if best_seg_num < len(seg_bins)-1:
+        # Check forward from best
+        ref_seg_ind = best_seg_num
+        for com_seg_ind in range(best_seg_num+1, len(seg_bins)):
+            curr_dist = np.abs(bin_rates[seg_bins[ref_seg_ind][-1]] - bin_rates[seg_bins[com_seg_ind][0]])
+            if (curr_dist / (bin_rates[seg_bins[ref_seg_ind][-1]])) < tol_percent:
+                # Connect/add this seg for keeping
+                keep_segs.append(seg_bins[com_seg_ind])
+                ref_seg_ind = com_seg_ind
+
+    # Ensure time windows are in needed tempral order and gather good ones
+    win_order = np.argsort(bin_t_wins[:, 0])
+    bin_t_wins = bin_t_wins[win_order, :]
+    keep_time_wins = []
+    for ks in keep_segs:
+        keep_time_wins.append(bin_t_wins[ks, :])
+    keep_time_wins = np.vstack(keep_time_wins)
+    win_order = np.argsort(keep_time_wins[:, 0])
+    keep_time_wins = keep_time_wins[win_order, :]
+
+    # Convert all time windows to simple continuous 2 element windows
+    stable_time_wins = []
+    curr_start = keep_time_wins[0, 0]
+    curr_stop = keep_time_wins[-1, 1]
+    for ind in range(0, keep_time_wins.shape[0]):
+        if ind == keep_time_wins.shape[0]-1:
+            # Last time window so must be stop
+            curr_stop = keep_time_wins[ind, 1]
+            if curr_stop <= curr_start:
+                # should not be possible
+                raise RuntimeError("Problem in code for finding stable time windows!")
+            stable_time_wins.append([curr_start, curr_stop])
+        elif keep_time_wins[ind, 1] != keep_time_wins[ind+1, 0]:
+            # Found disconnect in times
+            curr_stop = keep_time_wins[ind, 1]
+            if curr_stop <= curr_start:
+                # should not be possible
+                raise RuntimeError("Problem in code for finding stable time windows!")
+            stable_time_wins.append([curr_start, curr_stop])
+            curr_start = keep_time_wins[ind+1, 0]
+
+    return stable_time_wins
