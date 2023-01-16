@@ -190,9 +190,11 @@ def gauss_convolve(data, sigma, cutoff_sigma=4, pad_data=True):
     kernel = kernel / np.sum(kernel)
     kernel = zero_phase_kernel(kernel, x_win)
     if pad_data:
-        padded = np.hstack([[data[0]]*int(np.ceil(cutoff_sigma)), data, [data[-1]]*int(np.ceil(cutoff_sigma))])
+        # Mirror edge data points
+        padded = np.hstack([data[x_win-1::-1], data, data[-1:-x_win-1:-1]])
+        # padded = np.hstack([[data[0]]*x_win, data, [data[-1]]*x_win])
         convolved_data = np.convolve(padded, kernel, mode='same')
-        convolved_data = convolved_data[cutoff_sigma:-cutoff_sigma]
+        convolved_data = convolved_data[x_win:-x_win+1]
     else:
         convolved_data = np.convolve(data, kernel, mode='same')
 
@@ -222,7 +224,7 @@ def find_stable_ranges(spikes_ms, win_size, duration, tol_percent=20, min_rate=0
     if sigma_smooth is not None:
         if sigma_smooth <= 0.:
             raise ValueError("sigma_smooth must be greater than zero but {0} was given.".format(sigma_smooth))
-        bin_rates = gauss_convolve(bin_rates, sigma_smooth)
+        bin_rates = gauss_convolve(bin_rates, sigma_smooth, pad_data=False)
 
     # Need to find segments of "stability"
     seg_bins = [[]]
