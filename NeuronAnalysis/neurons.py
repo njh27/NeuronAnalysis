@@ -11,14 +11,13 @@ class Neuron(object):
             list element output by neuroviz. Creates an object that can store
             cell type class, tuning properties, and valid trials for a neuron. """
         # Properties that should minimially define a neuron
-        self.spike_indices = neuron_dict['spike_indices__'].sorted()
+        self.spike_indices = neuron_dict['spike_indices__'].sort()
         self.channel = neuron_dict['channel_id__']
         self.sampling_rate = neuron_dict['sampling_rate__']
         self.cell_type = cell_type
 
         # Properties for linking with session behavior and trial data
         self.name = name # The name of this neuron and its dataseries in the session
-        self.valid_trials = np.zeros(len(session), dtype='bool')
         self.check_stability()
 
     def check_stability(self):
