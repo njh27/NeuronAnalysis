@@ -6,7 +6,7 @@ class Neuron(object):
     """ Class that defines a neuron...
     """
 
-    def __init__(self, neuron_dict, session, name, cell_type=None):
+    def __init__(self, neuron_dict, session_name, name, cell_type=None):
         """ Neuron dict is a dictionary of neuron information as contained in each
             list element output by neuroviz. Creates an object that can store
             cell type class, tuning properties, and valid trials for a neuron. """
@@ -17,22 +17,27 @@ class Neuron(object):
         self.cell_type = cell_type
 
         # Properties for linking with session behavior and trial data
-        self.session = session
+        self.session_name = session_name
         self.name = name # The name of this neuron and its dataseries in the session
         self.valid_trials = np.zeros(len(session), dtype='bool')
         self.check_stability()
 
     def check_stability(self):
-        win_size = 60000
+        win_size = 30000
         duration = 3
+        tol_percent = 10
+        min_rate = 0.05
+        # Smooth all data with sigma of 1 bin
         seg_bins, bin_rates, bin_t_wins = find_stable_ranges(self.get_spikes_ms(),
-                                            win_size, duration, tol_percent=20,
-                                            min_rate=0.05)
-        self.stable_time_wins = get_stable_time_wins(seg_bins, bin_rates, bin_t_wins, tol_percent=15)
+                                            win_size, duration, tol_percent,
+                                            min_rate, sigma_smooth=1)
+        # No look for stable time windows smoothed with bigger sigma and more
+        # tolerance for connecting over segments
+        self.stable_time_wins = get_stable_time_wins(seg_bins, bin_rates,
+                                    bin_t_wins, tol_percent=15, sigma_smooth=2)
 
     def fit_FR_model(self, blocks, trials, dataseries):
         pass
-
 
     def compute_tuning_by_condition(self, time_window, target_number, target_data_type='position',
                                     block_name=None, trial_index=None, n_block_occurence=0,
@@ -153,7 +158,7 @@ class Neuron(object):
 
     def get_spikes_ms(self):
         """ Convert spike times in units of indices to units of milliseconds. """
-        spikes_ms = self.spike_indices / (Neuron.sampling_rate / 1000)
+        spikes_ms = self.spike_indices / (self.sampling_rate / 1000)
         return spikes_ms
 
 
@@ -194,7 +199,7 @@ def gauss_convolve(data, sigma, cutoff_sigma=4, pad_data=True):
         padded = np.hstack([data[x_win-1::-1], data, data[-1:-x_win-1:-1]])
         # padded = np.hstack([[data[0]]*x_win, data, [data[-1]]*x_win])
         convolved_data = np.convolve(padded, kernel, mode='same')
-        convolved_data = convolved_data[x_win:-x_win+1]
+        convolved_data = convolved_data[x_win:-x_win]
     else:
         convolved_data = np.convolve(data, kernel, mode='same')
 
@@ -224,7 +229,7 @@ def find_stable_ranges(spikes_ms, win_size, duration, tol_percent=20, min_rate=0
     if sigma_smooth is not None:
         if sigma_smooth <= 0.:
             raise ValueError("sigma_smooth must be greater than zero but {0} was given.".format(sigma_smooth))
-        bin_rates = gauss_convolve(bin_rates, sigma_smooth, pad_data=False)
+        bin_rates = gauss_convolve(bin_rates, sigma_smooth, pad_data=True)
 
     # Need to find segments of "stability"
     seg_bins = [[]]
@@ -303,7 +308,8 @@ def find_stable_ranges(spikes_ms, win_size, duration, tol_percent=20, min_rate=0
 
     return seg_bins, bin_rates, bin_t_wins
 
-def get_stable_time_wins(seg_bins, bin_rates, bin_t_wins, tol_percent=15):
+def get_stable_time_wins(seg_bins, bin_rates, bin_t_wins, tol_percent=15,
+                         sigma_smooth=None, cutoff_sigma=4):
     """
     """
     tol_percent = abs(tol_percent)
@@ -313,6 +319,16 @@ def get_stable_time_wins(seg_bins, bin_rates, bin_t_wins, tol_percent=15):
     seg_medians = []
     all_valid_median = []
     for sb in seg_bins:
+        if sigma_smooth is not None:
+            # Do smoothing WITHIN segments only
+            if sigma_smooth <= 0.:
+                raise ValueError("sigma_smooth must be greater than zero but {0} was given.".format(sigma_smooth))
+            if (sb[-1] - sb[0]) >= (2*cutoff_sigma*sigma_smooth + 1):
+                # Seg should have enough points to do useful convolution
+                bin_rates[sb[0]:sb[-1]+1] = gauss_convolve(bin_rates[sb[0]:sb[-1]+1], sigma_smooth, cutoff_sigma, pad_data=True)
+            else:
+                # Very few data points in segment so just take median
+                bin_rates[sb[0]:sb[-1]+1] = np.median(bin_rates[sb[0]:sb[-1]+1])
         seg_rates = bin_rates[sb]
         seg_medians.append(np.median(seg_rates))
         all_valid_median.extend(seg_rates)
