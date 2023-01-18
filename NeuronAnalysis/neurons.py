@@ -6,7 +6,7 @@ class Neuron(object):
     """ Class that defines a neuron...
     """
 
-    def __init__(self, neuron_dict, session_name, name, cell_type=None):
+    def __init__(self, neuron_dict, name, cell_type=None):
         """ Neuron dict is a dictionary of neuron information as contained in each
             list element output by neuroviz. Creates an object that can store
             cell type class, tuning properties, and valid trials for a neuron. """
@@ -17,7 +17,6 @@ class Neuron(object):
         self.cell_type = cell_type
 
         # Properties for linking with session behavior and trial data
-        self.session_name = session_name
         self.name = name # The name of this neuron and its dataseries in the session
         self.valid_trials = np.zeros(len(session), dtype='bool')
         self.check_stability()
