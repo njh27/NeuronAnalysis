@@ -6,7 +6,7 @@ class Neuron(object):
     """ Class that defines a neuron...
     """
 
-    def __init__(self, neuron_dict, name, cell_type=None):
+    def __init__(self, neuron_dict, name, cell_type=None, session=None):
         """ Neuron dict is a dictionary of neuron information as contained in each
             list element output by neuroviz. Creates an object that can store
             cell type class, tuning properties, and valid trials for a neuron. """
@@ -19,6 +19,8 @@ class Neuron(object):
         # Properties for linking with session behavior and trial data
         self.name = name # The name of this neuron and its dataseries in the session
         self.check_stability()
+        if session is not None:
+            self.join_session(session)
 
     def check_stability(self):
         win_size = 30000
@@ -31,8 +33,45 @@ class Neuron(object):
                                             min_rate, sigma_smooth=1)
         # No look for stable time windows smoothed with bigger sigma and more
         # tolerance for connecting over segments
-        self.stable_time_wins = get_stable_time_wins(seg_bins, bin_rates,
+        self.stable_time_wins_ms = get_stable_time_wins(seg_bins, bin_rates,
                                     bin_t_wins, tol_percent=15, sigma_smooth=2)
+        self.stable_time_wins_ind = []
+        for stw in self.stable_time_wins_ms:
+            ind_win = [stw[0] * (self.sampling_rate / 1000), stw[1] * (self.sampling_rate / 1000)]
+            ind_win[0] = int(np.around(ind_win[0]))
+            ind_win[1] = int(np.around(ind_win[1]))
+            self.stable_time_wins_ind.append(ind_win)
+
+    def join_session(self, session):
+        self.session = session
+
+    def compute_valid_trials(self):
+
+        self.valid_trials = np.zeros(len(self.session), dtype='bool')
+        trial_ind = 0
+        stw_ind = 0
+        while stw_ind < len(self.stable_time_wins_ind):
+            curr_win = self.stable_time_wins_ind[stw_ind]
+            while trial_ind < len(self.session):
+                trial_start = self.session._trial_lists['neurons'][trial_ind]['meta_data']['pl2_start_stop'][0]
+                trial_stop = self.session._trial_lists['neurons'][trial_ind]['meta_data']['pl2_start_stop'][1]
+                if trial_stop <= curr_win[0]:
+                    # Trial completely precedes current valid window
+                    trial_ind += 1
+                    continue
+                elif ( (trial_start >= curr_win[0]) and (trial_stop <= curr_win[1]) ):
+                    # Trial is fully within current valid window
+                    self.valid_trials[trial_ind] = True
+                elif ( (trial_start < curr_win[1]) and (trial_stop >= curr_win[1]) ):
+                    # Trial extends beyond current valid window
+                    stw_ind += 1
+                    break
+                elif (trial_start >= curr_win[1]):
+                    # Trial starts after the current valid window
+                    stw_ind += 1
+                else:
+                    print("Condition not found for:", trial_start, trial_stop, curr_win)
+
 
     def fit_FR_model(self, blocks, trials, dataseries):
         pass
@@ -385,7 +424,13 @@ def get_stable_time_wins(seg_bins, bin_rates, bin_t_wins, tol_percent=15,
         ref_seg_ind = best_seg_num
         for com_seg_ind in range(best_seg_num-1, -1, -1):
             curr_dist = np.abs(bin_rates[seg_bins[ref_seg_ind][0]] - bin_rates[seg_bins[com_seg_ind][-1]])
+            curr_median_dist = np.abs(seg_medians[ref_seg_ind] - seg_medians[com_seg_ind])
             if (curr_dist / (bin_rates[seg_bins[ref_seg_ind][0]])) < tol_percent:
+                # Connect/add this seg for keeping
+                keep_segs.append(seg_bins[com_seg_ind])
+                ref_seg_ind = com_seg_ind
+            elif (curr_median_dist / seg_medians[ref_seg_ind]) < tol_percent:
+                # medians are similar even if endpoints not
                 # Connect/add this seg for keeping
                 keep_segs.append(seg_bins[com_seg_ind])
                 ref_seg_ind = com_seg_ind
@@ -394,7 +439,13 @@ def get_stable_time_wins(seg_bins, bin_rates, bin_t_wins, tol_percent=15,
         ref_seg_ind = best_seg_num
         for com_seg_ind in range(best_seg_num+1, len(seg_bins)):
             curr_dist = np.abs(bin_rates[seg_bins[ref_seg_ind][-1]] - bin_rates[seg_bins[com_seg_ind][0]])
+            curr_median_dist = np.abs(seg_medians[ref_seg_ind] - seg_medians[com_seg_ind])
             if (curr_dist / (bin_rates[seg_bins[ref_seg_ind][-1]])) < tol_percent:
+                # Connect/add this seg for keeping
+                keep_segs.append(seg_bins[com_seg_ind])
+                ref_seg_ind = com_seg_ind
+            elif (curr_median_dist / seg_medians[ref_seg_ind]) < tol_percent:
+                # medians are similar even if endpoints not
                 # Connect/add this seg for keeping
                 keep_segs.append(seg_bins[com_seg_ind])
                 ref_seg_ind = com_seg_ind
