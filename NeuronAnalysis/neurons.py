@@ -11,7 +11,7 @@ class Neuron(object):
             list element output by neuroviz. Creates an object that can store
             cell type class, tuning properties, and valid trials for a neuron. """
         # Properties that should minimially define a neuron
-        self.spike_indices = neuron_dict['spike_indices__'].sort()
+        self.spike_indices = np.sort(neuron_dict['spike_indices__'])
         self.channel = neuron_dict['channel_id__']
         self.sampling_rate = neuron_dict['sampling_rate__']
         self.cell_type = cell_type
@@ -240,7 +240,22 @@ def find_stable_ranges(spikes_ms, win_size, duration, tol_percent=20, min_rate=0
             # Last bin, just append if still going
             if ( (bin_rates[nbin] >= min_rate) and (found_start) ):
                 seg_bins[curr_seg].append(nbin)
+                nbin += 1 # Won't hurt but not currently necessary
                 break # Finished
+            elif not found_start:
+                # On last bin and have not found a start
+                if duration <= 1:
+                    # Any bin is a new start so add it
+                    curr_seg += 1
+                    seg_bins.append([])
+                    seg_bins[curr_seg].append(nbin)
+                else:
+                    # Not enough bins left to start a new seg so we are done
+                    nbin += 1 # Won't hurt but not currently necessary
+                    break
+            else:
+                # Have not found start at this point
+                pass
         if not found_start:
             # Need to find a stable start point to begin a segment
             max_check_bin = min(nbin + duration, len(bin_rates)-1)
@@ -299,6 +314,10 @@ def find_stable_ranges(spikes_ms, win_size, duration, tol_percent=20, min_rate=0
         array_sb = np.sort(np.array(sb))
         if ~np.all(unique_sb == array_sb):
             raise RuntimeError("Must have double counted or skipped something for seg {0}!".format(sb_ind))
+    # Remove any segs that never had a bin added
+    for sb_ind in reversed(range(0, len(seg_bins))):
+        if len(seg_bins[sb_ind]) == 0:
+            del seg_bins[sb_ind]
     # Want numpy array output for easy indexing later
     for sb_ind in range(0, len(seg_bins)):
         seg_bins[sb_ind] = np.array(seg_bins[sb_ind])
@@ -340,7 +359,7 @@ def get_stable_time_wins(seg_bins, bin_rates, bin_t_wins, tol_percent=15,
     for sm_ind, sm in enumerate(seg_medians):
         curr_dist = np.abs(sm - all_valid_median)
         curr_duration = len(seg_bins[sm_ind])
-        if curr_duration > len(bin_rates):
+        if curr_duration > (len(bin_rates) // 2):
             # This seg has duration over half of the entire recording so take it as base point
             best_dist = curr_dist
             best_duration = curr_duration
