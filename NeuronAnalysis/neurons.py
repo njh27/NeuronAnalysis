@@ -25,7 +25,7 @@ class Neuron(object):
     def check_stability(self):
         win_size = 30000
         duration = 3
-        tol_percent = 10
+        tol_percent = 15
         min_rate = 0.05
         # Smooth all data with sigma of 1 bin
         seg_bins, bin_rates, bin_t_wins = find_stable_ranges(self.get_spikes_ms(),
@@ -34,7 +34,7 @@ class Neuron(object):
         # No look for stable time windows smoothed with bigger sigma and more
         # tolerance for connecting over segments
         self.stable_time_wins_ms = get_stable_time_wins(seg_bins, bin_rates,
-                                    bin_t_wins, tol_percent=15, sigma_smooth=2)
+                                    bin_t_wins, tol_percent=20, sigma_smooth=2)
         self.stable_time_wins_ind = []
         for stw in self.stable_time_wins_ms:
             ind_win = [stw[0] * (self.sampling_rate / 1000), stw[1] * (self.sampling_rate / 1000)]
@@ -58,20 +58,28 @@ class Neuron(object):
                 if trial_stop <= curr_win[0]:
                     # Trial completely precedes current valid window
                     trial_ind += 1
-                    continue
                 elif ( (trial_start >= curr_win[0]) and (trial_stop <= curr_win[1]) ):
                     # Trial is fully within current valid window
                     self.valid_trials[trial_ind] = True
+                    trial_ind += 1
+
                 elif ( (trial_start < curr_win[1]) and (trial_stop >= curr_win[1]) ):
                     # Trial extends beyond current valid window
                     stw_ind += 1
                     break
+                elif ( (trial_start < curr_win[0]) and (trial_stop >= curr_win[0]) ):
+                    # Trial starts just before and overlaps current valid window
+                    trial_ind += 1
                 elif (trial_start >= curr_win[1]):
                     # Trial starts after the current valid window
                     stw_ind += 1
+                    break
                 else:
                     print("Condition not found for:", trial_start, trial_stop, curr_win)
-
+            if trial_ind >= len(self.session):
+                break
+        # Add these as trial sets so session can use for selecting and updating
+        self.session.trial_sets[self.name] = self.valid_trials
 
     def fit_FR_model(self, blocks, trials, dataseries):
         pass
@@ -482,3 +490,28 @@ def get_stable_time_wins(seg_bins, bin_rates, bin_t_wins, tol_percent=15,
             curr_start = keep_time_wins[ind+1, 0]
 
     return stable_time_wins
+
+# import NeuronAnalysis as na
+# reload(na.neurons)
+# neur = neurons[0]
+# win_size = 30000
+# duration = 3
+# tol_percent = 10
+# min_rate = 0.05
+# spikes_ms = neur['spike_indices__'] / (40000 / 1000)
+# seg_bins, bin_rates, bin_t_wins = na.neurons.find_stable_ranges(spikes_ms,
+#                                             win_size, duration, tol_percent,
+#                                             min_rate, sigma_smooth=1)
+# xvals = np.arange(0, len(bin_rates))
+# plt.scatter(xvals, bin_rates, color='k')
+# for sb in seg_bins:
+#     plt.plot(sb, bin_rates[sb])
+# stable_time_wins = na.neurons.get_stable_time_wins(seg_bins, bin_rates, bin_t_wins, tol_percent=15,
+#                          sigma_smooth=2, cutoff_sigma=4)
+# xvals = np.arange(0, len(bin_rates))
+# plt.scatter(xvals, bin_rates, color='k')
+# for sb in seg_bins:
+#     plt.plot(sb, bin_rates[sb])
+# for stw in stable_time_wins:
+#     x = [stw[0]/win_size, stw[1]/win_size]
+#     plt.plot(x, [10, 10], color='g')
