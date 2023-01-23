@@ -46,8 +46,9 @@ class Neuron(object):
         self.session = session
 
     def compute_valid_trials(self):
-
-        self.valid_trials = np.zeros(len(self.session), dtype='bool')
+        """ Computes the valid trials based on the stable time windows and adds
+        them to self.sess as trial sets. """
+        self.session.trial_sets[self.name] = np.zeros(len(self.session), dtype='bool')
         trial_ind = 0
         stw_ind = 0
         while stw_ind < len(self.stable_time_wins_ind):
@@ -60,7 +61,7 @@ class Neuron(object):
                     trial_ind += 1
                 elif ( (trial_start >= curr_win[0]) and (trial_stop <= curr_win[1]) ):
                     # Trial is fully within current valid window
-                    self.valid_trials[trial_ind] = True
+                    self.session.trial_sets[self.name][trial_ind] = True
                     trial_ind += 1
 
                 elif ( (trial_start < curr_win[1]) and (trial_stop >= curr_win[1]) ):
@@ -78,8 +79,6 @@ class Neuron(object):
                     print("Condition not found for:", trial_start, trial_stop, curr_win)
             if trial_ind >= len(self.session):
                 break
-        # Add these as trial sets so session can use for selecting and updating
-        self.session.trial_sets[self.name] = self.valid_trials
 
     def fit_FR_model(self, blocks, trials, dataseries):
         pass
