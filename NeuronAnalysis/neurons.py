@@ -80,22 +80,14 @@ class Neuron(object):
             if trial_ind >= len(self.session):
                 break
 
-    def fit_FR_model(self, blocks, trials, dataseries):
-        pass
-
     def compute_tuning_by_condition(self, time_window, target_number, target_data_type='position',
                                     block_name=None, trial_index=None, n_block_occurence=0,
                                     subtract_fixation_win=None):
 
-        trial_trains, trial_inds = self.condition_rate_by_trial(None, time_window,
-                            block_name=block_name, n_block_occurence=n_block_occurence)
-
-        if subtract_fixation_win is not None:
-            fixation_trains, _ = self.condition_rate_by_trial(None, subtract_fixation_win,
-                            block_name=block_name, n_block_occurence=n_block_occurence)
-
-        target_data, trial_inds_t = self.session.target_condition_data_by_trial(None, time_window, target_data_type,
-                target_number, block_name=block_name, n_block_occurence=n_block_occurence)
+        fr_by_set[curr_set] = an.get_mean_firing_trace(ldp_sess,
+                                                neuron_series,
+                                                ldp_sess.baseline_time_window,
+                                                base_block, curr_set)
 
         if trial_index is not None:
             # Remove any trials not in trial_index from consideration and their
@@ -154,6 +146,9 @@ class Neuron(object):
         amp, phase, offset = fit_cos_fixed_freq(theta, rho)
         self.cos_fit_fun = lambda x: (amp * (np.cos(x + phase)) + offset)
         self.optimal_pursuit_vector = -1 * phase
+
+    def fit_FR_model(self, blocks, trials, dataseries):
+        pass
 
     def compute_ACG(self, time_window, lag_window, dt, trial_names, block_name, n_block_occurence=0):
         raise RuntimeError("this is still old code not updated")
