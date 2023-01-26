@@ -1,4 +1,5 @@
 import numpy as np
+import LearnDirTunePurk.analyze_neurons as an
 
 
 
@@ -15,6 +16,7 @@ class Neuron(object):
         self.channel = neuron_dict['channel_id__']
         self.sampling_rate = neuron_dict['sampling_rate__']
         self.cell_type = cell_type
+        self.use_series = name
 
         # Properties for linking with session behavior and trial data
         self.name = name # The name of this neuron and its dataseries in the session
@@ -80,14 +82,16 @@ class Neuron(object):
             if trial_ind >= len(self.session):
                 break
 
-    def compute_tuning_by_condition(self, time_window, target_number, target_data_type='position',
-                                    block_name=None, trial_index=None, n_block_occurence=0,
-                                    subtract_fixation_win=None):
+    def compute_tuning_by_condition(self, time_window, base_block='StandTunePre'):
 
-        fr_by_set[curr_set] = an.get_mean_firing_trace(ldp_sess,
-                                                neuron_series,
-                                                ldp_sess.baseline_time_window,
-                                                base_block, curr_set)
+        get_mean_firing_trace(self.session, self.use_series, time_window, blocks=None,
+                        trial_sets=None, return_inds=False)
+        fr_by_set = {}
+        for curr_set in ldp_sess.four_dir_trial_sets:
+            fr_by_set[curr_set] = an.get_mean_firing_trace(self.session,
+                                                    self.use_series,
+                                                    time_window,
+                                                    base_block, curr_set)
 
         if trial_index is not None:
             # Remove any trials not in trial_index from consideration and their
