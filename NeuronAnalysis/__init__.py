@@ -1,1 +1,2 @@
+import NeuronAnalysis.general
 import NeuronAnalysis.neurons

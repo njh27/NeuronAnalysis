@@ -1,5 +1,6 @@
 import numpy as np
-import LearnDirTunePurk.analyze_neurons as an
+import warnings
+from NeuronAnalysis.general import fit_cos_fixed_freq
 
 
 
@@ -82,70 +83,55 @@ class Neuron(object):
             if trial_ind >= len(self.session):
                 break
 
-    def compute_tuning_by_condition(self, time_window, base_block='StandTunePre'):
+    def get_mean_firing_trace(self, time_window, blocks=None, trial_sets=None,
+                                return_inds=False):
+        """ Calls ldp_sess.get_data_array and takes the mean over rows of the output. """
+        fr, t = self.session.get_data_array(self.use_series, time_window,
+                        blocks=blocks, trial_sets=trial_sets, return_inds=True)
+        if len(fr) == 0:
+            # Found no matching data
+            if return_inds:
+                return fr, t
+            else:
+                return fr
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
+            fr = np.nanmean(fr, axis=0)
 
-        get_mean_firing_trace(self.session, self.use_series, time_window, blocks=None,
-                        trial_sets=None, return_inds=False)
-        fr_by_set = {}
-        for curr_set in ldp_sess.four_dir_trial_sets:
-            fr_by_set[curr_set] = an.get_mean_firing_trace(self.session,
-                                                    self.use_series,
-                                                    time_window,
-                                                    base_block, curr_set)
+        if return_inds:
+            return fr, t
+        else:
+            return fr
 
-        if trial_index is not None:
-            # Remove any trials not in trial_index from consideration and their
-            # corresponding target_data and trial_trains
-            data_mask = np.ones(target_data.shape[0], dtype='bool')
-            data_index = 0
-            for i in range(0, trial_inds_t.size):
-                if trial_inds_t[i]:
-                    if not trial_index[i]:
-                        # Input trial index says skip this trial
-                        data_mask[data_index] = False
-                        trial_inds_t[i] = False
-                    data_index += 1
-            trial_trains = trial_trains[data_mask, :]
-            target_data = target_data[data_mask, :]
-            if subtract_fixation_win is not None: fixation_trains = fixation_trains[data_mask, :]
+    def compute_tuning_by_condition(self, time_window, block='StandTunePre'):
+        """
+        """
+        fr_by_set = []
+        theta_by_set = []
+        for curr_set in self.session.four_dir_trial_sets:
+            curr_fr = self.get_mean_firing_trace(time_window, block, curr_set)
+            fr_by_set.append(np.nanmean(curr_fr))
+            targ_l, targ_p = self.session.get_mean_xy_traces(
+                            "target position", time_window, blocks=block,
+                            trial_sets=curr_set, rescale=False)
+            # Just get single vector for each target dimension
+            if len(targ_l) > 1:
+                targ_l = targ_l[-1] - targ_l[0]
+                targ_p = targ_p[-1] - targ_p[0]
+            # Compute angle of target position delta in learning/position axis space
+            theta_by_set.append(np.arctan2(targ_l, targ_p))
 
-        tune_spikes = {}
-        tune_trials = {}
-        # for t_key in self.session.blocks[block_name]['trial_names']:
-        #     tune_spikes[t_key] = []
-        #     tune_trials[t_key] = []
-        row_ind = 0
-        for t in range(self.session.blocks[block_name]['trial_windows'][0][0], self.session.blocks[block_name]['trial_windows'][0][1]):
-            if trial_inds_t[t]:
-                if self.session.trials[t]['trial_name'] not in tune_spikes:
-                    tune_spikes[self.session.trials[t]['trial_name']] = []
-                    tune_trials[self.session.trials[t]['trial_name']] = []
-                if subtract_fixation_win is None:
-                    tune_spikes[self.session.trials[t]['trial_name']].append(np.nanmean(trial_trains[row_ind, :]))
-                else:
-                    tune_spikes[self.session.trials[t]['trial_name']].append(
-                                np.nanmean(trial_trains[row_ind, :]) - np.nanmean(fixation_trains[row_ind, :]))
-                tune_trials[self.session.trials[t]['trial_name']].append(np.nanmean(target_data[row_ind, :, :], axis=0))
-                row_ind += 1
-        theta = np.zeros(len(tune_trials))
-        rho = np.zeros(len(tune_trials))
-        for ind, key in enumerate(tune_trials):
-            rho[ind] = np.nanmean(tune_spikes[key])
-            tune_trials[key] = np.nanmean(np.vstack(tune_trials[key]), axis=0)
-            theta[ind] = np.arctan2(tune_trials[key][1], tune_trials[key][0])
+        fr_by_set = np.array(fr_by_set)
+        theta_by_set = np.array(theta_by_set)
+        theta_order = np.argsort(theta_by_set)
+        theta_by_set = theta_by_set[theta_order]
+        fr_by_set = fr_by_set[theta_order]
+        return theta_by_set, fr_by_set
 
-        theta_order = np.argsort(theta)
-        theta = theta[theta_order]
-        rho = rho[theta_order]
+    def set_optimal_pursuit_vector(self, time_window, block='StandTunePre'):
 
-        return theta, rho
-
-    def set_optimal_pursuit_vector(self, time_window, target_number, target_data_type='position',
-                                   block_name=None, n_block_occurence=0, subtract_fixation_win=None):
-
-        theta, rho = self.compute_tuning_by_condition(time_window, target_number,
-                        target_data_type=target_data_type, block_name=block_name,
-                        n_block_occurence=n_block_occurence, subtract_fixation_win=subtract_fixation_win)
+        theta, rho = self.compute_tuning_by_condition(time_window,
+                                                        block=block)
 
         amp, phase, offset = fit_cos_fixed_freq(theta, rho)
         self.cos_fit_fun = lambda x: (amp * (np.cos(x + phase)) + offset)
