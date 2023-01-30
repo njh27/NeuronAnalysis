@@ -47,6 +47,10 @@ class Neuron(object):
 
     def join_session(self, session):
         self.session = session
+        self.compute_valid_trials()
+        if hasattr(self, "optimal_pursuit_vector"):
+            self.set_optimal_pursuit_vector(self.time_window_optimal_fit,
+                                            self.block_optimal_fit)
 
     def compute_valid_trials(self):
         """ Computes the valid trials based on the stable time windows and adds
@@ -111,16 +115,15 @@ class Neuron(object):
         for curr_set in self.session.four_dir_trial_sets:
             curr_fr = self.get_mean_firing_trace(time_window, block, curr_set)
             fr_by_set.append(np.nanmean(curr_fr))
-            targ_l, targ_p = self.session.get_mean_xy_traces(
+            targ_p, targ_l = self.session.get_mean_xy_traces(
                             "target position", time_window, blocks=block,
                             trial_sets=curr_set, rescale=False)
             # Just get single vector for each target dimension
-            if len(targ_l) > 1:
-                targ_l = targ_l[-1] - targ_l[0]
+            if len(targ_p) > 1:
                 targ_p = targ_p[-1] - targ_p[0]
+                targ_l = targ_l[-1] - targ_l[0]
             # Compute angle of target position delta in learning/position axis space
             theta_by_set.append(np.arctan2(targ_l, targ_p))
-
         fr_by_set = np.array(fr_by_set)
         theta_by_set = np.array(theta_by_set)
         theta_order = np.argsort(theta_by_set)
@@ -129,13 +132,19 @@ class Neuron(object):
         return theta_by_set, fr_by_set
 
     def set_optimal_pursuit_vector(self, time_window, block='StandTunePre'):
-
+        """ Saves the pursuit vector with maximum rate according to a cosine
+        tuning curve fit to all conditions in 'block' for the average firing
+        rate within 'time_window'. """
         theta, rho = self.compute_tuning_by_condition(time_window,
                                                         block=block)
-
         amp, phase, offset = fit_cos_fixed_freq(theta, rho)
         self.cos_fit_fun = lambda x: (amp * (np.cos(x + phase)) + offset)
         self.optimal_pursuit_vector = -1 * phase
+        self.block_optimal_fit = block
+        self.time_window_optimal_fit = time_window
+
+    def set_use_series(self, series_name):
+        self.use_series = series_name
 
     def fit_FR_model(self, blocks, trials, dataseries):
         pass
