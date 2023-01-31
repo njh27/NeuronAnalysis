@@ -17,7 +17,11 @@ class Neuron(object):
         self.channel = neuron_dict['channel_id__']
         self.sampling_rate = neuron_dict['sampling_rate__']
         self.cell_type = cell_type
+        self.min_trials_per_condition = 5
         self.use_series = name
+        self.optimal_cos_funs = {}
+        self.optimal_cos_vectors = {}
+        self.optimal_cos_time_window = {}
 
         # Properties for linking with session behavior and trial data
         self.name = name # The name of this neuron and its dataseries in the session
@@ -48,9 +52,10 @@ class Neuron(object):
     def join_session(self, session):
         self.session = session
         self.compute_valid_trials()
-        if hasattr(self, "optimal_pursuit_vector"):
-            self.set_optimal_pursuit_vector(self.time_window_optimal_fit,
-                                            self.block_optimal_fit)
+        if len(self.optimal_cos_vectors) > 0:
+            for block in self.optimal_cos_vectors.keys():
+                self.set_optimal_pursuit_vector(self.optimal_cos_time_window[block],
+                                                block)
 
     def compute_valid_trials(self):
         """ Computes the valid trials based on the stable time windows and adds
@@ -87,11 +92,23 @@ class Neuron(object):
             if trial_ind >= len(self.session):
                 break
 
+    def get_firing_traces(self, time_window, blocks=None, trial_sets=None,
+                         return_inds=False):
+        """ Gets data for default self.use_series within time_window. """
+        fr, t = self.session.get_data_array(self.use_series, time_window,
+                                        blocks=blocks, trial_sets=trial_sets,
+                                        return_inds=True)
+        if return_inds:
+            return fr, t
+        else:
+            return fr
+
     def get_mean_firing_trace(self, time_window, blocks=None, trial_sets=None,
                                 return_inds=False):
+        warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
         """ Calls ldp_sess.get_data_array and takes the mean over rows of the output. """
-        fr, t = self.session.get_data_array(self.use_series, time_window,
-                        blocks=blocks, trial_sets=trial_sets, return_inds=True)
+        fr, t = self.get_firing_traces(time_window, blocks=blocks,
+                                        trial_sets=trial_sets, return_inds=True)
         if len(fr) == 0:
             # Found no matching data
             if return_inds:
@@ -99,9 +116,7 @@ class Neuron(object):
             else:
                 return fr
         with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
             fr = np.nanmean(fr, axis=0)
-
         if return_inds:
             return fr, t
         else:
@@ -138,10 +153,9 @@ class Neuron(object):
         theta, rho = self.compute_tuning_by_condition(time_window,
                                                         block=block)
         amp, phase, offset = fit_cos_fixed_freq(theta, rho)
-        self.cos_fit_fun = lambda x: (amp * (np.cos(x + phase)) + offset)
-        self.optimal_pursuit_vector = -1 * phase
-        self.block_optimal_fit = block
-        self.time_window_optimal_fit = time_window
+        self.optimal_cos_funs[block] = lambda x: (amp * (np.cos(x + phase)) + offset)
+        self.optimal_cos_vectors[block] = -1 * phase
+        self.optimal_cos_time_window[block] = time_window
 
     def set_use_series(self, series_name):
         self.use_series = series_name
