@@ -214,6 +214,125 @@ class Neuron(object):
         return spikes_ms
 
 
+class PurkinjeCell(Neuron):
+    """
+    """
+    def __init__(self, neuron_dict, name, cs_name=None, session=None):
+        Neuron.__init__(self, neuron_dict, name, cell_type="PC", session=session)
+        self.cs_indices = np.sort(neuron_dict['cs_spike_indices__'])
+        self.use_series_cs = cs_name if cs_name is not None else ("name" + "_CS")
+        self.optimal_cos_funs_cs = {}
+        self.optimal_cos_vectors_cs = {}
+        self.optimal_cos_time_window_cs = {}
+
+    def get_cs_by_trial(self, time_window, blocks=None, trial_sets=None,
+                         return_inds=False):
+        """ Gets complex spikes by trial for the input blocks/trials within
+        time_window. Done seprate because there is no point in a timeseries for
+        the infrequent CS events. """
+        t_inds = self.session._parse_blocks_trial_sets(blocks, trial_sets)
+        data_out = []
+        t_inds_out = []
+        for t in t_inds:
+            if not self.session._session_trial_data[t]['incl_align']:
+                # Trial is not aligned with others due to missing event
+                continue
+            trial_obj = self.session._trial_lists["neurons"][t]
+            trial_CS = trial_obj[self.session.meta_dict_name][self.name]['complex_spikes']
+            if trial_CS is None:
+                # Data are missing for this neuron on this trial
+                continue
+            win_cs = []
+            for t_cs in trial_CS:
+                if (t_cs >= time_window[0]) & (t_cs < time_window[1]):
+                    win_cs.append(t_cs)
+            data_out.append(win_cs)
+            t_inds_out.append(t)
+        if return_inds:
+            return data_out, np.array(t_inds, dtype=np.int64)
+        else:
+            return data_out
+
+    def get_cs_rate(self, time_window, blocks=None, trial_sets=None,
+                         return_inds=False):
+        """Converts the CSs found to rates within the time window. """
+        fr, t = self.get_cs_by_trial(time_window, blocks=blocks,
+                                     trial_sets=trial_sets, return_inds=True)
+        if len(fr) > 0:
+            # found at least 1 matching trial
+            fr_out = np.zeros(len(fr), dtype=np.float64)
+            for fr_ind in range(0, len(fr)):
+                fr_out[fr_ind] = 1000 * len(fr[fr_ind]) / (time_window[1] - time_window[0])
+        else:
+            fr_out = fr
+        if return_inds:
+            return fr_out, t
+        else:
+            return fr_out
+
+    def get_mean_cs_rate(self, time_window, blocks=None, trial_sets=None,
+                                return_inds=False):
+        warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
+        """ Calls self.get_cs_rate and takes the mean over trials of the output. """
+        fr, t = self.get_cs_rate(time_window, blocks=blocks,
+                                        trial_sets=trial_sets, return_inds=True)
+        if len(fr) == 0:
+            # Found no matching data
+            if return_inds:
+                return fr, t
+            else:
+                return fr
+        with warnings.catch_warnings():
+            fr = np.nanmean(fr, axis=0)
+        if return_inds:
+            return fr, t
+        else:
+            return fr
+
+    def compute_cs_tuning_by_condition(self, time_window, block='StandTunePre'):
+        """
+        """
+        fr_by_set = []
+        theta_by_set = []
+        for curr_set in self.session.four_dir_trial_sets:
+            curr_fr = self.get_mean_cs_rate(time_window, block, curr_set)
+            fr_by_set.append(curr_fr)
+            targ_p, targ_l = self.session.get_mean_xy_traces(
+                            "target position", time_window, blocks=block,
+                            trial_sets=curr_set, rescale=False)
+            # Just get single vector for each target dimension
+            if len(targ_p) > 1:
+                targ_p = targ_p[-1] - targ_p[0]
+                targ_l = targ_l[-1] - targ_l[0]
+            # Compute angle of target position delta in learning/position axis space
+            theta_by_set.append(np.arctan2(targ_l, targ_p))
+        fr_by_set = np.array(fr_by_set)
+        theta_by_set = np.array(theta_by_set)
+        theta_order = np.argsort(theta_by_set)
+        theta_by_set = theta_by_set[theta_order]
+        fr_by_set = fr_by_set[theta_order]
+        return theta_by_set, fr_by_set
+
+    def set_optimal_pursuit_vector(self, time_window, block='StandTunePre'):
+        """ Saves the pursuit vector with maximum rate according to a cosine
+        tuning curve fit to all conditions in 'block' for the average firing
+        rate within 'time_window'. """
+        # Get vectors as usual for SS
+        super().set_optimal_pursuit_vector(time_window, block=block)
+
+        # Modified functions for getting CS vectors
+        cs_time_window = [50, 300] # Want initiation slip window probably
+        theta, rho = self.compute_cs_tuning_by_condition(cs_time_window,
+                                                        block=block)
+        amp, phase, offset = fit_cos_fixed_freq(theta, rho)
+        self.optimal_cos_funs_cs[block] = lambda x: (amp * (np.cos(x + phase)) + offset)
+        self.optimal_cos_vectors_cs[block] = -1 * phase
+        self.optimal_cos_time_window_cs[block] = cs_time_window
+
+
+
+
+
 def zero_phase_kernel(x, x_center):
     """ Zero pads the 1D kernel x, so that it is aligned with the current element
         of x located at x_center.  This ensures that convolution with the kernel
