@@ -17,6 +17,7 @@ class Neuron(object):
         self.channel = neuron_dict['channel_id__']
         self.sampling_rate = neuron_dict['sampling_rate__']
         self.cell_type = cell_type
+        self.layer = None
         self.min_trials_per_condition = 5
         self.use_series = name
         self.optimal_cos_funs = {}
