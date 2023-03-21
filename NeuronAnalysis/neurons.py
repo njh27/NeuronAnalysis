@@ -4,11 +4,56 @@ from NeuronAnalysis.general import fit_cos_fixed_freq
 
 
 
+
+# Define our default cell type naming scheme for cerebellum recording
+def get_cb_name(neuron_dict, default_name="N"):
+    """ Defines a scheme for converting cell type labels from neuroviz sorting
+    into names of cell types for data storage/analysis for cerebellum
+    recordings. """
+    try:
+        if neuron_dict['type__'] == 'NeurophysToolbox.ComplexSpikes':
+            use_name = "CS"
+            print("Found a CS without any SS for unit.")
+        elif neuron_dict['type__'] == 'NeurophysToolbox.PurkinjeCell':
+            use_name = "PC"
+            if neuron_dict['cs_spike_indices__'].size == 0:
+                raise ValueError("Input unit is a confirmed PC but does not have a CS match in its Neuron object!")
+        else:
+            use_name = neuron_dict.get('label')
+        if use_name is None:
+            # Skip to below
+            raise KeyError()
+        elif use_name.lower() in ["unlabeled", "unknown"]:
+            raise KeyError()
+        else:
+            if use_name in ["putative_pc"]:
+                use_name = "putPC"
+            elif use_name in ["putative_cs", "CS"]:
+                use_name = "CS"
+            elif use_name in ["putative_basket", "MLI"]:
+                use_name = "MLI"
+            elif use_name in ["putative_mf", "MF"]:
+                use_name = "MF"
+            elif use_name in ["putative_golgi", "GC"]:
+                use_name = "GC"
+            elif use_name in ["putative_ubc", "UBC"]:
+                use_name = "UBC"
+            elif use_name in ["putative_stellate", "SC"]:
+                use_name = "SC"
+            else:
+                if use_name != "PC":
+                    raise ValueError("Unrecognized neuron label {0}.".format(use_name))
+    except KeyError:
+        # Neuron does not have a class field so use default
+        use_name = default_name
+    return use_name
+
+
 class Neuron(object):
     """ Class that defines a neuron...
     """
 
-    def __init__(self, neuron_dict, name, cell_type=None, session=None):
+    def __init__(self, neuron_dict, name, cell_type="unknown", session=None):
         """ Neuron dict is a dictionary of neuron information as contained in each
             list element output by neuroviz. Creates an object that can store
             cell type class, tuning properties, and valid trials for a neuron. """
@@ -16,7 +61,10 @@ class Neuron(object):
         self.spike_indices = np.sort(neuron_dict['spike_indices__'])
         self.channel = neuron_dict['channel_id__']
         self.sampling_rate = neuron_dict['sampling_rate__']
-        self.cell_type = cell_type
+        if cell_type.lower() == "cb_name":
+            self.cell_type = get_cb_name(neuron_dict)
+        else:
+            self.cell_type = cell_type
         self.layer = None
         self.min_trials_per_condition = 5
         self.use_series = name
@@ -30,15 +78,12 @@ class Neuron(object):
         if session is not None:
             self.join_session(session)
 
-    def check_stability(self):
-        win_size = 30000
-        duration = 3
-        tol_percent = 15
+    def check_stability(self, win_size=30000, duration=2, tol_percent=20):
         min_rate = 0.05
         # Smooth all data with sigma of 1 bin
         seg_bins, bin_rates, bin_t_wins = find_stable_ranges(self.get_spikes_ms(),
                                             win_size, duration, tol_percent,
-                                            min_rate, sigma_smooth=1)
+                                            min_rate, sigma_smooth=2)
         # No look for stable time windows smoothed with bigger sigma and more
         # tolerance for connecting over segments
         self.stable_time_wins_ms = get_stable_time_wins(seg_bins, bin_rates,
@@ -50,13 +95,20 @@ class Neuron(object):
             ind_win[1] = int(np.around(ind_win[1]))
             self.stable_time_wins_ind.append(ind_win)
 
-    def join_session(self, session):
-        self.session = session
-        self.compute_valid_trials()
+    def recompute_fits(self):
+        """ Calls all the fitting/tuning based functions for this unit for
+        convenience either as neurons are made or as valid trials etc. are
+        modified. """
+        # If we already did this for multiple blocks, redo them
         if len(self.optimal_cos_vectors) > 0:
             for block in self.optimal_cos_vectors.keys():
                 self.set_optimal_pursuit_vector(self.optimal_cos_time_window[block],
                                                 block)
+
+    def join_session(self, session):
+        self.session = session
+        self.compute_valid_trials()
+        self.recompute_fits()
 
     def compute_valid_trials(self):
         """ Computes the valid trials based on the stable time windows and adds
