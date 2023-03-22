@@ -1,2 +1,3 @@
 import NeuronAnalysis.general
 import NeuronAnalysis.neurons
+import NeuronAnalysis.fit_neuron_to_eye
