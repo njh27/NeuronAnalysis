@@ -201,7 +201,7 @@ def bin_data(data, bin_width, bin_threshold=0):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
         while n < out_shape[0]:
-            n_good = np.sum(~np.isnan(data[bin_start:bin_start+bin_width, :, :]), axis=0)
+            n_good = np.count_nonzero(~np.isnan(data[bin_start:bin_start+bin_width, :, :]), axis=0)
             binned_data[n, :, :] = np.nanmean(data[bin_start:bin_start+bin_width, :, :], axis=0)
             binned_data[n, n_good < bin_threshold] = np.nan
             n += 1

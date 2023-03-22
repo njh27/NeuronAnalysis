@@ -6,6 +6,47 @@ from SessionAnalysis.utils import eye_data_series
 
 
 
+def bin_data(data, bin_width, bin_threshold=0):
+    """ Gets the nan average of each bin in data for bins in which the number
+        of non nan data points is greater than bin_threshold.  Bins less than
+        bin threshold non nan data points are returned as nan. Data are binned
+        from the first entries, so if the number of bins implied by binwidth
+        exceeds data.shape[0] the last bin will be cut short. Input data is
+        assumed to have the shape as output by get_eye_data_traces,
+        trial x time x variable and are binned along the time axis. """
+    if bin_width <= 1:
+        # Nothing to bin just output
+        return data
+
+    if data.ndim == 1:
+        out_shape = (1, data.shape[0] // bin_width, 1)
+        data = data.reshape(1, data.shape[0], 1)
+    elif data.ndim == 2:
+        out_shape = (data.shape[0], data.shape[1] // bin_width, 1)
+        data = data.reshape(data.shape[0], data.shape[1], 1)
+    elif data.ndim == 3:
+        out_shape = (data.shape[0], data.shape[1] // bin_width, data.shape[2])
+    else:
+        raise ValueError("Unrecognized data input shape. Input data must be in the form as output by data functions.")
+
+    binned_data = np.full(out_shape, np.nan)
+    n = 0
+    bin_start = 0
+    bin_stop = bin_start + bin_width
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        while n < out_shape[1]:
+            n_good = np.count_nonzero(~np.isnan(data[:, bin_start:bin_stop, :]), axis=1)
+            binned_data[:, n, :] = np.nanmean(data[:, bin_start:bin_stop, :], axis=1)
+            binned_data[:, n, :][n_good < bin_threshold] = np.nan
+            n += 1
+            bin_start += bin_width
+            bin_stop = bin_start + bin_width
+
+    binned_data = np.squeeze(binned_data)
+    return binned_data
+
+
 class FitNeuronToEye(object):
     """ Class that fits neuron firing rates to eye data and is capable of
         calculating and outputting some basic info and predictions. Time window
@@ -25,12 +66,12 @@ class FitNeuronToEye(object):
         # Want to make sure we only pull eye data for trials where this neuron
         # was valid by adding its valid trial set to trial_sets
         if trial_sets is None:
-            trial_sets = Neuron.session.trial_sets[Neuron.name]
+            trial_sets = Neuron.name
         elif isinstance(trial_sets, list):
-            trial_sets.append(Neuron.session.trial_sets[Neuron.name])
+            trial_sets.append(Neuron.name)
         else:
             trial_sets = [trial_sets]
-            trial_sets.append(Neuron.session.trial_sets[Neuron.name])
+            trial_sets.append(Neuron.name)
         self.trial_sets = trial_sets
         self.lag_range_eye = lag_range_eye
         self.lag_range_slip = lag_range_slip
@@ -69,8 +110,10 @@ class FitNeuronToEye(object):
         eye_data = np.squeeze(eye_data)
         return eye_data
 
-    def fit_lin_eye_kinematics(self):
-        """
+    def fit_lin_eye_kinematics(self, binwidth=10, bin_threshold=5):
+        """ Fits the input neuron eye data to position, velocity, acceleration
+        linear model (in 2 dimensions -- one pursuit axis and one learing axis)
+        for the blocks and trial_sets input.
         """
         lags = np.arange(self.lag_range_eye[0], self.lag_range_eye[1] + 1)
         R2 = []
@@ -80,14 +123,15 @@ class FitNeuronToEye(object):
             eye_data = self.get_eye_data_traces(lag)
             acc_data = eye_data_series.acc_from_vel(eye_data[:, :, 2:4],
                             filter_win=self.neuron.session.saccade_ind_cushion)
-            ind_vars = np.concatenate((eye_data, acc_data), axis=2)
+            eye_data = np.concatenate((eye_data, acc_data), axis=2)
 
+            print("DO I need to do anything for nan'ing FR here at some lag?")
 
+            # Use bin smoothing on data before fitting
+            eye_data = bin_data(eye_data, bin_width, bin_threshold)
+            temp_FR = bin_data(firing_rate, bin_width, bin_threshold)
 
-
-
-            temp_FR = bin_data(temp_FR, bin_width, bin_threshold=0)
-            eye_data = bin_data(eye_data, bin_width, bin_threshold=0)
+            return eye_data, temp_FR
             eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='F')
             temp_FR = temp_FR.flatten(order='F')
             keep_index = np.all(~np.isnan(np.column_stack((eye_data, temp_FR))), axis=1)
