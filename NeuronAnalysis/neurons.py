@@ -310,8 +310,10 @@ class PurkinjeCell(Neuron):
             if trial_CS is None:
                 # Data are missing for this neuron on this trial
                 continue
+            # Align trial CS on current alignment event NOT IN PLACE!!!
+            aligned_CS = trial_CS - self.session._session_trial_data[t]['aligned_time']
             win_cs = []
-            for t_cs in trial_CS:
+            for t_cs in aligned_CS:
                 if (t_cs >= time_window[0]) & (t_cs < time_window[1]):
                     win_cs.append(t_cs)
             data_out.append(win_cs)
@@ -383,7 +385,8 @@ class PurkinjeCell(Neuron):
         fr_by_set = fr_by_set[theta_order]
         return theta_by_set, fr_by_set
 
-    def set_optimal_pursuit_vector(self, time_window, block='StandTunePre'):
+    def set_optimal_pursuit_vector(self, time_window, block='StandTunePre',
+                                    cs_time_window=[35, 200]):
         """ Saves the pursuit vector with maximum rate according to a cosine
         tuning curve fit to all conditions in 'block' for the average firing
         rate within 'time_window'. """
@@ -391,7 +394,6 @@ class PurkinjeCell(Neuron):
         super().set_optimal_pursuit_vector(time_window, block=block)
 
         # Modified functions for getting CS vectors
-        cs_time_window = [35, 200] # Want initiation slip window probably
         theta, rho = self.compute_cs_tuning_by_condition(cs_time_window,
                                                         block=block)
         amp, phase, offset = fit_cos_fixed_freq(theta, rho)
