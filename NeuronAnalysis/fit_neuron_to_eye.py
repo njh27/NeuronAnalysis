@@ -13,10 +13,13 @@ def bin_data(data, bin_width, bin_threshold=0):
         from the first entries, so if the number of bins implied by binwidth
         exceeds data.shape[0] the last bin will be cut short. Input data is
         assumed to have the shape as output by get_eye_data_traces,
-        trial x time x variable and are binned along the time axis. """
+        trial x time x variable and are binned along the time axis.
+        bin_threshold must be <= bin_width. """
     if bin_width <= 1:
         # Nothing to bin just output
         return data
+    if bin_threshold > bin_data:
+        raise ValueError("bin_threshold cannot exceed the bin_width")
 
     if data.ndim == 1:
         out_shape = (1, data.shape[0] // bin_width, 1)
@@ -53,7 +56,7 @@ class FitNeuronToEye(object):
         indicates the FIRING RATE time window, other data will be lagged relative
         to the fixed firing rate window. """
 
-    def __init__(self, Neuron, time_window=[0, 400], blocks=None, trial_sets=None,
+    def __init__(self, Neuron, time_window=[0, 800], blocks=None, trial_sets=None,
                     lag_range_eye=[-25, 25], lag_range_slip=[60, 120],
                     use_series=None, slip_target_num=1):
         self.neuron = Neuron
@@ -76,11 +79,10 @@ class FitNeuronToEye(object):
         self.lag_range_eye = lag_range_eye
         self.lag_range_slip = lag_range_slip
         self.slip_target_num = slip_target_num
-        self.fit_result = {}
-        self.fit_result['model_type'] = None
-        self.FR = None
-        self.eye = None
-        self.slip = None
+        self.fit_results = {}
+        # self.FR = None
+        # self.eye = None
+        # self.slip = None
 
     def get_firing_traces(self):
         """ Calls the neuron's get firing rate functions using the input blocks
@@ -110,7 +112,8 @@ class FitNeuronToEye(object):
         eye_data = np.squeeze(eye_data)
         return eye_data
 
-    def fit_lin_eye_kinematics(self, binwidth=10, bin_threshold=5):
+    def fit_lin_eye_kinematics(self, bin_width=10, bin_threshold=1,
+                                fit_constant=True):
         """ Fits the input neuron eye data to position, velocity, acceleration
         linear model (in 2 dimensions -- one pursuit axis and one learing axis)
         for the blocks and trial_sets input.
@@ -124,32 +127,20 @@ class FitNeuronToEye(object):
             acc_data = eye_data_series.acc_from_vel(eye_data[:, :, 2:4],
                             filter_win=self.neuron.session.saccade_ind_cushion)
             eye_data = np.concatenate((eye_data, acc_data), axis=2)
-
-            print("DO I need to do anything for nan'ing FR here at some lag?")
-
             # Use bin smoothing on data before fitting
             eye_data = bin_data(eye_data, bin_width, bin_threshold)
             temp_FR = bin_data(firing_rate, bin_width, bin_threshold)
-
-            return eye_data, temp_FR
-            eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='F')
-            temp_FR = temp_FR.flatten(order='F')
-            keep_index = np.all(~np.isnan(np.column_stack((eye_data, temp_FR))), axis=1)
-            eye_data = eye_data[keep_index, :]
-            temp_FR = temp_FR[keep_index]
-
-            if constant:
-                piece_eye = np.zeros((eye_data.shape[0], 2 * eye_data.shape[1] + 1))
-                piece_eye[:, -1] = 1
-            else:
-                piece_eye = np.zeros((eye_data.shape[0], 2 * eye_data.shape[1]))
-            for column in range(0, eye_data.shape[1]):
-                plus_index = eye_data[:, column] >= 0
-                piece_eye[plus_index, column] = eye_data[plus_index, column]
-                piece_eye[~plus_index, column + eye_data.shape[1]] = eye_data[~plus_index, column]
-            coefficients.append(np.linalg.lstsq(piece_eye, temp_FR, rcond=None)[0])
+            eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
+            temp_FR = temp_FR.reshape(temp_FR.shape[0]*temp_FR.shape[1], order='C')
+            select_good = ~np.any(np.isnan(eye_data), axis=1)
+            eye_data = eye_data[select_good, :]
+            temp_FR = temp_FR[select_good]
+            if fit_constant:
+                # Add column of 1's for fitting constants
+                eye_data = np.hstack((eye_data, np.ones((eye_data.shape[0], 1))))
+            coefficients.append(np.linalg.lstsq(eye_data, temp_FR, rcond=None)[0])
             y_mean = np.mean(temp_FR)
-            y_predicted = np.matmul(piece_eye, coefficients[-1])
+            y_predicted = np.matmul(eye_data, coefficients[-1])
             sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
             sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
             R2.append(1 - sum_squares_error/(sum_squares_total))
@@ -157,16 +148,28 @@ class FitNeuronToEye(object):
         # Choose peak R2 value with minimum absolute value lag
         max_ind = np.where(R2 == np.amax(R2))[0]
         max_ind = max_ind[np.argmin(np.abs(lags[max_ind]))]
+        self.fit_results['lin_eye_kinematics'] = {
+                                'eye_lag': lags[max_ind],
+                                'slip_lag': None,
+                                'coeffs': coefficients[max_ind],
+                                'R2': R2[max_ind],
+                                'all_R2': R2,
+                                'use_constant': fit_constant,
+                                'predict_fun': self.predict_lin_eye_kinematics}
+        # self.set_FR_fit_data(bin_width)
+        # self.set_eye_fit_data(self.fit_results['eye_lag'], bin_width)
 
-        self.fit_result['eye_lag'] = lags[max_ind]
-        self.fit_result['slip_lag'] = None
-        self.fit_result['coeffs'] = coefficients[max_ind]
-        self.fit_result['R2'] = R2[max_ind]
-        self.fit_result['all_R2'] = R2
-        self.fit_result['model_type'] = 'piece_linear'
-        self.fit_result['use_constant'] = constant
-        self.set_FR_fit_data(bin_width)
-        self.set_eye_fit_data(self.fit_result['eye_lag'], bin_width)
+    def predict_lin_eye_kinematics(self, X):
+        """
+        """
+        if self.fit_results['lin_eye_kinematics']['use_constant']:
+            if ~np.all(X[:, -1]):
+                # Add column of 1's for constant
+                X = np.hstack((X, np.ones((X.shape[0], 1))))
+        if X.shape[1] != self.fit_results['lin_eye_kinematics']['coeffs'].shape[0]:
+            raise ValueError("Linear eye kinematics is fit with 6 non-constant coefficients but input data dimension is {0}.".format(X.shape[1]))
+        y_hat = np.matmul(X, self.fit_results['lin_eye_kinematics']['coeffs'])
+        return y_hat
 
     def do_eye_lags(self, lag_range_eye=None):
         if lag_range_eye is not None:
@@ -205,14 +208,14 @@ class FitNeuronToEye(object):
     def set_slip_fit_data(self, lag=0, bin_width=1):
         self.slip = eye_data_window(self.data, self.time_window + lag)
         self.slip = np.dstack((self.slip, slip_data_window(self.data, self.time_window + lag)))
-        self.slip = nan_sac_data_window(self.data, self.time_window + self.fit_result['eye_lag'], self.slip)
+        self.slip = nan_sac_data_window(self.data, self.time_window + self.fit_results['eye_lag'], self.slip)
         self.slip = bin_data(self.slip, bin_width, bin_threshold=0)
         self.slip = self.slip.reshape(self.slip.shape[0]*self.slip.shape[1], self.slip.shape[2], order='F')
         self.slip = self.slip[np.all(~np.isnan(self.slip), axis=1), :]
 
     def set_FR_fit_data(self, bin_width=1):
         self.FR = firing_rate_window(self.data, self.time_window, self.neuron, self.FR_name)
-        self.FR = nan_sac_data_window(self.data, self.time_window + self.fit_result['eye_lag'], self.FR)
+        self.FR = nan_sac_data_window(self.data, self.time_window + self.fit_results['eye_lag'], self.FR)
         self.FR = bin_data(self.FR, bin_width, bin_threshold=0)
         self.FR = self.FR.reshape(self.FR.shape[0]*self.FR.shape[1], order='F')
         self.FR = self.FR[~np.isnan(self.FR)]
@@ -264,15 +267,15 @@ class FitNeuronToEye(object):
         max_ind = np.where(R2 == np.amax(R2))[0]
         max_ind = max_ind[np.argmin(np.abs(lags[max_ind]))]
 
-        self.fit_result['eye_lag'] = lags[max_ind]
-        self.fit_result['slip_lag'] = None
-        self.fit_result['coeffs'] = coefficients[max_ind]
-        self.fit_result['R2'] = R2[max_ind]
-        self.fit_result['all_R2'] = R2
-        self.fit_result['model_type'] = 'piece_linear'
-        self.fit_result['use_constant'] = constant
+        self.fit_results['eye_lag'] = lags[max_ind]
+        self.fit_results['slip_lag'] = None
+        self.fit_results['coeffs'] = coefficients[max_ind]
+        self.fit_results['R2'] = R2[max_ind]
+        self.fit_results['all_R2'] = R2
+        self.fit_results['model_type'] = 'piece_linear'
+        self.fit_results['use_constant'] = constant
         self.set_FR_fit_data(bin_width)
-        self.set_eye_fit_data(self.fit_result['eye_lag'], bin_width)
+        self.set_eye_fit_data(self.fit_results['eye_lag'], bin_width)
 
     def fit_slip_lag(self, trial_names=None, lag_range_slip=None):
         # Split data by trial name
@@ -284,10 +287,10 @@ class FitNeuronToEye(object):
             if self.data[trial]['trial_name'] not in trials_by_type:
                 trials_by_type[self.data[trial]['trial_name']] = []
             trials_by_type[self.data[trial]['trial_name']].append(self.data[trial])
-        if 'eye_lag' not in self.fit_result:
+        if 'eye_lag' not in self.fit_results:
             eye_lag = 0
         else:
-            eye_lag = self.fit_result['eye_lag']
+            eye_lag = self.fit_results['eye_lag']
 
         slip_step = self.do_slip_lags(lag_range_slip)
         slip_lags = np.arange(self.lag_range_slip[0], self.lag_range_slip[1] + 1, slip_step)
@@ -335,10 +338,10 @@ class FitNeuronToEye(object):
         smooth_R2 = np.convolve(R2, gauss_filter, mode='same')
         max_ind = np.where(smooth_R2 == np.amax(smooth_R2))[0]
         max_ind = max_ind[np.argmin(np.abs(slip_lags[max_ind]))]
-        self.fit_result['slip_lag'] = slip_lags[max_ind]
-        self.fit_result['model_type'] = 'slip_lag'
-        self.fit_result['R2'] = R2
-        self.fit_result['smooth_R2'] = smooth_R2
+        self.fit_results['slip_lag'] = slip_lags[max_ind]
+        self.fit_results['model_type'] = 'slip_lag'
+        self.fit_results['R2'] = R2
+        self.fit_results['smooth_R2'] = smooth_R2
 
     def fit_eye_lag(self, slip_lag=None, trial_names=None, lag_range_eye=None):
 
@@ -408,10 +411,10 @@ class FitNeuronToEye(object):
         smooth_R2 = np.convolve(R2, gauss_filter, mode='same')
         max_ind = np.where(smooth_R2 == np.amax(smooth_R2))[0]
         max_ind = max_ind[np.argmin(np.abs(eye_lags[max_ind]))]
-        self.fit_result['eye_lag'] = eye_lags[max_ind]
-        self.fit_result['model_type'] = 'eye_lag'
-        self.fit_result['R2'] = R2
-        self.fit_result['smooth_R2'] = smooth_R2
+        self.fit_results['eye_lag'] = eye_lags[max_ind]
+        self.fit_results['model_type'] = 'eye_lag'
+        self.fit_results['R2'] = R2
+        self.fit_results['smooth_R2'] = smooth_R2
 
     def fit_piece_linear_interaction_fixlag(self, eye_lag, slip_lag, bin_width=1, constant=False):
         # The pieces are for x < 0 and x>= 0 for each column of eye data and the
@@ -463,18 +466,18 @@ class FitNeuronToEye(object):
         sum_squares_total = ((firing_rate - y_mean) ** 2).sum()
         R2 = 1 - sum_squares_error/(sum_squares_total)
 
-        self.fit_result['eye_lag'] = eye_lag
-        self.fit_result['slip_lag'] = slip_lag
-        self.fit_result['coeffs'] = coefficients
-        self.fit_result['R2'] = R2
-        self.fit_result['model_type'] = 'piece_linear'
-        self.fit_result['use_constant'] = constant
+        self.fit_results['eye_lag'] = eye_lag
+        self.fit_results['slip_lag'] = slip_lag
+        self.fit_results['coeffs'] = coefficients
+        self.fit_results['R2'] = R2
+        self.fit_results['model_type'] = 'piece_linear'
+        self.fit_results['use_constant'] = constant
         self.set_FR_fit_data(bin_width)
-        self.set_slip_fit_data(self.fit_result['slip_lag'], bin_width)
+        self.set_slip_fit_data(self.fit_results['slip_lag'], bin_width)
 
     def predict_piece_linear(self, x_predict):
 
-        if self.fit_result['model_type'] != "piece_linear":
+        if self.fit_results['model_type'] != "piece_linear":
             raise RuntimeError("piecewise linear model must be the current model fit to use this prediction")
 
         if self.eye is not None:
@@ -489,7 +492,7 @@ class FitNeuronToEye(object):
             if x_predict.shape[1] != self.slip.shape[1]:
                 raise ValueError("Input points for computing predictions must have the same dimension as slip fitted data")
 
-        if self.fit_result['use_constant']:
+        if self.fit_results['use_constant']:
             piece_eye = np.zeros((x_predict.shape[0], 2 * x_predict.shape[1] + 1))
             piece_eye[:, -1] = 1
         else:
@@ -499,14 +502,14 @@ class FitNeuronToEye(object):
             piece_eye[plus_index, column] = x_predict[plus_index, column]
             piece_eye[~plus_index, column + x_predict.shape[1]] = x_predict[~plus_index, column]
 
-        y_hat = np.matmul(piece_eye, self.fit_result['coeffs'])
+        y_hat = np.matmul(piece_eye, self.fit_results['coeffs'])
 
         return y_hat
 
 
     def predict_piece_linear_interaction(self, x_predict):
 
-        if self.fit_result['model_type'] != "piece_linear":
+        if self.fit_results['model_type'] != "piece_linear":
             raise RuntimeError("piecewise linear model must be the current model fit to use this prediction")
 
         if self.eye is not None:
@@ -521,7 +524,7 @@ class FitNeuronToEye(object):
             if x_predict.shape[1] != self.slip.shape[1]:
                 raise ValueError("Input points for computing predictions must have the same dimension as slip fitted data")
 
-        if self.fit_result['use_constant']:
+        if self.fit_results['use_constant']:
             piece_slip = np.zeros((x_predict.shape[0], 2 * x_predict.shape[1] + 61))
             piece_slip[:, -1] = 1
         else:
@@ -545,6 +548,6 @@ class FitNeuronToEye(object):
                 n_interaction += 1
                 piece_slip[:, n_interaction] = piece_slip[:, column1] * piece_slip[:, column2]
 
-        y_hat = np.matmul(piece_slip, self.fit_result['coeffs'])
+        y_hat = np.matmul(piece_slip, self.fit_results['coeffs'])
 
         return y_hat
