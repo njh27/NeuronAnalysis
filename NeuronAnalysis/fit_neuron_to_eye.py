@@ -10,16 +10,15 @@ def bin_data(data, bin_width, bin_threshold=0):
     """ Gets the nan average of each bin in data for bins in which the number
         of non nan data points is greater than bin_threshold.  Bins less than
         bin threshold non nan data points are returned as nan. Data are binned
-        from the first entries, so if the number of bins implied by binwidth
-        exceeds data.shape[0] the last bin will be cut short. Input data is
-        assumed to have the shape as output by get_eye_data_traces,
+        from the first entries over time (axis=1), so if the number of bins
+        implied by binwidth exceeds data.shape[1] the last bin will be cut short.
+        Input data is assumed to have the shape as output by get_eye_data_traces,
         trial x time x variable and are binned along the time axis.
         bin_threshold must be <= bin_width. """
-    if bin_width <= 1:
-        # Nothing to bin just output
-        return data
-    if bin_threshold > bin_data:
+    if bin_threshold > bin_width:
         raise ValueError("bin_threshold cannot exceed the bin_width")
+    if ( (bin_width < 1) or (not isinstance(bin_width, int)) ):
+        raise ValueError("bin_width must be positive integer value")
 
     if data.ndim == 1:
         out_shape = (1, data.shape[0] // bin_width, 1)
@@ -31,6 +30,9 @@ def bin_data(data, bin_width, bin_threshold=0):
         out_shape = (data.shape[0], data.shape[1] // bin_width, data.shape[2])
     else:
         raise ValueError("Unrecognized data input shape. Input data must be in the form as output by data functions.")
+    if bin_width == 1:
+        # Nothing to bin over time so just return possibly reshaped data
+        return data
 
     binned_data = np.full(out_shape, np.nan)
     n = 0
@@ -46,7 +48,6 @@ def bin_data(data, bin_width, bin_threshold=0):
             bin_start += bin_width
             bin_stop = bin_start + bin_width
 
-    binned_data = np.squeeze(binned_data)
     return binned_data
 
 
@@ -108,7 +109,6 @@ class FitNeuronToEye(object):
                                 lag_time_window, self.blocks, self.trial_sets,
                                 return_inds=False)
         eye_data = np.stack((pos_p, pos_l, vel_p, vel_l), axis=2)
-        eye_data = np.squeeze(eye_data)
         return eye_data
 
     def get_slip_data_traces(self, lag=0):
@@ -124,7 +124,6 @@ class FitNeuronToEye(object):
                                 lag_time_window, self.blocks, self.trial_sets,
                                 return_inds=True)
         slip_data = np.stack((slip_p, slip_l), axis=2)
-        slip_data = np.squeeze(slip_data)
         return slip_data
 
     def fit_lin_eye_kinematics(self, bin_width=10, bin_threshold=1,
@@ -225,7 +224,7 @@ class FitNeuronToEye(object):
                 eye_data = np.concatenate((eye_data, slip_data, slip_data), axis=2)
                 if fit_avg_data:
                     eye_data = np.nanmean(eye_data, axis=0, keepdims=True)
-                # Convert slip term to slip x velocity
+                # Convert slip terms to position and velocity interactions
                 eye_data[:, :, 4:6] *= eye_data[:, :, 0:2]
                 eye_data[:, :, 6:8] *= eye_data[:, :, 2:4]
                 # Use bin smoothing on data before fitting
@@ -269,8 +268,93 @@ class FitNeuronToEye(object):
                 # Add column of 1's for constant
                 X = np.hstack((X, np.ones((X.shape[0], 1))))
         if X.shape[1] != self.fit_results['eye_slip_interaction']['coeffs'].shape[0]:
-            raise ValueError("Eye slip interaction is fit with 6 non-constant coefficients but input data dimension is {0}.".format(X.shape[1]))
+            raise ValueError("Eye slip interaction is fit with 8 non-constant coefficients but input data dimension is {0}.".format(X.shape[1]))
         y_hat = np.matmul(X, self.fit_results['eye_slip_interaction']['coeffs'])
+        return y_hat
+
+    def fit_acc_kinem_interaction(self, bin_width=10, bin_threshold=1,
+                                    fit_constant=True, fit_avg_data=False):
+        """ Fits the input neuron eye data to position, velocity, and acceration
+        as in the "standard" kinematic model but adds a separate lag for
+        acceleration and acc x position and acc x velocity interaction terms
+        to make more fair comparison to slip interaction model.
+        Output "coeffs" are in order: position pursuit, position learning
+                                      velocity pursuit, velocity learning
+                                      slip x velocity pursuit, slip x velocity learning
+                                      constant offset
+        """
+        lags_eye = np.arange(self.lag_range_eye[0], self.lag_range_eye[1] + 1)
+        lags_acc = np.arange(self.lag_range_eye[0], self.lag_range_eye[1] + 1)
+        # lags_slip = np.arange(self.lag_range_slip[0], self.lag_range_slip[1] + 1)
+
+        R2 = []
+        lags_used = np.zeros((2, len(lags_eye) * len(lags_acc)), dtype=np.int64)
+        n_fit = 0
+        coefficients = []
+        firing_rate = self.get_firing_traces()
+        if not fit_constant:
+            firing_rate = firing_rate - np.mean(np.mean(firing_rate[:, 0:100]))
+        if fit_avg_data:
+            firing_rate = np.nanmean(firing_rate, axis=0, keepdims=True)
+        binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
+        for elag in lags_eye:
+            for alag in lags_acc:
+                eye_data = self.get_eye_data_traces(elag)
+                # separate call at acc lag
+                alag_eye_data = self.get_eye_data_traces(alag)
+                acc_data = eye_data_series.acc_from_vel(alag_eye_data[:, :, 2:4],
+                                filter_win=self.neuron.session.saccade_ind_cushion)
+                # Cat acc_data 3 times, 1 for acc and two for each interaction
+                eye_data = np.concatenate((eye_data, acc_data, acc_data,
+                                            acc_data), axis=2)
+                if fit_avg_data:
+                    eye_data = np.nanmean(eye_data, axis=0, keepdims=True)
+                # Convert extra acc terms to position and velocity interactions
+                eye_data[:, :, 6:8] *= eye_data[:, :, 0:2]
+                eye_data[:, :, 8:10] *= eye_data[:, :, 2:4]
+                # Use bin smoothing on data before fitting
+                eye_data = bin_data(eye_data, bin_width, bin_threshold)
+                eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
+                temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
+                select_good = ~np.any(np.isnan(eye_data), axis=1)
+                eye_data = eye_data[select_good, :]
+                temp_FR = temp_FR[select_good]
+                if fit_constant:
+                    # Add column of 1's for fitting constants
+                    eye_data = np.hstack((eye_data, np.ones((eye_data.shape[0], 1))))
+                coefficients.append(np.linalg.lstsq(eye_data, temp_FR, rcond=None)[0])
+                y_mean = np.mean(temp_FR)
+                y_predicted = np.matmul(eye_data, coefficients[-1])
+                sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
+                sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+                R2.append(1 - sum_squares_error/(sum_squares_total))
+                lags_used[0, n_fit] = elag
+                lags_used[1, n_fit] = alag
+                n_fit += 1
+
+        # Choose peak R2 value with minimum absolute value lag
+        max_ind = np.where(R2 == np.amax(R2))[0][0]
+        self.fit_results['acc_kinem_interaction'] = {
+                                'eye_lag': lags_used[0, max_ind],
+                                'acc_lag': lags_used[1, max_ind],
+                                'coeffs': coefficients[max_ind],
+                                'R2': R2[max_ind],
+                                'all_R2': R2,
+                                'use_constant': fit_constant,
+                                'predict_fun': self.predict_acc_kinem_interaction}
+        # self.set_FR_fit_data(bin_width)
+        # self.set_eye_fit_data(self.fit_results['eye_lag'], bin_width)
+
+    def predict_acc_kinem_interaction(self, X):
+        """
+        """
+        if self.fit_results['acc_kinem_interaction']['use_constant']:
+            if ~np.all(X[:, -1]):
+                # Add column of 1's for constant
+                X = np.hstack((X, np.ones((X.shape[0], 1))))
+        if X.shape[1] != self.fit_results['acc_kinem_interaction']['coeffs'].shape[0]:
+            raise ValueError("Kinematic acceleration interaction is fit with 10 non-constant coefficients but input data dimension is {0}.".format(X.shape[1]))
+        y_hat = np.matmul(X, self.fit_results['acc_kinem_interaction']['coeffs'])
         return y_hat
 
 
