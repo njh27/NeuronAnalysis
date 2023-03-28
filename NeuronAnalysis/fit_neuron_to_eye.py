@@ -212,6 +212,7 @@ class FitNeuronToEye(object):
         n_fit = 0
         coefficients = []
         firing_rate = self.get_firing_traces()
+        print("the non fit constant rate should be per trial to avoid biases!?")
         if not fit_constant:
             firing_rate = firing_rate - np.mean(np.mean(firing_rate[:, 0:100]))
         if fit_avg_data:
