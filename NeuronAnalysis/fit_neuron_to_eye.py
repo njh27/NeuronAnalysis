@@ -236,6 +236,7 @@ class FitNeuronToEye(object):
         # Choose peak R2 value with minimum absolute value lag
         max_ind = np.where(R2 == np.amax(R2))[0]
         max_ind = max_ind[np.argmin(np.abs(lags[max_ind]))]
+        dc_offset = coefficients[max_ind][-1] if fit_constant else 0.
         self.fit_results['lin_eye_kinematics'] = {
                                 'eye_lag': lags[max_ind],
                                 'slip_lag': None,
@@ -243,6 +244,7 @@ class FitNeuronToEye(object):
                                 'R2': R2[max_ind],
                                 'all_R2': R2,
                                 'use_constant': fit_constant,
+                                'dc_offset': dc_offset,
                                 'predict_fun': self.predict_lin_eye_kinematics}
 
     def get_lin_eye_kin_predict_data(self, blocks, trial_sets, verbose=False):
@@ -337,6 +339,7 @@ class FitNeuronToEye(object):
 
         # Choose peak R2 value with minimum absolute value lag
         max_ind = np.where(R2 == np.amax(R2))[0][0]
+        dc_offset = coefficients[max_ind][-1] if fit_constant else 0.
         self.fit_results['eye_slip_interaction'] = {
                                 'eye_lag': lags_used[0, max_ind],
                                 'slip_lag': lags_used[1, max_ind],
@@ -344,6 +347,7 @@ class FitNeuronToEye(object):
                                 'R2': R2[max_ind],
                                 'all_R2': R2,
                                 'use_constant': fit_constant,
+                                'dc_offset': dc_offset,
                                 'predict_fun': self.predict_eye_slip_interaction}
 
     def get_eye_slip_inter_predict_data(self, blocks, trial_sets, verbose=False):
@@ -456,6 +460,7 @@ class FitNeuronToEye(object):
 
         # Choose peak R2 value with minimum absolute value lag
         max_ind = np.where(R2 == np.amax(R2))[0][0]
+        dc_offset = coefficients[max_ind][-1] if fit_constant else 0.
         self.fit_results['acc_kinem_interaction'] = {
                                 'eye_lag': lags_used[0, max_ind],
                                 'acc_lag': lags_used[1, max_ind],
@@ -463,6 +468,7 @@ class FitNeuronToEye(object):
                                 'R2': R2[max_ind],
                                 'all_R2': R2,
                                 'use_constant': fit_constant,
+                                'dc_offset': dc_offset,
                                 'predict_fun': self.predict_acc_kinem_interaction}
 
     def get_acc_kinem_inter_predict_data(self, blocks, trial_sets, verbose=False):
