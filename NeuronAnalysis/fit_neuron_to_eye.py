@@ -787,8 +787,11 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
         all_eye_data = np.concatenate((all_eye_data, purs_eye_data), axis=0)
         all_fr_data = np.concatenate((all_fr_data, purs_fr_data), axis=0)
 
+        np.nanmax(all_eye_data, axis=0)
+        np.nanmin(all_eye_data, axis=0)
+
         knee_pos_pursuit =
-        knee_pos_learning = 
+        knee_pos_learning =
 
         R2 = []
         coefficients = []
