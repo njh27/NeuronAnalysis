@@ -921,7 +921,7 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
         eye_data = eye_data[~nan_select]
         X = np.zeros((eye_data.shape[0], 5))
         X[:, 4] = 1.
-        x[:, 0:4] = self.get_4D_planes_from_2D(eye_data)
+        X[:, 0:4] = self.get_4D_planes_from_2D(eye_data)
         return X
 
     def predict_4D_planes(self, X):
