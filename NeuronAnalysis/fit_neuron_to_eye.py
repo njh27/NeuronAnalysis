@@ -850,7 +850,7 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
         # Reset fit measures
         R2 = []
         coefficients = []
-        lags_used = np.zeros((2, len(steps_p) * len(steps_l)))
+        steps_used = np.zeros((2, len(steps_p) * len(steps_l)))
         n_fit = 0
         # Loop over all potential knees in pursuit and learn axes
         for p_knee in steps_p:
