@@ -796,7 +796,7 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
         all_fr_data = all_fr_data[~nan_select]
 
         knee_stop = np.ceil(np.amax(np.amax(all_eye_data, axis=0)))
-        knee_start = np.floor(np.amax(np.amax(all_eye_data, axis=0)))
+        knee_start = np.floor(np.amin(np.amin(all_eye_data, axis=0)))
         if knee_steps[0] > ((knee_stop - knee_start)/2):
             raise ValueError("First knee step {0} is too large relative to the range of all eye positions {1}.".format(knee_steps[0], (knee_stop - knee_start)))
         half_knee_step = knee_steps[0] / 2
