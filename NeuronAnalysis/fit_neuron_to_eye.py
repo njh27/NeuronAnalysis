@@ -886,7 +886,7 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
                                 'coeffs': coefficients[max_ind],
                                 'R2': R2[max_ind],
                                 'all_R2': R2,
-                                'predict_fun': self.predict_4Dplanes}
+                                'predict_fun': self.predict_4D_planes}
 
     def get_4D_planes_predict_data(self, blocks, trial_sets, verbose=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
