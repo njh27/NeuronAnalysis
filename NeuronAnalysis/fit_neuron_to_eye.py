@@ -888,6 +888,22 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
                                 'all_R2': R2,
                                 'predict_fun': self.predict_4D_planes}
 
+    def get_4D_planes_from_2D(self, eye_data):
+        """ Converts input 2D eye data where the first column is the pursuit
+        axis and second column is the learning axis into a 4D column of data
+        where the first 2 columns are positive/negative pursuit relative to
+        the fitted pursuit axis knee and the second 2 columns are
+        positive/negative learning axis values relative to the learning knee.
+        """
+        X = np.zeros((eye_data.shape[0], 4))
+        X_select = eye_data[:, 0] >= self.fit_results['4D_planes']['pursuit_knee']
+        X[X_select, 0] = eye_data[X_select, 0]
+        X[~X_select, 1] = eye_data[~X_select, 0]
+        X_select = eye_data[:, 1] >= self.fit_results['4D_planes']['learning_knee']
+        X[X_select, 2] = eye_data[X_select, 1]
+        X[~X_select, 3] = eye_data[~X_select, 1]
+        return X
+
     def get_4D_planes_predict_data(self, verbose=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
         way that it can be used to predict firing rate according to the 4D
@@ -905,14 +921,7 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
         eye_data = eye_data[~nan_select]
         X = np.zeros((eye_data.shape[0], 5))
         X[:, 4] = 1.
-        # First 2 columns are positive/negative pursuit
-        # Second 2 columns are postive/negative learning
-        X_select = eye_data[:, 0] >= self.fit_results['4D_planes']['pursuit_knee']
-        X[X_select, 0] = eye_data[X_select, 0]
-        X[~X_select, 1] = eye_data[~X_select, 0]
-        X_select = eye_data[:, 1] >= self.fit_results['4D_planes']['learning_knee']
-        X[X_select, 2] = eye_data[X_select, 1]
-        X[~X_select, 3] = eye_data[~X_select, 1]
+        x[:, 0:4] = self.get_4D_planes_from_2D(eye_data)
         return X
 
     def predict_4D_planes(self, X):
