@@ -880,7 +880,6 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
 
         # Choose peak R2 value with minimum absolute value lag
         max_ind = np.where(R2 == np.amax(R2))[0][0]
-        dc_offset = coefficients[max_ind][-1] if fit_constant else 0.
         self.fit_results['4D_planes'] = {
                                 'pursuit_knee': steps_used[0, max_ind],
                                 'learning_knee': steps_used[1, max_ind],
