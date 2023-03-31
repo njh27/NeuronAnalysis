@@ -768,9 +768,12 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
         else:
             return fr
 
-    def fit_position_planes(self, knee_steps=[2.5, 0.25], bin_width=10, bin_threshold=1):
+    def fit_4D_planes(self, knee_steps=[2.5, 0.25], bin_width=10, bin_threshold=1):
         """
         """
+
+
+
         print("time windows are hard coded here!")
         all_eye_data = np.empty((0, 2))
         all_fr_data = np.empty((0, ))
@@ -787,56 +790,101 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
         all_eye_data = np.concatenate((all_eye_data, purs_eye_data), axis=0)
         all_fr_data = np.concatenate((all_fr_data, purs_fr_data), axis=0)
 
-        knee_start = np.ceil(np.nanmax(np.nanmax(all_eye_data, axis=0)))
-        knee_stop = np.floor(np.nanmax(np.nanmin(all_eye_data, axis=0)))
+        # Remove any nans from data before fitting
+        nan_select = np.any(np.isnan(all_eye_data), axis=1)
+        all_eye_data = all_eye_data[~nan_select]
+        all_fr_data = all_fr_data[~nan_select]
 
-        # knee_pos_pursuit =
-        # knee_pos_learning =
+        knee_stop = np.ceil(np.amax(np.amax(all_eye_data, axis=0)))
+        knee_start = np.floor(np.amax(np.amax(all_eye_data, axis=0)))
+        if knee_steps[0] > ((knee_stop - knee_start)/2):
+            raise ValueError("First knee step {0} is too large relative to the range of all eye positions {1}.".format(knee_steps[0], (knee_stop - knee_start)))
+        half_knee_step = knee_steps[0] / 2
+        steps = np.arange(knee_start, knee_stop + half_knee_step + 1, knee_steps[0])
+        steps[-1] = knee_stop
 
         R2 = []
         coefficients = []
-        s_dim2 = 7 if fit_constant else 6
-        firing_rate = self.get_firing_traces()
-        if not fit_constant:
-            dc_trial_rate = np.mean(firing_rate[:, self.dc_inds[0]:self.dc_inds[1]], axis=1)
-            firing_rate = firing_rate - dc_trial_rate[:, None]
-        if fit_avg_data:
-            firing_rate = np.nanmean(firing_rate, axis=0, keepdims=True)
-        binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
-        eye_data_all_lags = self.get_eye_data_traces_all_lags()
-        # Initialize empty eye_data array that we can fill from slices of all data
-        eye_data = np.ones((eye_data_all_lags.shape[0], self.fit_dur, s_dim2))
-        # First loop over lags using quick_lag_step intervals
-        for lag in lags:
-            eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
-            eye_data[:, :, 4:6] = eye_data_series.acc_from_vel(eye_data[:, :, 2:4],
-                            filter_win=self.neuron.session.saccade_ind_cushion)
-            # Use bin smoothing on data before fitting
-            bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-            if fit_avg_data:
-                bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
-            bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
-            temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-            select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
-            bin_eye_data = bin_eye_data[select_good, :]
-            temp_FR = temp_FR[select_good]
-            coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
-            y_mean = np.mean(temp_FR)
-            y_predicted = np.matmul(bin_eye_data, coefficients[-1])
-            sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
-            sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
-            R2.append(1 - sum_squares_error/(sum_squares_total))
+        steps_used = np.zeros((2, len(steps) * len(steps)))
+        n_fit = 0
+        eye_data = np.zeros((all_eye_data.shape[0], 5))
+        eye_data[:, 4] = 1.
+        # Loop over all potential knees in pursuit and learn axes
+        for p_knee in steps:
+            for l_knee in steps:
+                # First 2 columns are positive/negative pursuit
+                # Second 2 columns are postive/negative learning
+                eye_data_select = all_eye_data[:, 0] >= p_knee
+                eye_data[eye_data_select, 0] = all_eye_data[eye_data_select, 0]
+                eye_data[~eye_data_select, 1] = all_eye_data[~eye_data_select, 0]
+                eye_data_select = all_eye_data[:, 1] >= l_knee
+                eye_data[eye_data_select, 2] = all_eye_data[eye_data_select, 1]
+                eye_data[~eye_data_select, 3] = all_eye_data[~eye_data_select, 1]
+
+                # Now fit and measure goodness
+                coefficients.append(np.linalg.lstsq(eye_data, all_fr_data, rcond=None)[0])
+                y_mean = np.mean(all_fr_data)
+                y_predicted = np.matmul(eye_data, coefficients[-1])
+                sum_squares_error = ((all_fr_data - y_predicted) ** 2).sum()
+                sum_squares_total = ((all_fr_data - y_mean) ** 2).sum()
+                R2.append(1 - sum_squares_error/(sum_squares_total))
+                steps_used[0, n_fit] = p_knee
+                steps_used[1, n_fit] = l_knee
+                n_fit += 1
+
+                # Need to reset eye_data so default is "0.0"
+                eye_data[:, 0:4] = 0.0
+
+        # Do fine resolution loop
+        max_ind = np.where(R2 == np.amax(R2))[0][0]
+        best_p_knee = steps_used[0, max_ind]
+        # Make new steps centered on this best_p_knee
+        step_start_p_knee = max(knee_start, best_p_knee - knee_steps[0])
+        step_stop_p_knee = min(knee_stop, best_p_knee + knee_steps[0])
+        steps_p = np.arange(step_start_p_knee, step_stop_p_knee + knee_steps[1], knee_steps[1])
+        best_l_knee = steps_used[1, max_ind]
+        # Make new steps centered on this best_l_knee
+        step_start_l_knee = max(knee_start, best_l_knee - knee_steps[0])
+        step_stop_l_knee = min(knee_stop, best_l_knee + knee_steps[0])
+        steps_l = np.arange(step_start_l_knee, step_stop_l_knee + knee_steps[1], knee_steps[1])
+        # Reset fit measures
+        R2 = []
+        coefficients = []
+        lags_used = np.zeros((2, len(steps_p) * len(steps_l)))
+        n_fit = 0
+        # Loop over all potential knees in pursuit and learn axes
+        for p_knee in steps_p:
+            for l_knee in steps_l:
+                # First 2 columns are positive/negative pursuit
+                # Second 2 columns are postive/negative learning
+                eye_data_select = all_eye_data[:, 0] >= p_knee
+                eye_data[eye_data_select, 0] = all_eye_data[eye_data_select, 0]
+                eye_data[~eye_data_select, 1] = all_eye_data[~eye_data_select, 0]
+                eye_data_select = all_eye_data[:, 1] >= l_knee
+                eye_data[eye_data_select, 2] = all_eye_data[eye_data_select, 1]
+                eye_data[~eye_data_select, 3] = all_eye_data[~eye_data_select, 1]
+
+                # Now fit and measure goodness
+                coefficients.append(np.linalg.lstsq(eye_data, all_fr_data, rcond=None)[0])
+                y_mean = np.mean(all_fr_data)
+                y_predicted = np.matmul(eye_data, coefficients[-1])
+                sum_squares_error = ((all_fr_data - y_predicted) ** 2).sum()
+                sum_squares_total = ((all_fr_data - y_mean) ** 2).sum()
+                R2.append(1 - sum_squares_error/(sum_squares_total))
+                steps_used[0, n_fit] = p_knee
+                steps_used[1, n_fit] = l_knee
+                n_fit += 1
+
+                # Need to reset eye_data so default is "0.0"
+                eye_data[:, 0:4] = 0.0
 
         # Choose peak R2 value with minimum absolute value lag
-        max_ind = np.where(R2 == np.amax(R2))[0]
-        max_ind = max_ind[np.argmin(np.abs(lags[max_ind]))]
+        max_ind = np.where(R2 == np.amax(R2))[0][0]
         dc_offset = coefficients[max_ind][-1] if fit_constant else 0.
-        self.fit_results['lin_eye_kinematics'] = {
-                                'eye_lag': lags[max_ind],
-                                'slip_lag': None,
+        self.fit_results['4D_planes'] = {
+                                'pursuit_knee': steps_used[0, max_ind],
+                                'learning_knee': steps_used[1, max_ind],
                                 'coeffs': coefficients[max_ind],
                                 'R2': R2[max_ind],
                                 'all_R2': R2,
-                                'use_constant': fit_constant,
-                                'dc_offset': dc_offset,
-                                'predict_fun': self.predict_lin_eye_kinematics}
+                                'predict_fun': self.predict_4Dplanes}
