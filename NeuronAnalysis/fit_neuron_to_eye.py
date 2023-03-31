@@ -887,3 +887,49 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
                                 'R2': R2[max_ind],
                                 'all_R2': R2,
                                 'predict_fun': self.predict_4Dplanes}
+
+    def get_4D_planes_predict_data(self, blocks, trial_sets, verbose=False):
+        """ Gets behavioral data from blocks and trial sets and formats in a
+        way that it can be used to predict firing rate according to the eye
+        slip interaction model using predict_eye_slip_interaction. """
+        slip_lagged_eye_win = [self.time_window[0] + self.fit_results['eye_slip_interaction']['eye_lag'],
+                               self.time_window[1] + self.fit_results['eye_slip_interaction']['eye_lag']
+                              ]
+        slip_lagged_slip_win = [self.time_window[0] + self.fit_results['eye_slip_interaction']['slip_lag'],
+                                self.time_window[1] + self.fit_results['eye_slip_interaction']['slip_lag']
+                               ]
+        if verbose: print("EYE lag:", self.fit_results['eye_slip_interaction']['eye_lag'])
+        if verbose: print("SLIP lag:", self.fit_results['eye_slip_interaction']['slip_lag'])
+        s_dim2 = 9 if self.fit_results['eye_slip_interaction']['use_constant'] else 8
+        X = np.ones((self.time_window[1]-self.time_window[0], s_dim2))
+
+
+        X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
+                                                "eye position",
+                                                slip_lagged_eye_win,
+                                                blocks=blocks,
+                                                trial_sets=trial_sets)
+        X[:, 2], X[:, 3] = self.neuron.session.get_mean_xy_traces(
+                                                "eye velocity",
+                                                slip_lagged_eye_win,
+                                                blocks=blocks,
+                                                trial_sets=trial_sets)
+        X[:, 4], X[:, 5] = self.neuron.session.get_mean_xy_traces(
+                                                "slip", slip_lagged_slip_win,
+                                                blocks=blocks,
+                                                trial_sets=trial_sets)
+        X[:, 6:8] = X[:, 4:6]
+        X[:, 4:6] *= X[:, 0:2]
+        X[:, 6:8] *= X[:, 2:4]
+        return X
+
+    def predict_4D_planes(self, X):
+        """
+        """
+        if ~np.all(X[:, -1]):
+            # Add column of 1's for constant
+            X = np.hstack((X, np.ones((X.shape[0], 1))))
+        if X.shape[1] != 5:
+            raise ValueError("4D planes is fit with 4 non-constant coefficients but input data dimension is {0}.".format(X.shape[1]))
+        y_hat = np.matmul(X, self.fit_results['4D_planes']['coeffs'])
+        return y_hat
