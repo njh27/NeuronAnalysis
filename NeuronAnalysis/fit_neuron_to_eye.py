@@ -888,39 +888,22 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
                                 'all_R2': R2,
                                 'predict_fun': self.predict_4D_planes}
 
-    def get_4D_planes_predict_data(self, blocks, trial_sets, verbose=False):
+    def get_4D_planes_predict_data(self, verbose=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
-        way that it can be used to predict firing rate according to the eye
-        slip interaction model using predict_eye_slip_interaction. """
-        slip_lagged_eye_win = [self.time_window[0] + self.fit_results['eye_slip_interaction']['eye_lag'],
-                               self.time_window[1] + self.fit_results['eye_slip_interaction']['eye_lag']
-                              ]
-        slip_lagged_slip_win = [self.time_window[0] + self.fit_results['eye_slip_interaction']['slip_lag'],
-                                self.time_window[1] + self.fit_results['eye_slip_interaction']['slip_lag']
-                               ]
-        if verbose: print("EYE lag:", self.fit_results['eye_slip_interaction']['eye_lag'])
-        if verbose: print("SLIP lag:", self.fit_results['eye_slip_interaction']['slip_lag'])
-        s_dim2 = 9 if self.fit_results['eye_slip_interaction']['use_constant'] else 8
-        X = np.ones((self.time_window[1]-self.time_window[0], s_dim2))
+        way that it can be used to predict firing rate according to the 4D
+        planes model using predict_4D_planes. """
+        print("time windows are hard coded here!")
+        X = np.empty((0, 2))
+        fix_eye_data = np.nanmean(self.get_fix_only_eye_traces(), axis=1)
+        X = np.concatenate((X, fix_eye_data), axis=0)
+        purs_eye_data = np.nanmean(self.get_purs_only_eye_traces()[:, 0:200, :], axis=1)
+        X = np.concatenate((X, purs_eye_data), axis=0)
+        purs_eye_data = np.nanmean(self.get_purs_only_eye_traces()[:, 1100:1300, :], axis=1)
+        X = np.concatenate((X, purs_eye_data), axis=0)
 
-
-        X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
-                                                "eye position",
-                                                slip_lagged_eye_win,
-                                                blocks=blocks,
-                                                trial_sets=trial_sets)
-        X[:, 2], X[:, 3] = self.neuron.session.get_mean_xy_traces(
-                                                "eye velocity",
-                                                slip_lagged_eye_win,
-                                                blocks=blocks,
-                                                trial_sets=trial_sets)
-        X[:, 4], X[:, 5] = self.neuron.session.get_mean_xy_traces(
-                                                "slip", slip_lagged_slip_win,
-                                                blocks=blocks,
-                                                trial_sets=trial_sets)
-        X[:, 6:8] = X[:, 4:6]
-        X[:, 4:6] *= X[:, 0:2]
-        X[:, 6:8] *= X[:, 2:4]
+        # Remove any nans from data before fitting
+        nan_select = np.any(np.isnan(X), axis=1)
+        X = X[~nan_select]
         return X
 
     def predict_4D_planes(self, X):
