@@ -768,7 +768,7 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
         else:
             return fr
 
-    def fit_position_planes(self, knee_step=0.5, bin_width=10, bin_threshold=1):
+    def fit_position_planes(self, knee_steps=[2.5, 0.25], bin_width=10, bin_threshold=1):
         """
         """
         print("time windows are hard coded here!")
@@ -787,11 +787,11 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
         all_eye_data = np.concatenate((all_eye_data, purs_eye_data), axis=0)
         all_fr_data = np.concatenate((all_fr_data, purs_fr_data), axis=0)
 
-        np.nanmax(all_eye_data, axis=0)
-        np.nanmin(all_eye_data, axis=0)
+        knee_start = np.ceil(np.nanmax(np.nanmax(all_eye_data, axis=0)))
+        knee_stop = np.floor(np.nanmax(np.nanmin(all_eye_data, axis=0)))
 
-        knee_pos_pursuit =
-        knee_pos_learning =
+        # knee_pos_pursuit =
+        # knee_pos_learning =
 
         R2 = []
         coefficients = []
