@@ -893,17 +893,26 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
         way that it can be used to predict firing rate according to the 4D
         planes model using predict_4D_planes. """
         print("time windows are hard coded here!")
-        X = np.empty((0, 2))
+        eye_data = np.empty((0, 2))
         fix_eye_data = np.nanmean(self.get_fix_only_eye_traces(), axis=1)
-        X = np.concatenate((X, fix_eye_data), axis=0)
+        eye_data = np.concatenate((eye_data, fix_eye_data), axis=0)
         purs_eye_data = np.nanmean(self.get_purs_only_eye_traces()[:, 0:200, :], axis=1)
-        X = np.concatenate((X, purs_eye_data), axis=0)
+        eye_data = np.concatenate((eye_data, purs_eye_data), axis=0)
         purs_eye_data = np.nanmean(self.get_purs_only_eye_traces()[:, 1100:1300, :], axis=1)
-        X = np.concatenate((X, purs_eye_data), axis=0)
-
-        # Remove any nans from data before fitting
-        nan_select = np.any(np.isnan(X), axis=1)
-        X = X[~nan_select]
+        eye_data = np.concatenate((eye_data, purs_eye_data), axis=0)
+        # Remove any nans from data
+        nan_select = np.any(np.isnan(eye_data), axis=1)
+        eye_data = eye_data[~nan_select]
+        X = np.zeros((eye_data.shape[0], 5))
+        X[:, 4] = 1.
+        # First 2 columns are positive/negative pursuit
+        # Second 2 columns are postive/negative learning
+        X_select = eye_data[:, 0] >= self.fit_results['4D_planes']['pursuit_knee']
+        X[X_select, 0] = eye_data[X_select, 0]
+        X[~X_select, 1] = eye_data[~X_select, 0]
+        X_select = eye_data[:, 1] >= self.fit_results['4D_planes']['learning_knee']
+        X[X_select, 2] = eye_data[X_select, 1]
+        X[~X_select, 3] = eye_data[~X_select, 1]
         return X
 
     def predict_4D_planes(self, X):
