@@ -188,6 +188,171 @@ class FitNeuronToEye(object):
 
     def fit_lin_eye_kinematics(self, bin_width=10, bin_threshold=1,
                                 fit_constant=True, fit_avg_data=False,
+                                quick_lag_step=10, use_knees=False):
+        """ Fits the input neuron eye data to position, velocity, acceleration
+        linear model (in 2 dimensions -- one pursuit axis and one learing axis)
+        for the blocks and trial_sets input.
+        Output "coeffs" are in order: position pursuit, position learning
+                                      velocity pursuit, velocity learning
+                                      acceleration pursuit, acceleration learning
+                                      constant offset
+        """
+        quick_lag_step = int(np.around(quick_lag_step))
+        if quick_lag_step < 1:
+            raise ValueError("quick_lag_step must be positive integer")
+        if quick_lag_step > (self.lag_range_eye[1] - self.lag_range_eye[0]):
+            raise ValueError("quick_lag_step is too large relative to lag_range_eye")
+        half_lag_step = np.int32(np.around(quick_lag_step / 2))
+        lags = np.arange(self.lag_range_eye[0], self.lag_range_eye[1] + half_lag_step + 1, quick_lag_step)
+        lags[-1] = self.lag_range_eye[1]
+
+        R2 = []
+        coefficients = []
+        s_dim2 = 9 if fit_constant else 8
+        firing_rate = self.get_firing_traces()
+        if not fit_constant:
+            dc_trial_rate = np.mean(firing_rate[:, self.dc_inds[0]:self.dc_inds[1]], axis=1)
+            firing_rate = firing_rate - dc_trial_rate[:, None]
+        if fit_avg_data:
+            firing_rate = np.nanmean(firing_rate, axis=0, keepdims=True)
+        binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
+        eye_data_all_lags = self.get_eye_data_traces_all_lags()
+        # Initialize empty eye_data array that we can fill from slices of all data
+        eye_data = np.ones((eye_data_all_lags.shape[0], self.fit_dur, s_dim2))
+        if use_knees:
+            knees = [self.fit_results['4D_planes']['pursuit_knee'], self.fit_results['4D_planes']['learning_knee']]
+        else:
+            knees = [0., 0.]
+        # First loop over lags using quick_lag_step intervals
+        for lag in lags:
+            eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
+
+
+            # Copy over velocity data to make room for positions
+            eye_data[:, :, 4:6] = eye_data[:, :, 2:4]
+            eye_data[:, :, 2:4] = eye_data[:, :, 0:2]
+            # Need to get the +/- position data separate
+            X_select = eye_data[:, :, 0] >= knees[0]
+            # eye_data[X_select, 0] = eye_data[X_select, 0]
+            eye_data[~X_select, 0] = 0.0 # Less than knee dim0 = 0
+            eye_data[X_select, 2] = 0.0 # Less than knee dim2 = 0
+            X_select = eye_data[:, :, 1] >= knees[1]
+            # eye_data[X_select, 0] = eye_data[X_select, 0]
+            eye_data[~X_select, 1] = 0.0 # Less than knee dim1 = 0
+            eye_data[X_select, 3] = 0.0 # Less than knee dim3 = 0
+
+
+            eye_data[:, :, 6:8] = eye_data_series.acc_from_vel(eye_data[:, :, 4:6],
+                            filter_win=self.neuron.session.saccade_ind_cushion)
+            # Use bin smoothing on data before fitting
+            bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
+            if fit_avg_data:
+                bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
+            bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
+            temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
+            select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+            bin_eye_data = bin_eye_data[select_good, :]
+            temp_FR = temp_FR[select_good]
+            coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
+            y_mean = np.mean(temp_FR)
+            y_predicted = np.matmul(bin_eye_data, coefficients[-1])
+            sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
+            sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+            R2.append(1 - sum_squares_error/(sum_squares_total))
+
+        if quick_lag_step > 1:
+            # Do fine resolution loop
+            max_ind = np.where(R2 == np.amax(R2))[0]
+            max_ind = max_ind[np.argmin(np.abs(lags[max_ind]))]
+            best_lag = lags[max_ind]
+            # Make new lags centered on this best_lag
+            lag_start = max(lags[0], best_lag - quick_lag_step)
+            lag_stop = min(lags[-1], best_lag + quick_lag_step)
+            lags = np.arange(lag_start, lag_stop + 1, 1)
+            # Reset fit measures
+            R2 = []
+            coefficients = []
+            for lag in lags:
+                eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
+                # Copy over velocity data to make room for positions
+                eye_data[:, :, 4:6] = eye_data[:, :, 2:4]
+                eye_data[:, :, 2:4] = eye_data[:, :, 0:2]
+                # Need to get the +/- position data separate
+                X_select = eye_data[:, :, 0] >= knees[0]
+                # eye_data[X_select, 0] = eye_data[X_select, 0]
+                eye_data[~X_select, 0] = 0.0 # Less than knee dim0 = 0
+                eye_data[X_select, 2] = 0.0 # Less than knee dim2 = 0
+                X_select = eye_data[:, :, 1] >= knees[1]
+                # eye_data[X_select, 0] = eye_data[X_select, 0]
+                eye_data[~X_select, 1] = 0.0 # Less than knee dim1 = 0
+                eye_data[X_select, 3] = 0.0 # Less than knee dim3 = 0
+                eye_data[:, :, 6:8] = eye_data_series.acc_from_vel(eye_data[:, :, 4:6],
+                                filter_win=self.neuron.session.saccade_ind_cushion)
+                # Use bin smoothing on data before fitting
+                bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
+                if fit_avg_data:
+                    bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
+                bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
+                temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
+                select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+                bin_eye_data = bin_eye_data[select_good, :]
+                temp_FR = temp_FR[select_good]
+                coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
+                y_mean = np.mean(temp_FR)
+                y_predicted = np.matmul(bin_eye_data, coefficients[-1])
+                sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
+                sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+                R2.append(1 - sum_squares_error/(sum_squares_total))
+
+        # Choose peak R2 value with minimum absolute value lag
+        max_ind = np.where(R2 == np.amax(R2))[0]
+        max_ind = max_ind[np.argmin(np.abs(lags[max_ind]))]
+        dc_offset = coefficients[max_ind][-1] if fit_constant else 0.
+        self.fit_results['lin_eye_kinematics'] = {
+                                'eye_lag': lags[max_ind],
+                                'slip_lag': None,
+                                'coeffs': coefficients[max_ind],
+                                'R2': R2[max_ind],
+                                'all_R2': R2,
+                                'use_constant': fit_constant,
+                                'dc_offset': dc_offset,
+                                'predict_fun': self.predict_lin_eye_kinematics}
+
+    def get_lin_eye_kin_predict_data(self, blocks, trial_sets, verbose=False):
+        """ Gets behavioral data from blocks and trial sets and formats in a
+        way that it can be used to predict firing rate according to the linear
+        eye kinematic model using predict_lin_eye_kinematics. """
+        lagged_eye_win = [self.time_window[0] + self.fit_results['lin_eye_kinematics']['eye_lag'],
+                          self.time_window[1] + self.fit_results['lin_eye_kinematics']['eye_lag']
+                         ]
+        if verbose: print("EYE lag:", self.fit_results['lin_eye_kinematics']['eye_lag'])
+        s_dim2 = 7 if self.fit_results['lin_eye_kinematics']['use_constant'] else 6
+        X = np.ones((self.time_window[1]-self.time_window[0], s_dim2))
+        X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
+                                                "eye position", lagged_eye_win,
+                                                blocks=blocks,
+                                                trial_sets=trial_sets)
+        X[:, 2], X[:, 3] = self.neuron.session.get_mean_xy_traces(
+                                                "eye velocity", lagged_eye_win,
+                                                blocks=blocks,
+                                                trial_sets=trial_sets)
+        X[:, 4:6] = eye_data_series.acc_from_vel(X[:, 2:4], filter_win=29, axis=0)
+        return X
+
+    def predict_lin_eye_kinematics(self, X):
+        """
+        """
+        if self.fit_results['lin_eye_kinematics']['use_constant']:
+            if ~np.all(X[:, -1]):
+                # Add column of 1's for constant
+                X = np.hstack((X, np.ones((X.shape[0], 1))))
+        if X.shape[1] != self.fit_results['lin_eye_kinematics']['coeffs'].shape[0]:
+            raise ValueError("Linear eye kinematics is fit with 6 non-constant coefficients but input data dimension is {0}.".format(X.shape[1]))
+        y_hat = np.matmul(X, self.fit_results['lin_eye_kinematics']['coeffs'])
+        return y_hat
+
+    def fit_pcwise_lin_eye_kinematics(self, bin_width=10, bin_threshold=1,
+                                fit_constant=True, fit_avg_data=False,
                                 quick_lag_step=10):
         """ Fits the input neuron eye data to position, velocity, acceleration
         linear model (in 2 dimensions -- one pursuit axis and one learing axis)
@@ -286,7 +451,7 @@ class FitNeuronToEye(object):
                                 'dc_offset': dc_offset,
                                 'predict_fun': self.predict_lin_eye_kinematics}
 
-    def get_lin_eye_kin_predict_data(self, blocks, trial_sets, verbose=False):
+    def get_pcwise_lin_eye_kin_predict_data(self, blocks, trial_sets, verbose=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
         way that it can be used to predict firing rate according to the linear
         eye kinematic model using predict_lin_eye_kinematics. """
@@ -307,7 +472,7 @@ class FitNeuronToEye(object):
         X[:, 4:6] = eye_data_series.acc_from_vel(X[:, 2:4], filter_win=29, axis=0)
         return X
 
-    def predict_lin_eye_kinematics(self, X):
+    def predict_pcwise_lin_eye_kinematics(self, X):
         """
         """
         if self.fit_results['lin_eye_kinematics']['use_constant']:
