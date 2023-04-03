@@ -223,30 +223,31 @@ class FitNeuronToEye(object):
             knees = [self.fit_results['4D_planes']['pursuit_knee'], self.fit_results['4D_planes']['learning_knee']]
         else:
             knees = [0., 0.]
+        eye_fill_val = np.nan if fit_avg_data else 0.0
         # First loop over lags using quick_lag_step intervals
         for lag in lags:
             eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
-
-
             # Copy over velocity data to make room for positions
             eye_data[:, :, 4:6] = eye_data[:, :, 2:4]
             eye_data[:, :, 2:4] = eye_data[:, :, 0:2]
-            # Need to get the +/- position data separate
-            X_select = eye_data[:, :, 0] >= knees[0]
-            # eye_data[X_select, 0] = eye_data[X_select, 0]
-            eye_data[~X_select, 0] = 0.0 # Less than knee dim0 = 0
-            eye_data[X_select, 2] = 0.0 # Less than knee dim2 = 0
-            X_select = eye_data[:, :, 1] >= knees[1]
-            # eye_data[X_select, 0] = eye_data[X_select, 0]
-            eye_data[~X_select, 1] = 0.0 # Less than knee dim1 = 0
-            eye_data[X_select, 3] = 0.0 # Less than knee dim3 = 0
-
-
             eye_data[:, :, 6:8] = eye_data_series.acc_from_vel(eye_data[:, :, 4:6],
                             filter_win=self.neuron.session.saccade_ind_cushion)
             # Use bin smoothing on data before fitting
             bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
+
+
+            # Need to get the +/- position data separate AFTER BINNING!
+            select_pursuit = bin_eye_data[:, :, 0] >= knees[0]
+            bin_eye_data[~select_pursuit, 0] = eye_fill_val # Less than knee dim0 = 0
+            bin_eye_data[select_pursuit, 2] = eye_fill_val # Less than knee dim2 = 0
+            select_learning = bin_eye_data[:, :, 1] >= knees[1]
+            bin_eye_data[~select_learning, 1] = eye_fill_val # Less than knee dim1 = 0
+            bin_eye_data[select_learning, 3] = eye_fill_val # Less than knee dim3 = 0
+
+
             if fit_avg_data:
+                # bin_mean_data = np.zeros((1, bin_eye_data.shape[1], bin_eye_data.shape[2]))
+                # bin_mean_data[1, :, 0]
                 bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
             bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
             temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
@@ -277,19 +278,20 @@ class FitNeuronToEye(object):
                 # Copy over velocity data to make room for positions
                 eye_data[:, :, 4:6] = eye_data[:, :, 2:4]
                 eye_data[:, :, 2:4] = eye_data[:, :, 0:2]
-                # Need to get the +/- position data separate
-                X_select = eye_data[:, :, 0] >= knees[0]
-                # eye_data[X_select, 0] = eye_data[X_select, 0]
-                eye_data[~X_select, 0] = 0.0 # Less than knee dim0 = 0
-                eye_data[X_select, 2] = 0.0 # Less than knee dim2 = 0
-                X_select = eye_data[:, :, 1] >= knees[1]
-                # eye_data[X_select, 0] = eye_data[X_select, 0]
-                eye_data[~X_select, 1] = 0.0 # Less than knee dim1 = 0
-                eye_data[X_select, 3] = 0.0 # Less than knee dim3 = 0
                 eye_data[:, :, 6:8] = eye_data_series.acc_from_vel(eye_data[:, :, 4:6],
                                 filter_win=self.neuron.session.saccade_ind_cushion)
                 # Use bin smoothing on data before fitting
                 bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
+
+
+                # Need to get the +/- position data separate AFTER BINNING!
+                select_pursuit = bin_eye_data[:, :, 0] >= knees[0]
+                bin_eye_data[~select_pursuit, 0] = eye_fill_val # Less than knee dim0 = 0
+                bin_eye_data[select_pursuit, 2] = eye_fill_val # Less than knee dim2 = 0
+                select_learning = bin_eye_data[:, :, 1] >= knees[1]
+                bin_eye_data[~select_learning, 1] = eye_fill_val # Less than knee dim1 = 0
+                bin_eye_data[select_learning, 3] = eye_fill_val # Less than knee dim3 = 0
+                
                 if fit_avg_data:
                     bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
                 bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
@@ -327,7 +329,7 @@ class FitNeuronToEye(object):
                           self.time_window[1] + self.fit_results['pcwise_lin_eye_kinematics']['eye_lag']
                          ]
         if verbose: print("EYE lag:", self.fit_results['pcwise_lin_eye_kinematics']['eye_lag'])
-        s_dim2 = 9 if self.fit_results['lin_eye_kinematics']['use_constant'] else 8
+        s_dim2 = 9 if self.fit_results['pcwise_lin_eye_kinematics']['use_constant'] else 8
         X = np.ones((self.time_window[1]-self.time_window[0], s_dim2))
         X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
                                                 "eye position", lagged_eye_win,
