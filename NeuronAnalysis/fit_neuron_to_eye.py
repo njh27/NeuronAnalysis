@@ -316,7 +316,8 @@ class FitNeuronToEye(object):
                                 'all_R2': R2,
                                 'use_constant': fit_constant,
                                 'dc_offset': dc_offset,
-                                'predict_fun': self.predict_lin_eye_kinematics}
+                                'predict_fun': self.predict_lin_eye_kinematics,
+                                'knees': knees}
 
     def get_pcwise_lin_eye_kin_predict_data(self, blocks, trial_sets, verbose=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
@@ -332,11 +333,19 @@ class FitNeuronToEye(object):
                                                 "eye position", lagged_eye_win,
                                                 blocks=blocks,
                                                 trial_sets=trial_sets)
-        X[:, 2], X[:, 3] = self.neuron.session.get_mean_xy_traces(
+        X[:, 2:4] = X[:, 0:2]
+        # Need to get the +/- position data separate
+        X_select = X[:, 0] >= self.fit_results['pcwise_lin_eye_kinematics']['knees'][0]
+        X[~X_select, 0] = 0.0 # Less than knee dim0 = 0
+        X[X_select, 2] = 0.0 # Less than knee dim2 = 0
+        X_select = X[:, 1] >= self.fit_results['pcwise_lin_eye_kinematics']['knees'][1]
+        eye_data[~X_select, 1] = 0.0 # Less than knee dim1 = 0
+        eye_data[X_select, 3] = 0.0 # Less than knee dim3 = 0
+        X[:, 4], X[:, 5] = self.neuron.session.get_mean_xy_traces(
                                                 "eye velocity", lagged_eye_win,
                                                 blocks=blocks,
                                                 trial_sets=trial_sets)
-        X[:, 4:6] = eye_data_series.acc_from_vel(X[:, 2:4], filter_win=29, axis=0)
+        X[:, 6:8] = eye_data_series.acc_from_vel(X[:,4:6], filter_win=29, axis=0)
         return X
 
     def predict_pcwise_lin_eye_kinematics(self, X):
