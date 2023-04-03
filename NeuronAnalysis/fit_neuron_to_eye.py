@@ -186,7 +186,7 @@ class FitNeuronToEye(object):
         ind_stop = ind_start + self.fit_dur_slip
         return slip_data[:, ind_start:ind_stop, :]
 
-    def fit_lin_eye_kinematics(self, bin_width=10, bin_threshold=1,
+    def fit_pcwise_lin_eye_kinematics(self, bin_width=10, bin_threshold=1,
                                 fit_constant=True, fit_avg_data=False,
                                 quick_lag_step=10, use_knees=False):
         """ Fits the input neuron eye data to position, velocity, acceleration
@@ -308,7 +308,7 @@ class FitNeuronToEye(object):
         max_ind = np.where(R2 == np.amax(R2))[0]
         max_ind = max_ind[np.argmin(np.abs(lags[max_ind]))]
         dc_offset = coefficients[max_ind][-1] if fit_constant else 0.
-        self.fit_results['lin_eye_kinematics'] = {
+        self.fit_results['pcwise_lin_eye_kinematics'] = {
                                 'eye_lag': lags[max_ind],
                                 'slip_lag': None,
                                 'coeffs': coefficients[max_ind],
@@ -318,15 +318,15 @@ class FitNeuronToEye(object):
                                 'dc_offset': dc_offset,
                                 'predict_fun': self.predict_lin_eye_kinematics}
 
-    def get_lin_eye_kin_predict_data(self, blocks, trial_sets, verbose=False):
+    def get_pcwise_lin_eye_kin_predict_data(self, blocks, trial_sets, verbose=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
         way that it can be used to predict firing rate according to the linear
         eye kinematic model using predict_lin_eye_kinematics. """
-        lagged_eye_win = [self.time_window[0] + self.fit_results['lin_eye_kinematics']['eye_lag'],
-                          self.time_window[1] + self.fit_results['lin_eye_kinematics']['eye_lag']
+        lagged_eye_win = [self.time_window[0] + self.fit_results['pcwise_lin_eye_kinematics']['eye_lag'],
+                          self.time_window[1] + self.fit_results['pcwise_lin_eye_kinematics']['eye_lag']
                          ]
-        if verbose: print("EYE lag:", self.fit_results['lin_eye_kinematics']['eye_lag'])
-        s_dim2 = 7 if self.fit_results['lin_eye_kinematics']['use_constant'] else 6
+        if verbose: print("EYE lag:", self.fit_results['pcwise_lin_eye_kinematics']['eye_lag'])
+        s_dim2 = 9 if self.fit_results['lin_eye_kinematics']['use_constant'] else 8
         X = np.ones((self.time_window[1]-self.time_window[0], s_dim2))
         X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
                                                 "eye position", lagged_eye_win,
@@ -339,19 +339,19 @@ class FitNeuronToEye(object):
         X[:, 4:6] = eye_data_series.acc_from_vel(X[:, 2:4], filter_win=29, axis=0)
         return X
 
-    def predict_lin_eye_kinematics(self, X):
+    def predict_pcwise_lin_eye_kinematics(self, X):
         """
         """
-        if self.fit_results['lin_eye_kinematics']['use_constant']:
+        if self.fit_results['pcwise_lin_eye_kinematics']['use_constant']:
             if ~np.all(X[:, -1]):
                 # Add column of 1's for constant
                 X = np.hstack((X, np.ones((X.shape[0], 1))))
-        if X.shape[1] != self.fit_results['lin_eye_kinematics']['coeffs'].shape[0]:
-            raise ValueError("Linear eye kinematics is fit with 6 non-constant coefficients but input data dimension is {0}.".format(X.shape[1]))
-        y_hat = np.matmul(X, self.fit_results['lin_eye_kinematics']['coeffs'])
+        if X.shape[1] != self.fit_results['pcwise_lin_eye_kinematics']['coeffs'].shape[0]:
+            raise ValueError("Piecewise linear eye kinematics is fit with 8 non-constant coefficients but input data dimension is {0}.".format(X.shape[1]))
+        y_hat = np.matmul(X, self.fit_results['pcwise_lin_eye_kinematics']['coeffs'])
         return y_hat
 
-    def fit_pcwise_lin_eye_kinematics(self, bin_width=10, bin_threshold=1,
+    def fit_lin_eye_kinematics(self, bin_width=10, bin_threshold=1,
                                 fit_constant=True, fit_avg_data=False,
                                 quick_lag_step=10):
         """ Fits the input neuron eye data to position, velocity, acceleration
@@ -451,7 +451,7 @@ class FitNeuronToEye(object):
                                 'dc_offset': dc_offset,
                                 'predict_fun': self.predict_lin_eye_kinematics}
 
-    def get_pcwise_lin_eye_kin_predict_data(self, blocks, trial_sets, verbose=False):
+    def get_lin_eye_kin_predict_data(self, blocks, trial_sets, verbose=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
         way that it can be used to predict firing rate according to the linear
         eye kinematic model using predict_lin_eye_kinematics. """
@@ -472,7 +472,7 @@ class FitNeuronToEye(object):
         X[:, 4:6] = eye_data_series.acc_from_vel(X[:, 2:4], filter_win=29, axis=0)
         return X
 
-    def predict_pcwise_lin_eye_kinematics(self, X):
+    def predict_lin_eye_kinematics(self, X):
         """
         """
         if self.fit_results['lin_eye_kinematics']['use_constant']:
