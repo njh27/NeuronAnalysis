@@ -339,8 +339,8 @@ class FitNeuronToEye(object):
         X[~X_select, 0] = 0.0 # Less than knee dim0 = 0
         X[X_select, 2] = 0.0 # Less than knee dim2 = 0
         X_select = X[:, 1] >= self.fit_results['pcwise_lin_eye_kinematics']['knees'][1]
-        eye_data[~X_select, 1] = 0.0 # Less than knee dim1 = 0
-        eye_data[X_select, 3] = 0.0 # Less than knee dim3 = 0
+        X[~X_select, 1] = 0.0 # Less than knee dim1 = 0
+        X[X_select, 3] = 0.0 # Less than knee dim3 = 0
         X[:, 4], X[:, 5] = self.neuron.session.get_mean_xy_traces(
                                                 "eye velocity", lagged_eye_win,
                                                 blocks=blocks,
