@@ -188,7 +188,7 @@ class FitNeuronToEye(object):
 
     def fit_pcwise_lin_eye_kinematics(self, bin_width=10, bin_threshold=1,
                                 fit_constant=True, fit_avg_data=False,
-                                quick_lag_step=10, use_knees=False):
+                                quick_lag_step=10, knees=[0., 0.]):
         """ Fits the input neuron eye data to position, velocity, acceleration
         linear model (in 2 dimensions -- one pursuit axis and one learing axis)
         for the blocks and trial_sets input.
@@ -219,10 +219,6 @@ class FitNeuronToEye(object):
         eye_data_all_lags = self.get_eye_data_traces_all_lags()
         # Initialize empty eye_data array that we can fill from slices of all data
         eye_data = np.ones((eye_data_all_lags.shape[0], self.fit_dur, s_dim2))
-        if use_knees:
-            knees = [self.fit_results['4D_planes']['pursuit_knee'], self.fit_results['4D_planes']['learning_knee']]
-        else:
-            knees = [0., 0.]
         # First loop over lags using quick_lag_step intervals
         for lag in lags:
             eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
@@ -290,7 +286,7 @@ class FitNeuronToEye(object):
                 bin_eye_data[~select_learning, 1] = 0.0 # Less than knee dim1 = 0
                 bin_eye_data[select_learning, 3] = 0.0 # Less than knee dim3 = 0
 
-                
+
                 bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
                 temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
                 select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
