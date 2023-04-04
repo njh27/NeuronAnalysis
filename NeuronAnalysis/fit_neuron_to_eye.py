@@ -311,7 +311,7 @@ class FitNeuronToEye(object):
                                 'all_R2': R2,
                                 'use_constant': fit_constant,
                                 'dc_offset': dc_offset,
-                                'predict_fun': self.predict_lin_eye_kinematics,
+                                'predict_fun': self.predict_pcwise_lin_eye_kinematics,
                                 'knees': knees}
 
     def get_pcwise_lin_eye_kin_predict_data(self, blocks, trial_sets, verbose=False):
@@ -546,8 +546,7 @@ class FitNeuronToEye(object):
                 if fit_avg_data:
                     bin_eye_data = np.nanmean(eye_data, axis=0, keepdims=True)
 
-
-                # Need to get the +/- position/velocity data separate AFTER BINNING AND MEAN!
+                # Need to get the +/- position data separate AFTER BINNING AND MEAN!
                 select_pursuit = bin_eye_data[:, :, 0] >= knees[0]
                 bin_eye_data[~select_pursuit, 0] = 0.0 # Less than knee dim0 = 0
                 bin_eye_data[select_pursuit, 2] = 0.0 # Less than knee dim2 = 0
@@ -558,17 +557,14 @@ class FitNeuronToEye(object):
                 select_pursuit = bin_eye_data[:, :, 4] >= 0.0
                 bin_eye_data[~select_pursuit, 4] = 0.0 # Less than knee dim0 = 0
                 bin_eye_data[select_pursuit, 6] = 0.0 # Less than knee dim2 = 0
-                select_learning = bin_eye_data[:, :, 5] >=0.0
+                select_learning = bin_eye_data[:, :, 5] >= 0.0
                 bin_eye_data[~select_learning, 5] = 0.0 # Less than knee dim1 = 0
                 bin_eye_data[select_learning, 7] = 0.0 # Less than knee dim3 = 0
-
-
                 # Convert slip terms to position and velocity interactions
-                bin_eye_data[:, :, 4:6] *= bin_eye_data[:, :, 0:2]
-                bin_eye_data[:, :, 6:8] *= bin_eye_data[:, :, 2:4]
+                bin_eye_data[:, :, 8:16] *= bin_eye_data[:, :, 0:8]
 
 
-                
+
                 bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
                 temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
                 select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
@@ -606,15 +602,38 @@ class FitNeuronToEye(object):
             for elag in lags_eye:
                 for slag in lags_slip:
                     eye_data[:, :, 0:4] = self.get_eye_lag_slice(elag, eye_data_all_lags)
-                    eye_data[:, :, 4:6] = self.get_slip_lag_slice(slag, slip_data_all_lags)
-                    eye_data[:, :, 6:8] = self.get_slip_lag_slice(slag, slip_data_all_lags)
+                    # Copy over velocity data to make room for positions
+                    eye_data[:, :, 4:6] = eye_data[:, :, 2:4]
+                    eye_data[:, :, 6:8] = eye_data[:, :, 2:4]
+                    eye_data[:, :, 2:4] = eye_data[:, :, 0:2]
+                    # Need copy of slip for each interaction
+                    eye_data[:, :, 8:10] = self.get_slip_lag_slice(slag, slip_data_all_lags)
+                    eye_data[:, :, 10:12] = eye_data[:, :, 8:10]
+                    eye_data[:, :, 12:14] = eye_data[:, :, 8:10]
+                    eye_data[:, :, 14:16] = eye_data[:, :, 8:10]
+
                     # Use bin smoothing on data before fitting
                     bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
                     if fit_avg_data:
                         bin_eye_data = np.nanmean(eye_data, axis=0, keepdims=True)
+
+                    # Need to get the +/- position data separate AFTER BINNING AND MEAN!
+                    select_pursuit = bin_eye_data[:, :, 0] >= knees[0]
+                    bin_eye_data[~select_pursuit, 0] = 0.0 # Less than knee dim0 = 0
+                    bin_eye_data[select_pursuit, 2] = 0.0 # Less than knee dim2 = 0
+                    select_learning = bin_eye_data[:, :, 1] >= knees[1]
+                    bin_eye_data[~select_learning, 1] = 0.0 # Less than knee dim1 = 0
+                    bin_eye_data[select_learning, 3] = 0.0 # Less than knee dim3 = 0
+                    # Now velocity...
+                    select_pursuit = bin_eye_data[:, :, 4] >= 0.0
+                    bin_eye_data[~select_pursuit, 4] = 0.0 # Less than knee dim0 = 0
+                    bin_eye_data[select_pursuit, 6] = 0.0 # Less than knee dim2 = 0
+                    select_learning = bin_eye_data[:, :, 5] >= 0.0
+                    bin_eye_data[~select_learning, 5] = 0.0 # Less than knee dim1 = 0
+                    bin_eye_data[select_learning, 7] = 0.0 # Less than knee dim3 = 0
                     # Convert slip terms to position and velocity interactions
-                    bin_eye_data[:, :, 4:6] *= bin_eye_data[:, :, 0:2]
-                    bin_eye_data[:, :, 6:8] *= bin_eye_data[:, :, 2:4]
+                    bin_eye_data[:, :, 8:16] *= bin_eye_data[:, :, 0:8]
+
                     bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
                     temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
                     select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
@@ -642,7 +661,7 @@ class FitNeuronToEye(object):
                                 'all_R2': R2,
                                 'use_constant': fit_constant,
                                 'dc_offset': dc_offset,
-                                'predict_fun': self.predict_eye_slip_interaction,
+                                'predict_fun': self.predict_pcwise_eye_slip_interaction,
                                 'knees': knees}
 
     def get_pcwise_eye_slip_inter_predict_data(self, blocks, trial_sets, verbose=False):
@@ -657,7 +676,7 @@ class FitNeuronToEye(object):
                                ]
         if verbose: print("EYE lag:", self.fit_results['pcwise_eye_slip_interaction']['eye_lag'])
         if verbose: print("SLIP lag:", self.fit_results['pcwise_eye_slip_interaction']['slip_lag'])
-        s_dim2 = 9 if self.fit_results['pcwise_eye_slip_interaction']['use_constant'] else 8
+        s_dim2 = 17 if self.fit_results['pcwise_eye_slip_interaction']['use_constant'] else 16
         X = np.ones((self.time_window[1]-self.time_window[0], s_dim2))
 
 
@@ -666,18 +685,35 @@ class FitNeuronToEye(object):
                                                 slip_lagged_eye_win,
                                                 blocks=blocks,
                                                 trial_sets=trial_sets)
-        X[:, 2], X[:, 3] = self.neuron.session.get_mean_xy_traces(
+        # Need to get the +/- position data separate
+        X_select = X[:, 0] >= self.fit_results['pcwise_eye_slip_interaction']['knees'][0]
+        X[~X_select, 0] = 0.0 # Less than knee dim0 = 0
+        X[X_select, 2] = 0.0 # Less than knee dim2 = 0
+        X_select = X[:, 1] >= self.fit_results['pcwise_eye_slip_interaction']['knees'][1]
+        X[~X_select, 1] = 0.0 # Less than knee dim1 = 0
+        X[X_select, 3] = 0.0 # Less than knee dim3 = 0
+
+        X[:, 4], X[:, 5] = self.neuron.session.get_mean_xy_traces(
                                                 "eye velocity",
                                                 slip_lagged_eye_win,
                                                 blocks=blocks,
                                                 trial_sets=trial_sets)
-        X[:, 4], X[:, 5] = self.neuron.session.get_mean_xy_traces(
+        # Need to get the +/- position data separate
+        X_select = X[:, 4] >= 0.0
+        X[~X_select, 4] = 0.0 # Less than knee dim0 = 0
+        X[X_select, 6] = 0.0 # Less than knee dim2 = 0
+        X_select = X[:, 5] >= 0.0
+        X[~X_select, 5] = 0.0 # Less than knee dim1 = 0
+        X[X_select, 7] = 0.0 # Less than knee dim3 = 0
+
+        X[:, 8], X[:, 9] = self.neuron.session.get_mean_xy_traces(
                                                 "slip", slip_lagged_slip_win,
                                                 blocks=blocks,
                                                 trial_sets=trial_sets)
-        X[:, 6:8] = X[:, 4:6]
-        X[:, 4:6] *= X[:, 0:2]
-        X[:, 6:8] *= X[:, 2:4]
+        X[:, 10:12] = X[:, 8:10]
+        X[:, 12:14] = X[:, 8:10]
+        X[:, 14:16] = X[:, 8:10]
+        X[:, 8:16] *= X[:, 0:8]
         return X
 
     def predict_pcwise_eye_slip_interaction(self, X):
@@ -688,7 +724,7 @@ class FitNeuronToEye(object):
                 # Add column of 1's for constant
                 X = np.hstack((X, np.ones((X.shape[0], 1))))
         if X.shape[1] != self.fit_results['pcwise_eye_slip_interaction']['coeffs'].shape[0]:
-            raise ValueError("Eye slip interaction is fit with 8 non-constant coefficients but input data dimension is {0}.".format(X.shape[1]))
+            raise ValueError("Piecewise eye slip interaction is fit with 16 non-constant coefficients but input data dimension is {0}.".format(X.shape[1]))
         y_hat = np.matmul(X, self.fit_results['pcwise_eye_slip_interaction']['coeffs'])
         return y_hat
 
