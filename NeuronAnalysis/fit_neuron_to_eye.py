@@ -664,7 +664,8 @@ class FitNeuronToEye(object):
                                 'predict_fun': self.predict_pcwise_eye_slip_interaction,
                                 'knees': knees}
 
-    def get_pcwise_eye_slip_inter_predict_data(self, blocks, trial_sets, verbose=False):
+    def get_pcwise_eye_slip_inter_predict_data(self, blocks, trial_sets,
+                                            get_avg_data=False, verbose=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
         way that it can be used to predict firing rate according to the eye
         slip interaction model using predict_eye_slip_interaction. """
@@ -677,14 +678,27 @@ class FitNeuronToEye(object):
         if verbose: print("EYE lag:", self.fit_results['pcwise_eye_slip_interaction']['eye_lag'])
         if verbose: print("SLIP lag:", self.fit_results['pcwise_eye_slip_interaction']['slip_lag'])
         s_dim2 = 17 if self.fit_results['pcwise_eye_slip_interaction']['use_constant'] else 16
-        X = np.ones((self.time_window[1]-self.time_window[0], s_dim2))
 
-
-        X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
-                                                "eye position",
-                                                slip_lagged_eye_win,
-                                                blocks=blocks,
-                                                trial_sets=trial_sets)
+        if get_avg_data:
+            X = np.ones((self.time_window[1]-self.time_window[0], s_dim2))
+            X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
+                                                    "eye position",
+                                                    slip_lagged_eye_win,
+                                                    blocks=blocks,
+                                                    trial_sets=trial_sets)
+        else:
+            # We don't know how big X will be until we grab some data and find out
+            x, y = self.neuron.session.get_xy_traces("eye position",
+                                                        slip_lagged_eye_win,
+                                                        blocks=blocks,
+                                                        trial_sets=trial_sets,
+                                                        return_inds=False)
+            # x,y output as n_trials by time array
+            X = np.ones((x.size, s_dim2))
+            X[:, 0] = np.ravel(x, order='C')
+            X[:, 1] = np.ravel(y, order='C')
+        # Copy position for +/-
+        X[:, 2:4] = X[:, 0:2]
         # Need to get the +/- position data separate
         X_select = X[:, 0] >= self.fit_results['pcwise_eye_slip_interaction']['knees'][0]
         X[~X_select, 0] = 0.0 # Less than knee dim0 = 0
@@ -693,11 +707,22 @@ class FitNeuronToEye(object):
         X[~X_select, 1] = 0.0 # Less than knee dim1 = 0
         X[X_select, 3] = 0.0 # Less than knee dim3 = 0
 
-        X[:, 4], X[:, 5] = self.neuron.session.get_mean_xy_traces(
-                                                "eye velocity",
-                                                slip_lagged_eye_win,
-                                                blocks=blocks,
-                                                trial_sets=trial_sets)
+        if get_avg_data:
+            X[:, 4], X[:, 5] = self.neuron.session.get_mean_xy_traces(
+                                                    "eye velocity",
+                                                    slip_lagged_eye_win,
+                                                    blocks=blocks,
+                                                    trial_sets=trial_sets)
+        else:
+            x, y = self.neuron.session.get_xy_traces("eye velocity",
+                                                        slip_lagged_eye_win,
+                                                        blocks=blocks,
+                                                        trial_sets=trial_sets,
+                                                        return_inds=False)
+            X[:, 4] = np.ravel(x, order='C')
+            X[:, 5] = np.ravel(y, order='C')
+        # Copy velocity for +/-
+        X[:, 6:8] = X[:, 4:6]
         # Need to get the +/- position data separate
         X_select = X[:, 4] >= 0.0
         X[~X_select, 4] = 0.0 # Less than knee dim0 = 0
@@ -706,10 +731,19 @@ class FitNeuronToEye(object):
         X[~X_select, 5] = 0.0 # Less than knee dim1 = 0
         X[X_select, 7] = 0.0 # Less than knee dim3 = 0
 
-        X[:, 8], X[:, 9] = self.neuron.session.get_mean_xy_traces(
-                                                "slip", slip_lagged_slip_win,
-                                                blocks=blocks,
-                                                trial_sets=trial_sets)
+        if get_avg_data:
+            X[:, 8], X[:, 9] = self.neuron.session.get_mean_xy_traces(
+                                                    "slip", slip_lagged_slip_win,
+                                                    blocks=blocks,
+                                                    trial_sets=trial_sets)
+        else:
+            x, y = self.neuron.session.get_xy_traces("slip",
+                                                        slip_lagged_slip_win,
+                                                        blocks=blocks,
+                                                        trial_sets=trial_sets,
+                                                        return_inds=False)
+            X[:, 8] = np.ravel(x, order='C')
+            X[:, 9] = np.ravel(y, order='C')
         X[:, 10:12] = X[:, 8:10]
         X[:, 12:14] = X[:, 8:10]
         X[:, 14:16] = X[:, 8:10]
