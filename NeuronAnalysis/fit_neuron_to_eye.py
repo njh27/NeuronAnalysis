@@ -2,6 +2,7 @@ import numpy as np
 from numpy import linalg as la
 from scipy.optimize import minimize
 import warnings
+from NeuronAnalysis.general import bin_xy_func_z
 from SessionAnalysis.utils import eye_data_series
 
 
@@ -1211,7 +1212,8 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
         else:
             return fr
 
-    def fit_4D_planes(self, knee_steps=[2.5, 0.25], bin_width=10, bin_threshold=1):
+    def fit_4D_planes(self, knee_steps=[2.5, 0.25], bin_width=10,
+                        bin_threshold=1, min_fr_step=.5):
         """
         """
 
@@ -1246,37 +1248,66 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
         steps = np.arange(knee_start, knee_stop + half_knee_step + 1, knee_steps[0])
         steps[-1] = knee_stop
 
+        fr_edges = np.concatenate(([knee_start - knee_steps[0]], steps, [knee_stop + knee_steps[0]]))
+        _, _, z_out = bin_xy_func_z(all_eye_data[:, 0], all_eye_data[:, 1],
+                                all_fr_data, fr_edges, fr_edges, np.nanmedian)
+        # Use gaps between firing rate bins to choose a range and step for FR
+        row_diffs = np.abs(np.diff(z_out.ravel(order="C")))
+        col_diffs = np.abs(np.diff(z_out.ravel(order="F")))
+        fr_range = np.ceil(np.nanmax(np.concatenate((row_diffs, col_diffs))))
+        fr_range = max(fr_range, 1.) # Range at least 1 Hz
+        fr_step = np.floor(np.nanmin(np.concatenate((row_diffs, col_diffs))))
+        fr_step = max(fr_step, 0.1) # Step at least 0.1 Hz
+
         R2 = []
         coefficients = []
-        steps_used = np.zeros((2, len(steps) * len(steps)))
+        steps_used = np.zeros((3, len(steps) * len(steps)))
         n_fit = 0
-        eye_data = np.zeros((all_eye_data.shape[0], 5))
-        eye_data[:, 4] = 1.
+        eye_data = np.zeros((all_eye_data.shape[0], 4))
+        # eye_data = np.zeros((all_eye_data.shape[0], 5))
+        # eye_data[:, 4] = 1.
         # Loop over all potential knees in pursuit and learn axes
         for p_knee in steps:
             for l_knee in steps:
-                # First 2 columns are positive/negative pursuit
-                # Second 2 columns are postive/negative learning
-                eye_data_select = all_eye_data[:, 0] >= p_knee
-                eye_data[eye_data_select, 0] = all_eye_data[eye_data_select, 0]
-                eye_data[~eye_data_select, 1] = all_eye_data[~eye_data_select, 0]
-                eye_data_select = all_eye_data[:, 1] >= l_knee
-                eye_data[eye_data_select, 2] = all_eye_data[eye_data_select, 1]
-                eye_data[~eye_data_select, 3] = all_eye_data[~eye_data_select, 1]
+                # Determine the firing rate range needed for current knees
+                p_edges = [p_knee - half_knee_step, p_knee + half_knee_step]
+                l_edges = [l_knee - half_knee_step, l_knee + half_knee_step]
+                _, _, z_out = bin_xy_func_z(all_eye_data[:, 0], all_eye_data[:, 1],
+                                        all_fr_data, p_edges, l_edges, np.nanmedian)
+                if np.isnan(z_out):
+                    # No firing rate data near this point so don't make it a knee
+                    coefficients.append([])
+                    R2.append(-np.inf)
+                    steps_used[0, n_fit] = p_knee
+                    steps_used[1, n_fit] = l_knee
+                    n_fit += 1
+                    continue
+                fr_start = max(0., z_out - fr_range)
+                fr_stop = z_out + fr_range + fr_step/2
+                fr_steps = np.arange(fr_start, fr_stop, fr_step)
+                for fr_knee in fr_steps:
+                    # First 2 columns are positive/negative pursuit
+                    # Second 2 columns are postive/negative learning
+                    eye_data_select = all_eye_data[:, 0] >= p_knee
+                    eye_data[eye_data_select, 0] = all_eye_data[eye_data_select, 0] - p_knee
+                    eye_data[~eye_data_select, 1] = all_eye_data[~eye_data_select, 0] - p_knee
+                    eye_data_select = all_eye_data[:, 1] >= l_knee
+                    eye_data[eye_data_select, 2] = all_eye_data[eye_data_select, 1] - l_knee
+                    eye_data[~eye_data_select, 3] = all_eye_data[~eye_data_select, 1] - l_knee
 
-                # Now fit and measure goodness
-                coefficients.append(np.linalg.lstsq(eye_data, all_fr_data, rcond=None)[0])
-                y_mean = np.mean(all_fr_data)
-                y_predicted = np.matmul(eye_data, coefficients[-1])
-                sum_squares_error = ((all_fr_data - y_predicted) ** 2).sum()
-                sum_squares_total = ((all_fr_data - y_mean) ** 2).sum()
-                R2.append(1 - sum_squares_error/(sum_squares_total))
-                steps_used[0, n_fit] = p_knee
-                steps_used[1, n_fit] = l_knee
-                n_fit += 1
+                    # Now fit and measure goodness
+                    coefficients.append(np.linalg.lstsq(eye_data, all_fr_data - fr_knee, rcond=None)[0])
+                    y_mean = np.mean(all_fr_data)
+                    y_predicted = np.matmul(eye_data, coefficients[-1])
+                    sum_squares_error = ((all_fr_data - y_predicted) ** 2).sum()
+                    sum_squares_total = ((all_fr_data - y_mean) ** 2).sum()
+                    R2.append(1 - sum_squares_error/(sum_squares_total))
+                    steps_used[0, n_fit] = p_knee
+                    steps_used[1, n_fit] = l_knee
+                    n_fit += 1
 
-                # Need to reset eye_data so default is "0.0"
-                eye_data[:, 0:4] = 0.0
+                    # Need to reset eye_data so default is "0.0"
+                    eye_data[:, 0:4] = 0.0
 
         # Do fine resolution loop
         max_ind = np.where(R2 == np.amax(R2))[0][0]
@@ -1290,6 +1321,20 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
         step_start_l_knee = max(knee_start, best_l_knee - knee_steps[0])
         step_stop_l_knee = min(knee_stop, best_l_knee + knee_steps[0])
         steps_l = np.arange(step_start_l_knee, step_stop_l_knee + knee_steps[1], knee_steps[1])
+        half_knee_step = knee_steps[1] / 2
+
+        fr_edges_p = np.concatenate(([step_start_p_knee - knee_steps[1]], steps_p, [step_stop_p_knee + knee_steps[1]]))
+        fr_edges_l = np.concatenate(([step_start_l_knee - knee_steps[1]], steps_l, [step_stop_l_knee + knee_steps[1]]))
+        _, _, z_out = bin_xy_func_z(all_eye_data[:, 0], all_eye_data[:, 1],
+                                all_fr_data, fr_edges_p, fr_edges_l, np.nanmedian)
+        # Use gaps between firing rate bins to choose a range and step for FR
+        row_diffs = np.abs(np.diff(z_out.ravel(order="C")))
+        col_diffs = np.abs(np.diff(z_out.ravel(order="F")))
+        fr_range = np.ceil(np.amax(np.concatenate((row_diffs, col_diffs))))
+        fr_range = max(fr_range, 1.) # Range at least 1 Hz
+        fr_step = np.floor(np.amin(np.concatenate((row_diffs, col_diffs))))
+        fr_step = max(fr_step, 0.1) # Step at least 0.1 Hz
+
         # Reset fit measures
         R2 = []
         coefficients = []
@@ -1298,17 +1343,34 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
         # Loop over all potential knees in pursuit and learn axes
         for p_knee in steps_p:
             for l_knee in steps_l:
-                # First 2 columns are positive/negative pursuit
-                # Second 2 columns are postive/negative learning
-                eye_data_select = all_eye_data[:, 0] >= p_knee
-                eye_data[eye_data_select, 0] = all_eye_data[eye_data_select, 0]
-                eye_data[~eye_data_select, 1] = all_eye_data[~eye_data_select, 0]
-                eye_data_select = all_eye_data[:, 1] >= l_knee
-                eye_data[eye_data_select, 2] = all_eye_data[eye_data_select, 1]
-                eye_data[~eye_data_select, 3] = all_eye_data[~eye_data_select, 1]
+                # Determine the firing rate range needed for current knees
+                p_edges = [p_knee - half_knee_step, p_knee + half_knee_step]
+                l_edges = [l_knee - half_knee_step, l_knee + half_knee_step]
+                _, _, z_out = bin_xy_func_z(all_eye_data[:, 0], all_eye_data[:, 1],
+                                        all_fr_data, p_edges, l_edges, np.nanmedian)
+                if np.isnan(z_out):
+                    # No firing rate data near this point so don't make it a knee
+                    coefficients.append([])
+                    R2.append(-np.inf)
+                    steps_used[0, n_fit] = p_knee
+                    steps_used[1, n_fit] = l_knee
+                    n_fit += 1
+                    continue
+                fr_start = max(0., z_out - fr_range)
+                fr_stop = z_out + fr_range + fr_step/2
+                fr_steps = np.arange(fr_start, fr_stop, fr_step)
+                for fr_knee in fr_steps:
+                    # First 2 columns are positive/negative pursuit
+                    # Second 2 columns are postive/negative learning
+                    eye_data_select = all_eye_data[:, 0] >= p_knee
+                    eye_data[eye_data_select, 0] = all_eye_data[eye_data_select, 0] - p_knee
+                    eye_data[~eye_data_select, 1] = all_eye_data[~eye_data_select, 0] - p_knee
+                    eye_data_select = all_eye_data[:, 1] >= l_knee
+                    eye_data[eye_data_select, 2] = all_eye_data[eye_data_select, 1] - l_knee
+                    eye_data[~eye_data_select, 3] = all_eye_data[~eye_data_select, 1] - l_knee
 
-                # Now fit and measure goodness
-                coefficients.append(np.linalg.lstsq(eye_data, all_fr_data, rcond=None)[0])
+                    # Now fit and measure goodness
+                    coefficients.append(np.linalg.lstsq(eye_data, all_fr_data - fr_knee, rcond=None)[0])
                 y_mean = np.mean(all_fr_data)
                 y_predicted = np.matmul(eye_data, coefficients[-1])
                 sum_squares_error = ((all_fr_data - y_predicted) ** 2).sum()
