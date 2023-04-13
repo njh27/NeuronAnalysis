@@ -275,23 +275,47 @@ class PurkinjeCell(Neuron):
     """
     def __init__(self, neuron_dict, name, cs_name=None, session=None, min_CS_ISI=100):
         Neuron.__init__(self, neuron_dict, name, cell_type="PC", session=session)
-        self.cs_indices = np.sort(neuron_dict['cs_spike_indices__'])
-        self.use_series_cs = cs_name if cs_name is not None else ("name" + "_CS")
         self.min_CS_ISI = min_CS_ISI
-        self.remove_CS_ISI_violations()
+        if hasattr(self, "session"):
+            self.assign_cs_by_trial()
+        self.use_series_cs = cs_name if cs_name is not None else ("name" + "_CS")
         self.optimal_cos_funs_cs = {}
         self.optimal_cos_vectors_cs = {}
         self.optimal_cos_time_window_cs = {}
 
-    def remove_CS_ISI_violations(self):
-        """ Removes CS indices with ISIs less than min_CS_ISI and places result
-        back into self.cs_indices. """
-        cs_spikes_ms = self.get_CS_spikes_ms()
-        remove_spikes = np.zeros((self.cs_indices.shape[0], ), dtype='bool')
-        cs_ISIs_ms = np.diff(cs_spikes_ms)
-        # shift over so remove second spike from violation
-        remove_spikes[1:] = cs_ISIs_ms < self.min_CS_ISI
-        self.cs_indices = self.cs_indices[~remove_spikes]
+    def join_session(self, session):
+        self.session = session
+        self.assign_cs_by_trial() # Add this in addition to parent function
+        self.compute_valid_trials()
+        self.recompute_fits()
+
+    def assign_cs_by_trial(self):
+        """ Copy all trial CS indices to a list and REMOVE ISI violations while
+        we're at it. """
+        self.trial_cs_times = []
+        last_cs_time = -np.inf
+        for t in range(0, len(self.session)):
+            trial_obj = self.session._trial_lists["neurons"][t]
+            trial_CS = trial_obj[self.session.meta_dict_name][self.name]['complex_spikes']
+            if trial_CS is None:
+                self.trial_cs_times.append([])
+                continue
+            elif len(trial_CS) == 0:
+                self.trial_cs_times.append([])
+                continue
+            else:
+                trial_CS_ISIs = np.diff(trial_CS)
+                remove_CS = np.zeros((trial_CS.shape[0], ), dtype='bool')
+                # shift over so remove second spike from violation
+                remove_CS[1:] = trial_CS_ISIs < self.min_CS_ISI
+                if (trial_CS[0] - last_cs_time) < self.min_CS_ISI:
+                    # Also need to remove first CS this trial for violation
+                    remove_CS[0] = True
+                last_cs_time = trial_CS[-1]
+                trial_CS = trial_CS[~remove_CS]
+                if trial_CS.shape[0] == 0:
+                    trial_CS = []
+                self.trial_cs_times.append(trial_CS)
 
     def get_cs_by_trial(self, time_window, blocks=None, trial_sets=None,
                          return_inds=False):
@@ -305,9 +329,8 @@ class PurkinjeCell(Neuron):
             if not self.session._session_trial_data[t]['incl_align']:
                 # Trial is not aligned with others due to missing event
                 continue
-            trial_obj = self.session._trial_lists["neurons"][t]
-            trial_CS = trial_obj[self.session.meta_dict_name][self.name]['complex_spikes']
-            if trial_CS is None:
+            trial_CS = self.trial_cs_times[t]
+            if len(trial_CS) == 0:
                 # Data are missing for this neuron on this trial
                 continue
             # Align trial CS on current alignment event NOT IN PLACE!!!
@@ -401,11 +424,10 @@ class PurkinjeCell(Neuron):
         self.optimal_cos_vectors_cs[block] = -1 * phase
         self.optimal_cos_time_window_cs[block] = cs_time_window
 
-
-    def get_CS_spikes_ms(self):
-        """ Convert CS times in units of indices to units of milliseconds. """
-        CS_spikes_ms = self.cs_indices / (self.sampling_rate / 1000)
-        return CS_spikes_ms
+    # def get_CS_spikes_ms(self):
+    #     """ Convert CS times in units of indices to units of milliseconds. """
+    #     CS_spikes_ms = self. / (self.sampling_rate / 1000)
+    #     return CS_spikes_ms
 
 
 
