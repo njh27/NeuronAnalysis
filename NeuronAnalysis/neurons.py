@@ -145,9 +145,31 @@ class Neuron(object):
             if trial_ind >= len(self.session):
                 break
 
+    def append_valid_trial_set(self, trial_sets):
+        """ Takes the input trial_sets and appends to it the valid trial set
+        for the current neuron for selecting data from trials specific to when
+        this neuron was valid. The trial_sets input itself may be modified and
+        is returned. """
+        if trial_sets is None:
+            trial_sets = [self.name]
+        elif trial_sets == self.name:
+            # trial_sets is already this valid neuron set
+            trial_sets = [trial_sets]
+        elif not isinstance(trial_sets, list):
+            trial_sets = [trial_sets]
+            trial_sets.append(self.name)
+        elif self.name in trial_sets:
+            # Valid trial set is already in trial sets so do nothing
+            pass
+        else:
+            #trial_sets is a list that does not contain our valid set so add it
+            trial_sets.append(self.name)
+        return trial_sets
+
     def get_firing_traces(self, time_window, blocks=None, trial_sets=None,
                          return_inds=False):
         """ Gets data for default self.use_series within time_window. """
+        # session.get_data_array calls self.append_valid_trial_set(trial_sets)
         fr, t = self.session.get_data_array(self.use_series, time_window,
                                         blocks=blocks, trial_sets=trial_sets,
                                         return_inds=True)
@@ -159,7 +181,8 @@ class Neuron(object):
     def get_mean_firing_trace(self, time_window, blocks=None, trial_sets=None,
                                 return_inds=False):
         warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
-        """ Calls ldp_sess.get_data_array and takes the mean over rows of the output. """
+        """ Calls session.get_data_array and takes the mean over rows of the output. """
+        # session.get_data_array calls self.append_valid_trial_set(trial_sets)
         fr, t = self.get_firing_traces(time_window, blocks=blocks,
                                         trial_sets=trial_sets, return_inds=True)
         if len(fr) == 0:
@@ -185,9 +208,10 @@ class Neuron(object):
         for curr_set in self.session.four_dir_trial_sets:
             curr_fr = self.get_mean_firing_trace(time_window, block, curr_set)
             fr_by_set.append(np.nanmean(curr_fr))
+            trial_sets = [curr_set, self.name] # append valid trial set for this neuron
             targ_p, targ_l = self.session.get_mean_xy_traces(
                             "target position", time_window, blocks=block,
-                            trial_sets=curr_set, rescale=False)
+                            trial_sets=trial_sets, rescale=False)
             # Just get single vector for each target dimension
             if len(targ_p) > 1:
                 targ_p = targ_p[-1] - targ_p[0]
@@ -317,11 +341,25 @@ class PurkinjeCell(Neuron):
                     trial_CS = []
                 self.trial_cs_times.append(trial_CS)
 
+    def set_mean_CS_prob(self, time_window, blocks=None, trial_sets=None):
+        """ Finds the mean CS probability over all 1 ms bins for comparison
+        with time varying probabilities by trial type. """
+        trial_duration = time_window[1] - time_window[0]
+        # get_cs_by_trial calls self.append_valid_trial_set(trial_sets)
+        cs_by_trial = self.get_cs_by_trial(time_window, blocks, trial_sets)
+        if len(cs_by_trial) == 0:
+            raise ValueError("No trials found for input blocks and trial sets! Mean CS probability not set.")
+        n_CS = 0
+        for t_cs in cs_by_trial:
+            n_CS += len(t_cs)
+        self.p_CS_per_ms = n_CS / (trial_duration * len(cs_by_trial))
+
     def get_cs_by_trial(self, time_window, blocks=None, trial_sets=None,
                          return_inds=False):
         """ Gets complex spikes by trial for the input blocks/trials within
         time_window. Done seprate because there is no point in a timeseries for
         the infrequent CS events. """
+        trial_sets = self.append_valid_trial_set(trial_sets)
         t_inds = self.session._parse_blocks_trial_sets(blocks, trial_sets)
         data_out = []
         t_inds_out = []
@@ -349,6 +387,7 @@ class PurkinjeCell(Neuron):
     def get_cs_rate(self, time_window, blocks=None, trial_sets=None,
                          return_inds=False):
         """Converts the CSs found to rates within the time window. """
+        # get_cs_by_trial calls self.append_valid_trial_set(trial_sets)
         fr, t = self.get_cs_by_trial(time_window, blocks=blocks,
                                      trial_sets=trial_sets, return_inds=True)
         if len(fr) > 0:
@@ -367,6 +406,7 @@ class PurkinjeCell(Neuron):
                                 return_inds=False):
         warnings.filterwarnings("ignore", category=RuntimeWarning, message="Mean of empty slice")
         """ Calls self.get_cs_rate and takes the mean over trials of the output. """
+        # get_cs_by_trial calls self.append_valid_trial_set(trial_sets)
         fr, t = self.get_cs_rate(time_window, blocks=blocks,
                                         trial_sets=trial_sets, return_inds=True)
         if len(fr) == 0:
@@ -390,8 +430,10 @@ class PurkinjeCell(Neuron):
         fr_by_set = []
         theta_by_set = []
         for curr_set in self.session.four_dir_trial_sets:
+            # get_cs_by_trial calls self.append_valid_trial_set(trial_sets)
             curr_fr = self.get_mean_cs_rate(time_window, block, curr_set)
             fr_by_set.append(curr_fr)
+            trial_sets = [curr_set, self.name] # append valid trial set for this neuron
             targ_p, targ_l = self.session.get_mean_xy_traces(
                             "target position", time_window, blocks=block,
                             trial_sets=curr_set, rescale=False)
