@@ -354,6 +354,35 @@ class PurkinjeCell(Neuron):
             n_CS += len(t_cs)
         self.p_CS_per_ms = n_CS / (trial_duration * len(cs_by_trial))
 
+    def get_gauss_convolved_CS_by_trial(self, time_window, blocks=None,
+                                        trial_sets=None, sigma=50,
+                                        cutoff_sigma=4):
+        """ Returns a n trials by t time points numpy array of the smoothed
+        CS rates over the blocks and trial sets input. """
+        # get_cs_by_trial calls self.append_valid_trial_set(trial_sets)
+        cs_by_trial = self.get_cs_by_trial(time_window, blocks=blocks,
+                                            trial_sets=trial_sets)
+        smooth_CS_by_trial = np.zeros((len(cs_by_trial), time_window[1] - time_window[0]))
+        for t_cs_ind, t_cs in enumerate(cs_by_trial):
+            if len(t_cs) == 0:
+                continue
+            smooth_CS_by_trial[t_cs_ind, np.int32(np.around(t_cs)) - time_window[0]] = 1.0
+            smooth_CS_by_trial[t_cs_ind, :] = gauss_convolve(
+                                        smooth_CS_by_trial[t_cs_ind, :],
+                                        sigma=sigma, cutoff_sigma=cutoff_sigma)
+        return smooth_CS_by_trial
+
+    def get_mean_gauss_convolved_CS_by_trial(self, time_window, blocks=None,
+                                                trial_sets=None, sigma=50,
+                                                cutoff_sigma=4):
+        """ Gets mean over all input trials averaging over output from
+        get_gauss_convolved_CS_by_trial above. """
+        smooth_CS_by_trial = self.get_gauss_convolved_CS_by_trial(time_window,
+                                            blocks=blocks,
+                                            trial_sets=trial_sets, sigma=sigma,
+                                            cutoff_sigma=cutoff_sigma)
+        return np.mean(smooth_CS_by_trial, axis=0)
+
     def get_cs_by_trial(self, time_window, blocks=None, trial_sets=None,
                          return_inds=False):
         """ Gets complex spikes by trial for the input blocks/trials within

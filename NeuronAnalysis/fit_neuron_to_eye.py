@@ -61,6 +61,7 @@ class FitNeuronToEye(object):
     def __init__(self, Neuron, time_window=[0, 800], blocks=None, trial_sets=None,
                     lag_range_eye=[-25, 25], lag_range_slip=[60, 120],
                     dc_win=[0, 100], use_series=None):
+        print("CURRENTLY DOES NOT USE BEHAVIOR DATA FROM VALID NEURON TRIALS WHEN GETTING DATA FOR FIT PREDICTIONS")
         self.neuron = Neuron
         if use_series is not None:
             if use_series != Neuron.use_series:
