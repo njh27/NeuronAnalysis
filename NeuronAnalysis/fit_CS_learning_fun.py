@@ -310,13 +310,17 @@ class FitCSLearningFun(object):
         """ Gets behavioral data from blocks and trial sets and formats in a
         way that it can be used to predict firing rate according to the linear
         eye kinematic model using predict_lin_eye_kinematics. """
+        lagged_eye_win = [self.time_window[0] + self.fit_results['gauss_basis_kinematics']['pf_lag'],
+                          self.time_window[1] + self.fit_results['gauss_basis_kinematics']['pf_lag']
+                         ]
+        if verbose: print("PF lag:", self.fit_results['gauss_basis_kinematics']['pf_lag'])
         X = np.ones((self.time_window[1]-self.time_window[0], 4))
         X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
-                                                "eye position", self.time_window,
+                                                "eye position", lagged_eye_win,
                                                 blocks=blocks,
                                                 trial_sets=trial_sets)
         X[:, 2], X[:, 3] = self.neuron.session.get_mean_xy_traces(
-                                                "eye velocity", self.time_window,
+                                                "eye velocity", lagged_eye_win,
                                                 blocks=blocks,
                                                 trial_sets=trial_sets)
         return X
