@@ -112,57 +112,66 @@ class FitCSLearningFun(object):
                             self.trial_sets, return_inds=False)
         return fr
 
-    def get_eye_data_traces(self):
-        """ Gets eye position and velocity in array of trial x self.time_window
-            3rd dimension of array is ordered as pursuit, learning position,
-            then pursuit, learning velocity.
+    def get_eye_data_traces_all_lags(self):
+        """ Gets eye position and velocity in array of trial x
+        self.time_window +/- self.lag_range_eye so that all lags of data are
+        pulled at once and can later be taken as slices/views for much faster
+        fitting over lags and single memory usage.
+        3rd dimension of array is ordered as pursuit, learning position,
+        then pursuit, learning velocity.
         """
+        lag_time_window = [self.time_window[0] + self.lag_range_eye[0],
+                            self.time_window[1] + self.lag_range_eye[1]]
         pos_p, pos_l, t_inds = self.neuron.session.get_xy_traces("eye position",
-                                self.time_window, self.blocks, self.trial_sets,
+                                lag_time_window, self.blocks, self.trial_sets,
                                 return_inds=True)
         vel_p, vel_l = self.neuron.session.get_xy_traces("eye velocity",
-                                self.time_window, self.blocks, self.trial_sets,
+                                lag_time_window, self.blocks, self.trial_sets,
                                 return_inds=False)
         eye_data = np.stack((pos_p, pos_l, vel_p, vel_l), axis=2)
+        self.eye_lag_adjust = self.lag_range_eye[0]
+        self.fit_dur = self.time_window[1] - self.time_window[0]
         return eye_data
 
-    def get_slip_data_traces(self):
-        """ Returns - time_window by len(maestro_PL2_data) by 2 array of
-        retinal slip data. 3rd dimension of array is ordered as pursuit,
-        learning slip.
-        """
-        slip_p, slip_l, t_inds = self.neuron.session.get_xy_traces("slip",
-                                self.time_window, self.blocks, self.trial_sets,
-                                return_inds=True)
-        slip_data = np.stack((slip_p, slip_l), axis=2)
-        return slip_data
+    def get_eye_lag_slice(self, lag, eye_data):
+        """ Will slice out a numpy view of eye_data adjusted to the input lag
+        assuming eye_data follows the dimensions produced by
+        get_eye_data_traces_all_lags, but can have extra data concatenated
+        along axis 2. """
+        ind_start = lag - self.eye_lag_adjust
+        ind_stop = ind_start + self.fit_dur
+        return eye_data[:, ind_start:ind_stop, :]
 
     def fit_gauss_basis_kinematics(self, n_gaussians, std_gaussians, pos_range,
                                     vel_range, bin_width=10, bin_threshold=1,
-                                    fit_avg_data=False, p0=None):
+                                    fit_avg_data=False, p0=None,
+                                    quick_lag_step=10):
         """ Fits the input neuron eye data to position and velocity using a
         basis set of Gaussians according to the input number of Gaussians over
         the state space ranges specified by pos/vel _range.
         Output "coeffs" are in order the order of the n_gaussians for position
         followed by the n_gaussians for velocity.
         """
+        quick_lag_step = int(np.around(quick_lag_step))
+        if quick_lag_step < 1:
+            raise ValueError("quick_lag_step must be positive integer")
+        if quick_lag_step > (self.lag_range_eye[1] - self.lag_range_eye[0]):
+            raise ValueError("quick_lag_step is too large relative to lag_range_eye")
+        half_lag_step = np.int32(np.around(quick_lag_step / 2))
+        lags = np.arange(self.lag_range_eye[0], self.lag_range_eye[1] + half_lag_step + 1, quick_lag_step)
+        lags[-1] = self.lag_range_eye[1]
+
+        R2 = []
+        coefficients = []
         firing_rate = self.get_firing_traces()
         if fit_avg_data:
             firing_rate = np.nanmean(firing_rate, axis=0, keepdims=True)
         binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
-        eye_data = self.get_eye_data_traces()
-        # Use bin smoothing on data before fitting
-        bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-        if fit_avg_data:
-            bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
+        eye_data_all_lags = self.get_eye_data_traces_all_lags()
+        # Initialize empty eye_data array that we can fill from slices of all data
+        eye_data = np.ones((eye_data_all_lags.shape[0], self.fit_dur, 4))
 
-        # Reshape to 2D matrices and remove nans
-        bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
-        binned_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-        select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
-        bin_eye_data = bin_eye_data[select_good, :]
-        binned_FR = binned_FR[select_good]
-
+        # Set up the basic values and fit function for basis set
         # Use inputs to set these variables and keep in scope for wrapper
         pos_fixed_means = np.linspace(pos_range[0], pos_range[1], n_gaussians)
         vel_fixed_means = np.linspace(vel_range[0], vel_range[1], n_gaussians)
@@ -170,41 +179,132 @@ class FitCSLearningFun(object):
         pos_fixed_std = std_gaussians
         vel_fixed_std = std_gaussians
         # Wrapper function for curve_fit using our fixed gaussians, means, sigmas....
-        def wrapper_gaussian_basis_set(x, *scales):
+        def wrapper_gaussian_basis_set(x, *params):
             result = np.zeros(x.shape[1])
             for k in range(4):
                 use_means = pos_fixed_means if k < 2 else vel_fixed_means
                 use_std = pos_fixed_std if k < 2 else vel_fixed_std
-                result += gaussian_basis_set(x[k, :], scales[k * n_gaussians:(k + 1) * n_gaussians],
+                result += gaussian_basis_set(x[:, 4], scales[k * n_gaussians:(k + 1) * n_gaussians],
                                                                     use_means, use_std)
             return result
 
         if p0 is None:
             # curve_fit seems unable to figure out how many parameters without setting this
             p0 = np.ones(4*n_gaussians)
-        # Fit the Gaussian basis set to the data
-        popt, pcov = curve_fit(wrapper_gaussian_basis_set, bin_eye_data.T, binned_FR, p0=p0)
+        # Set lower and upper bounds for each parameter
+        lower_bounds = -np.inf * np.ones(p0.shape)
+        upper_bounds = np.inf * np.ones(p0.shape)
+        lower_bounds[0:4*n_gaussians] = -500
+        upper_bounds[0:4*n_gaussians] = 500
 
+        # First loop over lags using quick_lag_step intervals
+        for lag in lags:
+            eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
+            # Use bin smoothing on data before fitting
+            bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
+            if fit_avg_data:
+                bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
+            # Reshape to 2D matrices and remove nans
+            bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
+            temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
+            select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+            bin_eye_data = bin_eye_data[select_good, :]
+            temp_FR = temp_FR[select_good]
+
+            # Fit the Gaussian basis set to the data
+            popt, pcov = curve_fit(wrapper_gaussian_basis_set, bin_eye_data,
+                                    temp_FR, p0=p0,
+                                    bounds=(lower_bounds, upper_bounds))
+
+            # Store this for now so we can call predict_gauss_basis_kinematics
+            # below for computing R2. This will be overwritten with optimal
+            # values at the end when we are done
+            self.fit_results['gauss_basis_kinematics'] = {
+                                    'coeffs': popt,
+                                    'n_gaussians': n_gaussians,
+                                    'pos_means': pos_fixed_means,
+                                    'pos_stds': pos_fixed_std,
+                                    'vel_means': vel_fixed_means,
+                                    'vel_stds': vel_fixed_std,
+                                    'R2': None,
+                                    'predict_fun': self.predict_gauss_basis_kinematics}
+            # Compute R2 and save with coefficients for selecting best later
+            coefficients.append(popt)
+            y_mean = np.mean(temp_FR)
+            y_predicted = self.predict_gauss_basis_kinematics(bin_eye_data)
+            sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
+            sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+            R2.append(1 - sum_squares_error/(sum_squares_total))
+
+        if quick_lag_step > 1:
+            # Do fine resolution loop
+            max_ind = np.where(R2 == np.amax(R2))[0]
+            max_ind = max_ind[np.argmin(np.abs(lags[max_ind]))]
+            best_lag = lags[max_ind]
+            # Make new lags centered on this best_lag
+            lag_start = max(lags[0], best_lag - quick_lag_step)
+            lag_stop = min(lags[-1], best_lag + quick_lag_step)
+            lags = np.arange(lag_start, lag_stop + 1, 1)
+            # Reset fit measures
+            R2 = []
+            coefficients = []
+            for lag in lags:
+                eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
+                # Use bin smoothing on data before fitting
+                bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
+                if fit_avg_data:
+                    bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
+                # Reshape to 2D matrices and remove nans
+                bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
+                temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
+                select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+                bin_eye_data = bin_eye_data[select_good, :]
+                temp_FR = temp_FR[select_good]
+
+                # Fit the Gaussian basis set to the data
+                popt, pcov = curve_fit(wrapper_gaussian_basis_set, bin_eye_data,
+                                        temp_FR, p0=p0,
+                                        bounds=(lower_bounds, upper_bounds))
+
+                # Store this for now so we can call predict_gauss_basis_kinematics
+                # below for computing R2. This will be overwritten with optimal
+                # values at the end when we are done
+                self.fit_results['gauss_basis_kinematics'] = {
+                                        'coeffs': popt,
+                                        'n_gaussians': n_gaussians,
+                                        'pos_means': pos_fixed_means,
+                                        'pos_stds': pos_fixed_std,
+                                        'vel_means': vel_fixed_means,
+                                        'vel_stds': vel_fixed_std,
+                                        'R2': None,
+                                        'predict_fun': self.predict_gauss_basis_kinematics}
+                # Compute R2 and save with coefficients for selecting best later
+                coefficients.append(popt)
+                y_mean = np.mean(temp_FR)
+                y_predicted = self.predict_gauss_basis_kinematics(bin_eye_data)
+                sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
+                sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+                R2.append(1 - sum_squares_error/(sum_squares_total))
+
+
+        # Choose peak R2 value with minimum absolute value lag
+        max_ind = np.where(R2 == np.amax(R2))[0]
+        max_ind = max_ind[np.argmin(np.abs(lags[max_ind]))]
         # Get output in fit_results dict so we can use the model later
         self.fit_results['gauss_basis_kinematics'] = {
-                                'coeffs': popt,
+                                'pf_lag': lags[max_ind],
+                                'coeffs': coefficients[max_ind],
                                 'n_gaussians': n_gaussians,
                                 'pos_means': pos_fixed_means,
                                 'pos_stds': pos_fixed_std,
                                 'vel_means': vel_fixed_means,
                                 'vel_stds': vel_fixed_std,
-                                'R2': None,
+                                'R2': R2[max_ind],
                                 'predict_fun': self.predict_gauss_basis_kinematics}
-        y_mean = np.mean(binned_FR)
-        y_predicted = self.predict_gauss_basis_kinematics(bin_eye_data)
-        sum_squares_error = ((binned_FR - y_predicted) ** 2).sum()
-        sum_squares_total = ((binned_FR - y_mean) ** 2).sum()
-        R2 = 1 - sum_squares_error/(sum_squares_total)
-        self.fit_results['gauss_basis_kinematics']['R2'] = R2
         return
 
 
-    def get_gauss_basis_kinematics_predict_data(self, blocks, trial_sets, verbose=False):
+    def get_gauss_basis_kinematics_predict_data_mean(self, blocks, trial_sets, verbose=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
         way that it can be used to predict firing rate according to the linear
         eye kinematic model using predict_lin_eye_kinematics. """
