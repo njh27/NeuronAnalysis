@@ -211,6 +211,8 @@ class FitCSLearningFun(object):
             bin_eye_data = bin_eye_data[select_good, :]
             temp_FR = temp_FR[select_good]
 
+            print("FR nans!?", np.any(np.isnan(temp_FR)))
+
             # Fit the Gaussian basis set to the data
             popt, pcov = curve_fit(wrapper_gaussian_basis_set, bin_eye_data,
                                     temp_FR, p0=p0,
