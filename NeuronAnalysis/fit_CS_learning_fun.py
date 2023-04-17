@@ -181,7 +181,7 @@ class FitCSLearningFun(object):
         pos_fixed_std = std_gaussians
         vel_fixed_std = std_gaussians
         # Wrapper function for curve_fit using our fixed gaussians, means, sigmas....
-        def wrapper_gaussian_basis_set(x, *params):
+        def wrapper_gaussian_basis_set(x, *scales):
             result = np.zeros(x.shape[1])
             for k in range(4):
                 use_means = pos_fixed_means if k < 2 else vel_fixed_means
