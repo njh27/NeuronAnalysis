@@ -206,9 +206,12 @@ class FitCSLearningFun(object):
             if fit_avg_data:
                 bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
             # Reshape to 2D matrices and remove nans
+            print("shape eye", bin_eye_data.shape)
             bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
+            print("shape eye", bin_eye_data.shape)
             temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
             select_good = np.logical_and(~np.any(np.isnan(bin_eye_data), axis=1), FR_select)
+            print("shape select", select_good.shape)
             bin_eye_data = bin_eye_data[select_good, :]
             temp_FR = temp_FR[select_good]
 
