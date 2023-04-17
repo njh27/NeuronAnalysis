@@ -168,6 +168,7 @@ class FitCSLearningFun(object):
             firing_rate = np.nanmean(firing_rate, axis=0, keepdims=True)
         binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
         FR_select = ~np.isnan(binned_FR)
+        FR_select = FR_select.reshape(FR_select.shape[0]*FR_select.shape[1], order='C')
         eye_data_all_lags = self.get_eye_data_traces_all_lags()
         # Initialize empty eye_data array that we can fill from slices of all data
         eye_data = np.ones((eye_data_all_lags.shape[0], self.fit_dur, 4))
