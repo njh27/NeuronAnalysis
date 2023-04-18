@@ -112,7 +112,7 @@ class FitCSLearningFun(object):
                             self.trial_sets, return_inds=False)
         return fr
 
-    def get_eye_data_traces(self, lag=0):
+    def get_eye_data_traces(self, blocks, trial_sets, lag=0):
         """ Gets eye position and velocity in array of trial x self.time_window
             3rd dimension of array is ordered as pursuit, learning position,
             then pursuit, learning velocity.
@@ -121,11 +121,11 @@ class FitCSLearningFun(object):
         if lag_time_window[1] <= lag_time_window[0]:
             raise ValueError("time_window[1] must be greater than time_window[0]")
 
-        pos_p, pos_l, t_inds = self.neuron.session.get_xy_traces("eye position",
-                                lag_time_window, self.blocks, self.trial_sets,
-                                return_inds=True)
+        pos_p, pos_l = self.neuron.session.get_xy_traces("eye position",
+                                lag_time_window, blocks, trial_sets,
+                                return_inds=False)
         vel_p, vel_l = self.neuron.session.get_xy_traces("eye velocity",
-                                lag_time_window, self.blocks, self.trial_sets,
+                                lag_time_window, blocks, trial_sets,
                                 return_inds=False)
         eye_data = np.stack((pos_p, pos_l, vel_p, vel_l), axis=2)
         return eye_data
@@ -331,7 +331,8 @@ class FitCSLearningFun(object):
         """ Gets behavioral data from blocks and trial sets and formats in a
         way that it can be used to predict firing rate according to the linear
         eye kinematic model using predict_lin_eye_kinematics. """
-        eye_data = self.get_eye_data_traces(self.fit_results['gauss_basis_kinematics']['pf_lag'])
+        eye_data = self.get_eye_data_traces(blocks, trial_sets,
+                            self.fit_results['gauss_basis_kinematics']['pf_lag'])
         if verbose: print("PF lag:", self.fit_results['gauss_basis_kinematics']['pf_lag'])
         initial_shape = eye_data.shape
         eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
