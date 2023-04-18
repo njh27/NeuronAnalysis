@@ -290,7 +290,7 @@ class FitCSLearningFun(object):
                                         bounds=(lower_bounds, upper_bounds),
                                         ftol=1e-3,
                                         xtol=1e-3,
-                                        gtol=1e-3
+                                        gtol=1e-3,
                                         max_nfev=10000,
                                         loss='linear')
 
