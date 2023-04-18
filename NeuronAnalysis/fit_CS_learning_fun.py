@@ -552,6 +552,7 @@ class FitCSLearningFun(object):
         eye_data_all_lags = self.get_eye_data_traces_all_lags()
 
         # Go through all unique possible lags and bin the data and store
+        print("Pre computing binned eye data")
         binned_eye_data_by_lag = {}
         for bin_lag in np.unique(np.hstack((lags_pf, lags_mli))):
             temp_eye_data = self.get_eye_lag_slice(bin_lag, eye_data_all_lags)
@@ -604,6 +605,7 @@ class FitCSLearningFun(object):
         upper_bounds[-1] = 200
 
         # First loop over lags_pf using quick_lag_step intervals
+        print("Starting fits over lags")
         for plag in lags_pf:
             for mlag in lags_mli:
                 # if ( (plag % 5 == 0) and (mlag % 5 == 0) ):
