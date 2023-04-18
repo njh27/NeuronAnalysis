@@ -252,8 +252,8 @@ class FitNeuronToEye(object):
             coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
             y_mean = np.mean(temp_FR)
             y_predicted = np.matmul(bin_eye_data, coefficients[-1])
-            sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
-            sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+            sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2) 
+            sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
             R2.append(1 - sum_squares_error/(sum_squares_total))
 
         if quick_lag_step > 1:
@@ -297,8 +297,8 @@ class FitNeuronToEye(object):
                 coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
                 y_mean = np.mean(temp_FR)
                 y_predicted = np.matmul(bin_eye_data, coefficients[-1])
-                sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
-                sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+                sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+                sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
                 R2.append(1 - sum_squares_error/(sum_squares_total))
 
         # Choose peak R2 value with minimum absolute value lag
@@ -407,8 +407,8 @@ class FitNeuronToEye(object):
             coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
             y_mean = np.mean(temp_FR)
             y_predicted = np.matmul(bin_eye_data, coefficients[-1])
-            sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
-            sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+            sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+            sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
             R2.append(1 - sum_squares_error/(sum_squares_total))
 
         if quick_lag_step > 1:
@@ -439,8 +439,8 @@ class FitNeuronToEye(object):
                 coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
                 y_mean = np.mean(temp_FR)
                 y_predicted = np.matmul(bin_eye_data, coefficients[-1])
-                sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
-                sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+                sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+                sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
                 R2.append(1 - sum_squares_error/(sum_squares_total))
 
         # Choose peak R2 value with minimum absolute value lag
@@ -576,8 +576,8 @@ class FitNeuronToEye(object):
                 coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
                 y_mean = np.mean(temp_FR)
                 y_predicted = np.matmul(bin_eye_data, coefficients[-1])
-                sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
-                sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+                sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+                sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
                 R2.append(1 - sum_squares_error/(sum_squares_total))
                 lags_used[0, n_fit] = elag
                 lags_used[1, n_fit] = slag
@@ -645,8 +645,8 @@ class FitNeuronToEye(object):
                     coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
                     y_mean = np.mean(temp_FR)
                     y_predicted = np.matmul(bin_eye_data, coefficients[-1])
-                    sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
-                    sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+                    sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+                    sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
                     R2.append(1 - sum_squares_error/(sum_squares_total))
                     lags_used[0, n_fit] = elag
                     lags_used[1, n_fit] = slag
@@ -825,8 +825,8 @@ class FitNeuronToEye(object):
                 coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
                 y_mean = np.mean(temp_FR)
                 y_predicted = np.matmul(bin_eye_data, coefficients[-1])
-                sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
-                sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+                sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+                sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
                 R2.append(1 - sum_squares_error/(sum_squares_total))
                 lags_used[0, n_fit] = elag
                 lags_used[1, n_fit] = slag
@@ -871,8 +871,8 @@ class FitNeuronToEye(object):
                     coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
                     y_mean = np.mean(temp_FR)
                     y_predicted = np.matmul(bin_eye_data, coefficients[-1])
-                    sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
-                    sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+                    sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+                    sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
                     R2.append(1 - sum_squares_error/(sum_squares_total))
                     lags_used[0, n_fit] = elag
                     lags_used[1, n_fit] = slag
@@ -1001,8 +1001,8 @@ class FitNeuronToEye(object):
                 coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
                 y_mean = np.mean(temp_FR)
                 y_predicted = np.matmul(bin_eye_data, coefficients[-1])
-                sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
-                sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+                sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+                sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
                 R2.append(1 - sum_squares_error/(sum_squares_total))
                 lags_used[0, n_fit] = elag
                 lags_used[1, n_fit] = alag
@@ -1050,8 +1050,8 @@ class FitNeuronToEye(object):
                     coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
                     y_mean = np.mean(temp_FR)
                     y_predicted = np.matmul(bin_eye_data, coefficients[-1])
-                    sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
-                    sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+                    sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+                    sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
                     R2.append(1 - sum_squares_error/(sum_squares_total))
                     lags_used[0, n_fit] = elag
                     lags_used[1, n_fit] = alag
@@ -1176,8 +1176,8 @@ class FitNeuronToEye(object):
                 coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
                 y_mean = np.mean(temp_FR)
                 y_predicted = np.matmul(bin_eye_data, coefficients[-1])
-                sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
-                sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+                sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+                sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
                 R2.append(1 - sum_squares_error/(sum_squares_total))
                 lags_used[0, n_fit] = elag
                 lags_used[1, n_fit] = slag
@@ -1222,8 +1222,8 @@ class FitNeuronToEye(object):
                     coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
                     y_mean = np.mean(temp_FR)
                     y_predicted = np.matmul(bin_eye_data, coefficients[-1])
-                    sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
-                    sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+                    sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+                    sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
                     R2.append(1 - sum_squares_error/(sum_squares_total))
                     lags_used[0, n_fit] = elag
                     lags_used[1, n_fit] = slag
@@ -1474,8 +1474,8 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
                     coefficients.append(np.linalg.lstsq(eye_data, all_fr_data - fr_knee, rcond=None)[0])
                     y_mean = np.mean(all_fr_data)
                     y_predicted = np.matmul(eye_data, coefficients[-1])
-                    sum_squares_error = ((all_fr_data - y_predicted) ** 2).sum()
-                    sum_squares_total = ((all_fr_data - y_mean) ** 2).sum()
+                    sum_squares_error = np.nansum((all_fr_data - y_predicted) ** 2)
+                    sum_squares_total = np.nansum((all_fr_data - y_mean) ** 2)
                     R2.append(1 - sum_squares_error/(sum_squares_total))
                     steps_used[0, n_fit] = p_knee
                     steps_used[1, n_fit] = l_knee
@@ -1548,8 +1548,8 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
                     coefficients.append(np.linalg.lstsq(eye_data, all_fr_data - fr_knee, rcond=None)[0])
                 y_mean = np.mean(all_fr_data)
                 y_predicted = np.matmul(eye_data, coefficients[-1])
-                sum_squares_error = ((all_fr_data - y_predicted) ** 2).sum()
-                sum_squares_total = ((all_fr_data - y_mean) ** 2).sum()
+                sum_squares_error = np.nansum((all_fr_data - y_predicted) ** 2)
+                sum_squares_total = np.nansum((all_fr_data - y_mean) ** 2)
                 R2.append(1 - sum_squares_error/(sum_squares_total))
                 steps_used[0, n_fit] = p_knee
                 steps_used[1, n_fit] = l_knee

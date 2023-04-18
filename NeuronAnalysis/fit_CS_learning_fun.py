@@ -255,8 +255,8 @@ class FitCSLearningFun(object):
             coefficients.append(popt)
             y_mean = np.mean(temp_FR)
             y_predicted = self.predict_gauss_basis_kinematics(bin_eye_data)
-            sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
-            sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+            sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+            sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
             R2.append(1 - sum_squares_error/(sum_squares_total))
 
         if quick_lag_step > 1:
@@ -310,8 +310,8 @@ class FitCSLearningFun(object):
                 coefficients.append(popt)
                 y_mean = np.mean(temp_FR)
                 y_predicted = self.predict_gauss_basis_kinematics(bin_eye_data)
-                sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
-                sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+                sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+                sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
                 R2.append(1 - sum_squares_error/(sum_squares_total))
 
 
