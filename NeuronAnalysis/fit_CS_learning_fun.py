@@ -278,7 +278,7 @@ class FitCSLearningFun(object):
         for plag in lags_pf:
             for mlag in lags_mli:
                 # if ( (plag % 5 == 0) and (mlag % 5 == 0) ):
-                if (mlag % 10 == 0):
+                if (mlag % quick_lag_step == 0):
                     print("current pf lag and mli lag:", plag, mlag)
 
 
@@ -350,6 +350,9 @@ class FitCSLearningFun(object):
             n_fit = 0
             for plag in lags_pf:
                 for mlag in lags_mli:
+                    if (mlag % quick_lag_step == 0):
+                        print("current pf lag and mli lag:", plag, mlag)
+                        
                     eye_data[:, :, 0:4] = self.get_eye_lag_slice(plag, eye_data_all_lags)
                     eye_data[:, :, 4:8] = self.get_eye_lag_slice(mlag, eye_data_all_lags)
                     # Use bin smoothing on data before fitting
