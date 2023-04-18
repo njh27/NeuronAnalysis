@@ -237,8 +237,8 @@ class FitCSLearningFun(object):
 
         # Set up the basic values and fit function for basis set
         # Use inputs to set these variables and keep in scope for wrapper
-        pos_fixed_means = np.linspace(pos_range[0], pos_range[1], n_gaussians)
-        vel_fixed_means = np.linspace(vel_range[0], vel_range[1], n_gaussians)
+        pos_fixed_means = np.linspace(-pos_range, pos_range, n_gaussians)
+        vel_fixed_means = np.linspace(-vel_range, vel_range, n_gaussians)
         # all_fixed_means = np.vstack((pos_fixed_means, vel_fixed_means))
         pos_fixed_std = std_gaussians
         vel_fixed_std = std_gaussians
@@ -278,8 +278,8 @@ class FitCSLearningFun(object):
         for plag in lags_pf:
             for mlag in lags_mli:
                 # if ( (plag % 5 == 0) and (mlag % 5 == 0) ):
-                # if (mlag % 5 == 0):
-                #     print("current pf lag and mli lag:", plag, mlag)
+                if (mlag % 10 == 0):
+                    print("current pf lag and mli lag:", plag, mlag)
 
 
                 eye_data[:, :, 0:4] = self.get_eye_lag_slice(plag, eye_data_all_lags)
