@@ -511,10 +511,10 @@ class FitCSLearningFun(object):
         followed by the n_gaussians for velocity.
         """
         do_fine = True
-        ftol=1e-3
-        xtol=1e-2
-        gtol=1e-4
-        max_nfev=10000
+        ftol=1e-6
+        xtol=1e-6
+        gtol=1e-6
+        max_nfev=20000
         loss='linear'
 
         if n_gaussians % 2 == 0:
