@@ -560,10 +560,9 @@ class FitCSLearningFun(object):
             if fit_avg_data:
                 bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
             # Store binned data for this lag
-            print(bin_lag, bin_eye_data.shape, bin_eye_data.shape)
             binned_eye_data_by_lag[bin_lag] = bin_eye_data
         # Initialize empty eye_data array that we can fill from slices of all data
-        eye_data = np.ones((bin_eye_data.shape[0], bin_eye_data[1], 8))
+        eye_data = np.ones((bin_eye_data.shape[0], bin_eye_data.shape[1], 8))
 
         # Set up the basic values and fit function for basis set
         # Use inputs to set these variables and keep in scope for wrapper
@@ -669,6 +668,18 @@ class FitCSLearningFun(object):
             lag_start_mli = max(lags_mli[0], best_mli_lag - quick_lag_step)
             lag_stop_mli = min(lags_mli[-1], best_mli_lag + quick_lag_step)
             lags_mli = np.arange(lag_start_mli, lag_stop_mli + 1, 1)
+
+            # Go through all unique possible lags and bin the data and store
+            binned_eye_data_by_lag = {}
+            for bin_lag in np.unique(np.hstack((lags_pf, lags_mli))):
+                temp_eye_data = self.get_eye_lag_slice(bin_lag, eye_data_all_lags)
+                # Use bin smoothing on data before fitting
+                bin_eye_data = bin_data(temp_eye_data, bin_width, bin_threshold)
+                if fit_avg_data:
+                    bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
+                # Store binned data for this lag
+                binned_eye_data_by_lag[bin_lag] = bin_eye_data
+
             # Reset fit measures
             R2 = []
             coefficients = []
@@ -676,14 +687,10 @@ class FitCSLearningFun(object):
             n_fit = 0
             for plag in lags_pf:
                 for mlag in lags_mli:
-                    eye_data[:, :, 0:4] = self.get_eye_lag_slice(plag, eye_data_all_lags)
-                    eye_data[:, :, 4:8] = self.get_eye_lag_slice(mlag, eye_data_all_lags)
-                    # Use bin smoothing on data before fitting
-                    bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-                    if fit_avg_data:
-                        bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
+                    eye_data[:, :, 0:4] = binned_eye_data_by_lag[plag]
+                    eye_data[:, :, 4:8] = binned_eye_data_by_lag[mlag]
                     # Reshape to 2D matrices and remove nans
-                    bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
+                    bin_eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
                     temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
                     select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
                     bin_eye_data = bin_eye_data[select_good, :]
