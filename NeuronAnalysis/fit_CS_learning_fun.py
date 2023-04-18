@@ -201,16 +201,16 @@ class FitCSLearningFun(object):
             n_guassians += 1
 
             n_gaussians = 8
-if n_gaussians % 2 == 0:
-    print("Adding a gaussian to make an odd number of Gaussians with 1 centered at zero.")
-    n_gaussians += 1
-
-pos_fixed_means = np.linspace(pos_range[0], pos_range[1], n_gaussians)
-print(pos_fixed_means)
-
-pos_range = [-10, 10]
-pos_fixed_means = np.concatenate( (np.linspace(pos_range[0], 0, n_gaussians), np.linspace(0, pos_range[1], n_gaussians)) )
-print(pos_fixed_means)
+        # if n_gaussians % 2 == 0:
+        #     print("Adding a gaussian to make an odd number of Gaussians with 1 centered at zero.")
+        #     n_gaussians += 1
+        #
+        # pos_fixed_means = np.linspace(pos_range[0], pos_range[1], n_gaussians)
+        # print(pos_fixed_means)
+        #
+        # pos_range = [-10, 10]
+        # pos_fixed_means = np.concatenate( (np.linspace(pos_range[0], 0, n_gaussians), np.linspace(0, pos_range[1], n_gaussians)) )
+        # print(pos_fixed_means)
 
         quick_lag_step = int(np.around(quick_lag_step))
         if quick_lag_step < 1:
