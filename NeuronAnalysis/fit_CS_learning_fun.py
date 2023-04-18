@@ -198,9 +198,8 @@ class FitCSLearningFun(object):
 
         if n_gaussians % 2 == 0:
             print("Adding a gaussian to make an odd number of Gaussians with 1 centered at zero.")
-            n_guassians += 1
+            n_gaussians += 1
 
-            n_gaussians = 8
         # if n_gaussians % 2 == 0:
         #     print("Adding a gaussian to make an odd number of Gaussians with 1 centered at zero.")
         #     n_gaussians += 1
