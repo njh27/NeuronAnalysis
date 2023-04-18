@@ -285,7 +285,8 @@ class FitCSLearningFun(object):
                 popt, pcov = curve_fit(wrapper_gaussian_basis_set, bin_eye_data,
                                         temp_FR, p0=p0,
                                         bounds=(lower_bounds, upper_bounds),
-                                        xtol=1e-3)
+                                        xtol=1e-3,
+                                        max_nfev=10000)
 
                 # Store this for now so we can call predict_gauss_basis_kinematics
                 # below for computing R2. This will be overwritten with optimal
