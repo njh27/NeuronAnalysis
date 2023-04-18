@@ -560,6 +560,7 @@ class FitCSLearningFun(object):
             if fit_avg_data:
                 bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
             # Store binned data for this lag
+            print(bin_lag, bin_eye_data.shape, bin_eye_data.shape)
             binned_eye_data_by_lag[bin_lag] = bin_eye_data
         # Initialize empty eye_data array that we can fill from slices of all data
         eye_data = np.ones((bin_eye_data.shape[0], bin_eye_data[1], 8))
