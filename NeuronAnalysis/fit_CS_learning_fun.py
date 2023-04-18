@@ -112,6 +112,24 @@ class FitCSLearningFun(object):
                             self.trial_sets, return_inds=False)
         return fr
 
+    def get_eye_data_traces(self, lag=0):
+        """ Gets eye position and velocity in array of trial x self.time_window
+            3rd dimension of array is ordered as pursuit, learning position,
+            then pursuit, learning velocity.
+        """
+        lag_time_window = self.time_window + np.int32(lag)
+        if lag_time_window[1] <= lag_time_window[0]:
+            raise ValueError("time_window[1] must be greater than time_window[0]")
+
+        pos_p, pos_l, t_inds = self.neuron.session.get_xy_traces("eye position",
+                                lag_time_window, self.blocks, self.trial_sets,
+                                return_inds=True)
+        vel_p, vel_l = self.neuron.session.get_xy_traces("eye velocity",
+                                lag_time_window, self.blocks, self.trial_sets,
+                                return_inds=False)
+        eye_data = np.stack((pos_p, pos_l, vel_p, vel_l), axis=2)
+        return eye_data
+
     def get_eye_data_traces_all_lags(self):
         """ Gets eye position and velocity in array of trial x
         self.time_window +/- self.lag_range_eye so that all lags of data are
@@ -305,6 +323,20 @@ class FitCSLearningFun(object):
                                 'predict_fun': self.predict_gauss_basis_kinematics}
         return
 
+    def get_gauss_basis_kinematics_predict_data_trial(self, blocks, trial_sets,
+                                                      verbose=False,
+                                                      return_shape=False):
+        """ Gets behavioral data from blocks and trial sets and formats in a
+        way that it can be used to predict firing rate according to the linear
+        eye kinematic model using predict_lin_eye_kinematics. """
+        eye_data = self.get_eye_data_traces(self.fit_results['gauss_basis_kinematics']['pf_lag'])
+        if verbose: print("PF lag:", self.fit_results['gauss_basis_kinematics']['pf_lag'])
+        initial_shape = eye_data.shape
+        eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
+        if return_shape:
+            return eye_data, initial_shape
+        else:
+            return eye_data
 
     def get_gauss_basis_kinematics_predict_data_mean(self, blocks, trial_sets, verbose=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
@@ -340,6 +372,14 @@ class FitCSLearningFun(object):
                                                                 use_means, use_std)
         return y_hat
 
+    def predict_gauss_basis_kinematics_by_trial(self, blocks, trial_sets, verbose=False):
+        """
+        """
+        X, init_shape = self.get_gauss_basis_kinematics_predict_data_trial(
+                                blocks, trial_sets, verbose, return_shape=True)
+        y_hat = self.predict_gauss_basis_kinematics(X)
+        y_hat = y_hat.reshape(init_shape[0], init_shape[1], order='C')
+        return y_hat
 
 
 
