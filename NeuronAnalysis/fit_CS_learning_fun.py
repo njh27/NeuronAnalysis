@@ -687,6 +687,9 @@ class FitCSLearningFun(object):
             n_fit = 0
             for plag in lags_pf:
                 for mlag in lags_mli:
+                    if (mlag % quick_lag_step == 0):
+                        print("current pf lag and mli lag:", plag, mlag)
+
                     eye_data[:, :, 0:4] = binned_eye_data_by_lag[plag]
                     eye_data[:, :, 4:8] = binned_eye_data_by_lag[mlag]
                     # Reshape to 2D matrices and remove nans
