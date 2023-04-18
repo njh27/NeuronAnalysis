@@ -217,8 +217,8 @@ class FitCSLearningFun(object):
         upper_bounds = np.inf * np.ones(p0.shape)
         lower_bounds[0:4*n_gaussians] = -500
         upper_bounds[0:4*n_gaussians] = 500
-        lower_bounds[-1] = 10
-        upper_bounds[-1] = 200
+        # lower_bounds[-1] = 10
+        # upper_bounds[-1] = 200
 
         # First loop over lags using quick_lag_step intervals
         for lag in lags:
