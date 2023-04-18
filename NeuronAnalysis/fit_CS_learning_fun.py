@@ -427,7 +427,7 @@ class FitCSLearningFun(object):
                             self.fit_results['gauss_basis_kinematics']['mli_lag'])
         if verbose: print("PF lag:", self.fit_results['gauss_basis_kinematics']['pf_lag'])
         if verbose: print("MLI lag:", self.fit_results['gauss_basis_kinematics']['mli_lag'])
-        eye_data = np.stack((eye_data_pf, eye_data_mli), axis=2)
+        eye_data = np.concatenate((eye_data_pf, eye_data_mli), axis=2)
         initial_shape = eye_data.shape
         eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
         if return_shape:
