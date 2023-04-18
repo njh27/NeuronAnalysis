@@ -200,7 +200,7 @@ class FitCSLearningFun(object):
         vel_fixed_std = std_gaussians
         # Wrapper function for curve_fit using our fixed gaussians, means, sigmas....
         def wrapper_gaussian_basis_set(x, *scales):
-            result = np.zeros(x.shape[0])
+            result = np.zeros(x.shape[0]) + scales[-1]
             for k in range(4):
                 use_means = pos_fixed_means if k < 2 else vel_fixed_means
                 use_std = pos_fixed_std if k < 2 else vel_fixed_std
@@ -210,12 +210,15 @@ class FitCSLearningFun(object):
 
         if p0 is None:
             # curve_fit seems unable to figure out how many parameters without setting this
-            p0 = np.ones(4*n_gaussians)
+            p0 = np.ones(4*n_gaussians + 1)
+            p0[-1] = 75
         # Set lower and upper bounds for each parameter
         lower_bounds = -np.inf * np.ones(p0.shape)
         upper_bounds = np.inf * np.ones(p0.shape)
         lower_bounds[0:4*n_gaussians] = -500
         upper_bounds[0:4*n_gaussians] = 500
+        lower_bounds[-1] = 10
+        upper_bounds[-1] = 200
 
         # First loop over lags using quick_lag_step intervals
         for lag in lags:
@@ -285,8 +288,11 @@ class FitCSLearningFun(object):
                 popt, pcov = curve_fit(wrapper_gaussian_basis_set, bin_eye_data,
                                         temp_FR, p0=p0,
                                         bounds=(lower_bounds, upper_bounds),
+                                        ftol=1e-3,
                                         xtol=1e-3,
-                                        max_nfev=10000)
+                                        gtol=1e-3
+                                        max_nfev=10000,
+                                        loss='linear')
 
                 # Store this for now so we can call predict_gauss_basis_kinematics
                 # below for computing R2. This will be overwritten with optimal
@@ -367,7 +373,7 @@ class FitCSLearningFun(object):
             raise ValueError("Gaussian basis kinematics model is fit for 4 data dimensions but input data dimension is {0}.".format(X.shape[1]))
         scales = self.fit_results['gauss_basis_kinematics']['coeffs']
         n_gaussians = self.fit_results['gauss_basis_kinematics']['n_gaussians']
-        y_hat = np.zeros(X.shape[0])
+        y_hat = np.zeros(X.shape[0]) + scales[-1]
         for k in range(4):
             use_means = self.fit_results['gauss_basis_kinematics']['pos_means'] if k < 2 else self.fit_results['gauss_basis_kinematics']['vel_means']
             use_std = self.fit_results['gauss_basis_kinematics']['pos_stds'] if k < 2 else self.fit_results['gauss_basis_kinematics']['vel_stds']
