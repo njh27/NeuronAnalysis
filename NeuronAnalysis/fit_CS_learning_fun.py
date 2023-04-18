@@ -607,7 +607,7 @@ class FitCSLearningFun(object):
         for plag in lags_pf:
             for mlag in lags_mli:
                 # if ( (plag % 5 == 0) and (mlag % 5 == 0) ):
-                if (mlag % 10 == 0):
+                if (mlag % quick_lag_step == 0):
                     print("current pf lag and mli lag:", plag, mlag)
 
 
