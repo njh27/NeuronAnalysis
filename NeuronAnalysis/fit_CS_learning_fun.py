@@ -511,9 +511,9 @@ class FitCSLearningFun(object):
         followed by the n_gaussians for velocity.
         """
         do_fine = True
-        ftol=1e-6
-        xtol=1e-6
-        gtol=1e-6
+        ftol=1e-4
+        xtol=1e-4
+        gtol=1e-4
         max_nfev=20000
         loss='linear'
 
@@ -552,6 +552,8 @@ class FitCSLearningFun(object):
         binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
         FR_select = ~np.isnan(binned_FR)
         FR_select = FR_select.reshape(FR_select.shape[0]*FR_select.shape[1], order='C')
+        # Can use this for imputing in objective function
+        mean_binned_FR = np.nanmean(binned_FR)
         eye_data_all_lags = self.get_eye_data_traces_all_lags()
 
         # Go through all unique possible lags and bin the data and store
@@ -591,6 +593,9 @@ class FitCSLearningFun(object):
                 a = params[4 * n_gaussians + k_ind * 2]
                 b = params[4 * n_gaussians + k_ind * 2 + 1]
                 result += downward_relu(x[:, k], a, b, c=0.)
+
+            # Impute nans with mean of measured FR
+            result = np.nan_to_num(result, nan=mean_binned_FR, copy=False)
             return result
 
         if p0 is None:
