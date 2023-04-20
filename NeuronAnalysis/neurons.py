@@ -237,6 +237,8 @@ class Neuron(object):
         self.optimal_cos_time_window[block] = time_window
 
     def set_use_series(self, series_name):
+        if not series_name in self.session.get_series_names():
+            raise ValueError("Series name {0} not found in this Session's neuron's series names.".format(series_name))
         self.use_series = series_name
 
     def fit_FR_model(self, blocks, trials, dataseries):
