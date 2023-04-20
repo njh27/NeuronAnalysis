@@ -252,7 +252,7 @@ class FitNeuronToEye(object):
             coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
             y_mean = np.mean(temp_FR)
             y_predicted = np.matmul(bin_eye_data, coefficients[-1])
-            sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2) 
+            sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
             sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
             R2.append(1 - sum_squares_error/(sum_squares_total))
 
@@ -359,7 +359,7 @@ class FitNeuronToEye(object):
 
     def fit_lin_eye_kinematics(self, bin_width=10, bin_threshold=1,
                                 fit_constant=True, fit_avg_data=False,
-                                quick_lag_step=10):
+                                quick_lag_step=10, ignore_acc=False):
         """ Fits the input neuron eye data to position, velocity, acceleration
         linear model (in 2 dimensions -- one pursuit axis and one learing axis)
         for the blocks and trial_sets input.
@@ -393,8 +393,11 @@ class FitNeuronToEye(object):
         # First loop over lags using quick_lag_step intervals
         for lag in lags:
             eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
-            eye_data[:, :, 4:6] = eye_data_series.acc_from_vel(eye_data[:, :, 2:4],
-                            filter_win=self.neuron.session.saccade_ind_cushion)
+            if not ignore_acc:
+                eye_data[:, :, 4:6] = eye_data_series.acc_from_vel(eye_data[:, :, 2:4],
+                                filter_win=self.neuron.session.saccade_ind_cushion)
+            else:
+                eye_data[:, :, 4:6] = 0.0
             # Use bin smoothing on data before fitting
             bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
             if fit_avg_data:
@@ -425,8 +428,11 @@ class FitNeuronToEye(object):
             coefficients = []
             for lag in lags:
                 eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
-                eye_data[:, :, 4:6] = eye_data_series.acc_from_vel(eye_data[:, :, 2:4],
-                                filter_win=self.neuron.session.saccade_ind_cushion)
+                if not ignore_acc:
+                    eye_data[:, :, 4:6] = eye_data_series.acc_from_vel(eye_data[:, :, 2:4],
+                                    filter_win=self.neuron.session.saccade_ind_cushion)
+                else:
+                    eye_data[:, :, 4:6] = 0.0
                 # Use bin smoothing on data before fitting
                 bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
                 if fit_avg_data:
@@ -455,6 +461,7 @@ class FitNeuronToEye(object):
                                 'all_R2': R2,
                                 'use_constant': fit_constant,
                                 'dc_offset': dc_offset,
+                                'ignore_acc': ignore_acc,
                                 'predict_fun': self.predict_lin_eye_kinematics}
 
     def get_lin_eye_kin_predict_data(self, blocks, trial_sets, verbose=False):
@@ -475,7 +482,10 @@ class FitNeuronToEye(object):
                                                 "eye velocity", lagged_eye_win,
                                                 blocks=blocks,
                                                 trial_sets=trial_sets)
-        X[:, 4:6] = eye_data_series.acc_from_vel(X[:, 2:4], filter_win=29, axis=0)
+        if not self.fit_results['lin_eye_kinematics']['ignore_acc']:
+            X[:, 4:6] = eye_data_series.acc_from_vel(X[:, 2:4], filter_win=29, axis=0)
+        else:
+            X[:, 4:6] = 0.0
         return X
 
     def predict_lin_eye_kinematics(self, X):

@@ -3,6 +3,7 @@ from numpy import linalg as la
 from scipy.optimize import curve_fit
 import warnings
 from NeuronAnalysis.general import bin_xy_func_z
+from NeuronAnalysis.fit_neuron_to_eye import FitNeuronToEye
 from SessionAnalysis.utils import eye_data_series
 
 
@@ -502,7 +503,7 @@ class FitCSLearningFun(object):
         return y_hat
 
     def get_pos_neg_kinematic_lag(self, bin_width=10, bin_threshold=1,
-                                    fit_constant=True, fit_avg_data=False,
+                                    fit_constant=True,
                                     quick_lag_step=10):
         """ Fits linear position + velocity, separately for positive and negative
         values, in an attempt to quickly discover the lag values for the neuron
@@ -513,94 +514,68 @@ class FitCSLearningFun(object):
         if quick_lag_step > (self.lag_range_pf[1] - self.lag_range_pf[0]):
             raise ValueError("quick_lag_step is too large relative to lag_range_pf")
         half_lag_step = np.int32(np.around(quick_lag_step / 2))
-        lags_pos = np.arange(self.lag_range_pf[0], self.lag_range_pf[1] + half_lag_step + 1, quick_lag_step)
-        lags_pos[-1] = self.lag_range_pf[1]
-        lags_neg = np.arange(self.lag_range_slip[0], self.lag_range_slip[1] + half_lag_step + 1, quick_lag_step)
-        lags_neg[-1] = self.lag_range_slip[1]
+        lags_quick = np.arange(self.lag_range_pf[0], self.lag_range_pf[1] + half_lag_step + 1, quick_lag_step)
+        lags_quick[-1] = self.lag_range_pf[1]
 
-        R2 = []
-        coefficients = []
-        lags_used = np.zeros((2, len(lags_pos) * len(lags_neg)), dtype=np.int64)
-        n_fit = 0
-        s_dim2 = 9 if fit_constant else 8
+        s_dim2 = 5 if fit_constant else 4
         firing_rate = self.get_firing_traces()
         if not fit_constant:
             dc_trial_rate = np.mean(firing_rate[:, self.dc_inds[0]:self.dc_inds[1]], axis=1)
             firing_rate = firing_rate - dc_trial_rate[:, None]
-        if fit_avg_data:
-            firing_rate = np.nanmean(firing_rate, axis=0, keepdims=True)
-        binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
         eye_data_all_lags = self.get_eye_data_traces_all_lags()
+        # Fit for lag using only beginning of pursuit
+        lag_fit_time_window = [0, 250]
+        # This sub-indexing is very confusing so trying to lay it all out here
+        lag_fit_offset = lag_fit_time_window[0] - self.time_window[0]
+        lag_fit_duration = (lag_fit_time_window[1] - lag_fit_time_window[0])
+        # Firing rate is not over all lags so smaller slice
+        firing_rate = firing_rate[:, lag_fit_offset:(lag_fit_offset + lag_fit_duration)]
+        binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
+
+        first_ind_all_lags = lag_fit_offset + self.lag_range_pf[0]
+        last_ind_all_lags = lag_fit_offset + lag_fit_duration + self.lag_range_pf[1]
+        lag_fit_duration_all_lags = last_ind_all_lags - first_ind_all_lags
+        if (first_ind_all_lags < 0):
+            raise ValueError("Current time_window start {0} is not early enough to fit lags starting at window {1} with lag of {2}.".format(self.time_window[0], lag_fit_time_window[0], self.lag_range_pf[0]))
+        if (last_ind_all_lags > self.time_window[1]):
+            raise ValueError("Current time_window stop {0} is not long enough to fit lags end window {1} with lag of {2}.".format(self.time_window[1], lag_fit_time_window[1], self.lag_range_pf[1]))
+
+        # Slice FR and eye data down to initialization for lag fitting, +1 for slice
+        eye_data_all_lags = eye_data_all_lags[:, first_ind_all_lags:last_ind_all_lags, :]
+        # Need to update offset so it reflects into the new slice of eye_data_all_lags
+        lag_fit_offset -= first_ind_all_lags
+        def get_eye_lag_slice(lag_slice, eye_data_to_slice):
+            """ Overwrite the main method here so that we can use different,
+            hard coded values for eye_lag_adjust and fit_dir. """
+            ind_start = lag_slice + lag_fit_offset
+            ind_stop = ind_start + lag_fit_duration
+            return eye_data_to_slice[:, ind_start:ind_stop, :]
+
         # Initialize empty eye_data array that we can fill from slices of all data
-        eye_data = np.ones((eye_data_all_lags.shape[0], self.fit_dur, s_dim2))
-        # First loop over lags using quick_lag_step intervals
-        for plag in lags_pos:
-            for nlag in lags_neg:
-                eye_data[:, :, 0:4] = self.get_eye_lag_slice(plag, eye_data_all_lags)
-                eye_data[:, :, 4:8] = self.get_eye_lag_slice(nlag, eye_data_all_lags)
+        eye_data = np.ones((eye_data_all_lags.shape[0], lag_fit_duration, s_dim2))
+        # Use axes and signs to select data in one of the 4 directions at a time
+        fit_axes = [np.array([1, 0, 1, 0, 1], dtype='bool'), np.array([0, 1, 0, 1, 1], dtype='bool')]
+        fit_signs = [1, -1]
+        max_peak_mod = -np.inf
+        min_peak_mod = np.inf
+        pos_lag = np.nan
+        neg_lag = np.nan
 
-                # Use bin smoothing on data before fitting
-                bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-                if fit_avg_data:
-                    bin_eye_data = np.nanmean(eye_data, axis=0, keepdims=True)
-
-                # Need to get the +/- position/velocity data separate AFTER BINNING AND MEAN!
-                select_pos = bin_eye_data[:, :, 0:4] < 0.
-                bin_eye_data[:, :, 0:4][select_pos] = 0.0 # Less than 0. = 0
-                select_neg = bin_eye_data[:, :, 4:8] >= 0.
-                bin_eye_data[:, :, 4:8][select_neg] = 0.0 # Greater than 0. = 0
-
-                # Reshape and remove nans
-                bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
-                temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-                select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
-                bin_eye_data = bin_eye_data[select_good, :]
-                temp_FR = temp_FR[select_good]
-
-                # Fit and get R2
-                coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
-                y_mean = np.mean(temp_FR)
-                y_predicted = np.matmul(bin_eye_data, coefficients[-1])
-                sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
-                sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
-                R2.append(1 - sum_squares_error/(sum_squares_total))
-                lags_used[0, n_fit] = plag
-                lags_used[1, n_fit] = nlag
-                n_fit += 1
-
-        if quick_lag_step > 1:
-            # Do fine resolution loop
-            max_ind = np.where(R2 == np.amax(R2))[0][0]
-            best_pos_lag = lags_used[0, max_ind]
-            # Make new lags_pos centered on this best_pos_lag
-            lag_start_pos = max(lags_pos[0], best_pos_lag - quick_lag_step)
-            lag_stop_pos = min(lags_pos[-1], best_pos_lag + quick_lag_step)
-            lags_pos = np.arange(lag_start_pos, lag_stop_pos + 1, 1)
-            best_neg_lag = lags_used[1, max_ind]
-            # Make new lags_neg centered on this best_neg_lag
-            lag_start_neg = max(lags_neg[0], best_neg_lag - quick_lag_step)
-            lag_stop_neg = min(lags_neg[-1], best_neg_lag + quick_lag_step)
-            lags_neg = np.arange(lag_start_neg, lag_stop_neg + 1, 1)
-            # Reset fit measures
-            R2 = []
-            coefficients = []
-            lags_used = np.zeros((2, len(lags_pos) * len(lags_neg)), dtype=np.int64)
-            n_fit = 0
-            for plag in lags_pos:
-                for nlag in lags_neg:
-                    eye_data[:, :, 0:4] = self.get_eye_lag_slice(plag, eye_data_all_lags)
-                    eye_data[:, :, 4:8] = self.get_eye_lag_slice(nlag, eye_data_all_lags)
-
+        for ax_select in fit_axes:
+            for ax_sign in fit_signs:
+                R2 = []
+                coefficients = []
+                FR_peak_mod = []
+                index_lags = lags_quick
+                for lag in lags_quick:
+                    eye_data[:, :, 0:4] = get_eye_lag_slice(lag, eye_data_all_lags)
                     # Use bin smoothing on data before fitting
                     bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-                    if fit_avg_data:
-                        bin_eye_data = np.nanmean(eye_data, axis=0, keepdims=True)
 
                     # Need to get the +/- position/velocity data separate AFTER BINNING AND MEAN!
-                    select_pos = bin_eye_data[:, :, 0:4] < 0.
+                    select_pos = ax_sign * bin_eye_data[:, :, 0:4] < 0.
                     bin_eye_data[:, :, 0:4][select_pos] = 0.0 # Less than 0. = 0
-                    select_neg = bin_eye_data[:, :, 4:8] >= 0.
-                    bin_eye_data[:, :, 4:8][select_neg] = 0.0 # Greater than 0. = 0
+                    bin_eye_data = bin_eye_data[:, :, ax_select]
 
                     # Reshape and remove nans
                     bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
@@ -616,46 +591,106 @@ class FitCSLearningFun(object):
                     sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
                     sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
                     R2.append(1 - sum_squares_error/(sum_squares_total))
-                    lags_used[0, n_fit] = plag
-                    lags_used[1, n_fit] = nlag
-                    n_fit += 1
+                    peak_mod_ind = np.nanargmax(np.abs(y_predicted))
+                    FR_peak_mod.append(y_predicted[peak_mod_ind])
 
-        # Choose peak R2 value with minimum absolute value lag
-        max_ind = np.where(R2 == np.amax(R2))[0][0]
-        coeffs = coefficients[max_ind]
-        pos_lag = lags_used[0, max_ind]
-        neg_lag = lags_used[1, max_ind]
+                if quick_lag_step > 1:
+                    # Do fine resolution loop
+                    max_ind = np.where(R2 == np.amax(R2))[0][0]
+                    best_lag = lags_quick[max_ind]
+                    # Make new lags centered on this best_lag
+                    lag_start = max(lags_quick[0], best_lag - quick_lag_step)
+                    lag_stop = min(lags_quick[-1], best_lag + quick_lag_step)
+                    lags_fine = np.arange(lag_start, lag_stop + 1, 1)
+                    # Reset fit measures
+                    R2 = []
+                    coefficients = []
+                    FR_peak_mod = []
+                    index_lags = lags_fine
+                    for lag in lags_fine:
+                        eye_data[:, :, 0:4] = get_eye_lag_slice(lag, eye_data_all_lags)
+                        # Use bin smoothing on data before fitting
+                        bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
 
-        # Use model to estimate tuning in the 4 axes
-        pos_p = np.array([5, 0, 20, 0, 0, 0, 0, 0, 1])
-        neg_p = np.array([0, 0, 0, 0, -5, 0, -20, 0, 1])
-        pos_l = np.array([0, 5, 0, 20, 0, 0, 0, 0, 1])
-        neg_l = np.array([0, 0, 0, 0, 0, -5, 0, -20, 1])
-        four_dir_yhat = np.array([pos_p @ coeffs, neg_p @ coeffs, pos_l @ coeffs, neg_l @ coeffs]) - coeffs[-1]
-        # Find the max abs tuning direction and give it the appropriate lag
-        four_dir_max_ind = np.argmax(np.abs(four_dir_yhat))
-        if ( (four_dir_max_ind == 0) or (four_dir_max_ind == 2) ):
-            # Max value is in positive axis
-            if four_dir_yhat[four_dir_max_ind] >= 0:
-                # Max abs value is positive so set pf_lag = pos_lag
-                pf_lag = pos_lag
-                mli_lag = neg_lag
-            else:
-                # Max abs value is negative so set mli_lag = pos_lag
-                pf_lag = neg_lag
-                mli_lag = pos_lag
-        else:
-            # Max value is in negative axis
-            if four_dir_yhat[four_dir_max_ind] >= 0:
-                # Max abs value is positive so set pf_lag = neg_lag
-                pf_lag = neg_lag
-                mli_lag = pos_lag
-            else:
-                # Max abs value is negative so set mli_lag = neg_lag
-                pf_lag = pos_lag
-                mli_lag = neg_lag
-        print("PF lag:", pf_lag, "MLI lag:", mli_lag)
-        return pf_lag, mli_lag
+                        # Need to get the +/- position/velocity data separate AFTER BINNING AND MEAN!
+                        select_pos = ax_sign * bin_eye_data[:, :, 0:4] < 0.
+                        bin_eye_data[:, :, 0:4][select_pos] = 0.0 # Less than 0. = 0
+                        bin_eye_data = bin_eye_data[:, :, ax_select]
+
+                        # Reshape and remove nans
+                        bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
+                        temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
+                        select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+                        bin_eye_data = bin_eye_data[select_good, :]
+                        temp_FR = temp_FR[select_good]
+
+                        # Fit and get R2
+                        coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
+                        y_mean = np.mean(temp_FR)
+                        y_predicted = np.matmul(bin_eye_data, coefficients[-1])
+                        sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+                        sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
+                        R2.append(1 - sum_squares_error/(sum_squares_total))
+                        peak_mod_ind = np.nanargmax(np.abs(y_predicted))
+                        FR_peak_mod.append(y_predicted[peak_mod_ind])
+
+                # Choose peak R2 value with minimum absolute value lag
+                max_ind = np.where(R2 == np.amax(R2))[0][0]
+                coeffs = coefficients[max_ind]
+                peak_mod = FR_peak_mod[max_ind]
+                if peak_mod > max_peak_mod:
+                    max_peak_mod = peak_mod
+                    pos_lag = index_lags[max_ind]
+
+                    print("NEW max!", ax_select, ax_sign, max_peak_mod, pos_lag)
+                if peak_mod < min_peak_mod:
+                    min_peak_mod = peak_mod
+                    neg_lag = index_lags[max_ind]
+                    print("NEW min!", ax_select, ax_sign, max_peak_mod, pos_lag)
+
+        print("PF lag:", pos_lag, "MLI lag:", neg_lag)
+        return pos_lag, neg_lag
+
+    def get_lags_kinematic_fit(self, bin_width=10, bin_threshold=1, quick_lag_step=10):
+        """
+        """
+        lag_fit_time_window = [0, 250]
+        fit_obj_time_window = [lag_fit_time_window[0] + self.lag_range_pf[0],
+                               lag_fit_time_window[1] + self.lag_range_pf[1]]
+        lag_fit_blocks = ['StandTunePre']
+
+        max_peak_mod = -np.inf
+        min_peak_mod = np.inf
+        pos_lag = np.nan
+        neg_lag = np.nan
+        for t_set in ['pursuit', 'anti_pursuit', 'learning', 'anti_learning']:
+            lag_fit_neuron_eye = FitNeuronToEye(self.neuron,
+                                    time_window=fit_obj_time_window,
+                                    blocks=lag_fit_blocks, trial_sets=t_set,
+                                    lag_range_eye=self.lag_range_pf,
+                                    lag_range_slip=self.lag_range_pf,
+                                    dc_win=[0, 100], use_series=None)
+            lag_fit_neuron_eye.fit_lin_eye_kinematics(bin_width=bin_width,
+                                    bin_threshold=bin_threshold,
+                                    fit_constant=True, fit_avg_data=False,
+                                    quick_lag_step=quick_lag_step,
+                                    ignore_acc=True)
+            X = lag_fit_neuron_eye.get_lin_eye_kin_predict_data(lag_fit_blocks,
+                                    t_set, verbose=False)
+            y_hat = lag_fit_neuron_eye.predict_lin_eye_kinematics(X)
+
+            peak_mod_ind = np.nanargmax(np.abs(y_hat))
+            FR_peak_mod = y_hat[peak_mod_ind]
+            if FR_peak_mod > max_peak_mod:
+                max_peak_mod = FR_peak_mod
+                pos_lag = lag_fit_neuron_eye.fit_results['lin_eye_kinematics']['eye_lag']
+                print("NEW max!", t_set, max_peak_mod, pos_lag)
+            if FR_peak_mod < min_peak_mod:
+                min_peak_mod = FR_peak_mod
+                neg_lag = lag_fit_neuron_eye.fit_results['lin_eye_kinematics']['eye_lag']
+                print("NEW min!", t_set, min_peak_mod, neg_lag)
+        print("PF lag:", pos_lag, "MLI lag:", neg_lag)
+        return pos_lag, neg_lag
 
     def fit_gauss_basis_kinematics_fixlags(self, n_gaussians, std_gaussians, pos_range,
                                     vel_range, bin_width=10, bin_threshold=1,
@@ -676,10 +711,13 @@ class FitCSLearningFun(object):
         # pf_lag = 25
         # mli_lag = 17
         # print("Using FIXED lags", pf_lag, mli_lag)
-        pf_lag, mli_lag = self.get_pos_neg_kinematic_lag(bin_width=bin_width,
-                                    bin_threshold=bin_threshold,
-                                    fit_constant=True, fit_avg_data=fit_avg_data,
-                                    quick_lag_step=quick_lag_step)
+        # pf_lag, mli_lag = self.get_pos_neg_kinematic_lag(bin_width=bin_width,
+        #                             bin_threshold=bin_threshold,
+        #                             fit_constant=True, fit_avg_data=fit_avg_data,
+        #                             quick_lag_step=quick_lag_step)
+        pf_lag, mli_lag = self.get_lags_kinematic_fit(bin_width=bin_width,
+                                                bin_threshold=bin_threshold,
+                                                quick_lag_step=quick_lag_step)
 
         if n_gaussians % 2 == 0:
             print("Adding a gaussian to make an odd number of Gaussians with 1 centered at zero.")
