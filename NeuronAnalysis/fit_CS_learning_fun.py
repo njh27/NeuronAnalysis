@@ -486,12 +486,18 @@ class FitCSLearningFun(object):
             use_std = self.fit_results['gauss_basis_kinematics']['pos_stds'] if k < 2 else self.fit_results['gauss_basis_kinematics']['vel_stds']
             y_hat += gaussian_basis_set(X[:, k], scales[k * n_gaussians:(k + 1) * n_gaussians],
                                                                 use_means, use_std)
+        a_out = []
+        b_out = []
+        relu_out = []
         # Now add in the fitted linear components
         for k_ind, k in enumerate(range(4, 8)):
             a = scales[4 * n_gaussians + k_ind * 2]
             b = scales[4 * n_gaussians + k_ind * 2 + 1]
+            a_out.append(a)
+            b_out.append(b)
+            relu_out.append(downward_relu(X[:, k], a, b, c=0.))
             y_hat += downward_relu(X[:, k], a, b, c=0.)
-        return y_hat
+        return y_hat, a_out, b_out, relu_out
 
     def predict_gauss_basis_kinematics_by_trial(self, blocks, trial_sets, verbose=False):
         """
@@ -845,158 +851,6 @@ class FitCSLearningFun(object):
 
         return
 
-
-
-
-    def fit_gauss_basis_kinematics_fast(self, n_gaussians, std_gaussians, pos_range,
-                                    vel_range, bin_width=10, bin_threshold=1,
-                                    fit_avg_data=False, p0=None):
-        """ Fits the input neuron eye data to position and velocity using a
-        basis set of Gaussians according to the input number of Gaussians over
-        the state space ranges specified by pos/vel _range.
-        Output "coeffs" are in order the order of the n_gaussians for position
-        followed by the n_gaussians for velocity.
-        """
-        ftol=1e-6
-        xtol=1e-6
-        gtol=1e-6
-        max_nfev=20000
-        loss='linear'
-
-        if n_gaussians % 2 == 0:
-            print("Adding a gaussian to make an odd number of Gaussians with 1 centered at zero.")
-            n_gaussians += 1
-
-        firing_rate = self.get_firing_traces()
-        if fit_avg_data:
-            firing_rate = np.nanmean(firing_rate, axis=0, keepdims=True)
-        binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
-        FR_select = ~np.isnan(binned_FR)
-        FR_select = FR_select.reshape(FR_select.shape[0]*FR_select.shape[1], order='C')
-        # Reshape firing rate. Needs to have nans removed entirely because it
-        # must stay in this shape throughout fitting
-        binned_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-        binned_FR = binned_FR[FR_select]
-        mean_binned_FR = np.nanmean(binned_FR)
-
-        eye_data_all_lags = self.get_eye_data_traces_all_lags()
-        # Initialize empty eye_data array that we can fill from slices of all data
-        eye_data = np.ones((eye_data_all_lags.shape[0], self.fit_dur, 8))
-
-        # Set up the basic values and fit function for basis set
-        # Use inputs to set these variables and keep in scope for wrapper
-        pos_fixed_means = np.linspace(-pos_range, pos_range, n_gaussians)
-        vel_fixed_means = np.linspace(-vel_range, vel_range, n_gaussians)
-        # all_fixed_means = np.vstack((pos_fixed_means, vel_fixed_means))
-        pos_fixed_std = std_gaussians
-        vel_fixed_std = std_gaussians
-        # Wrapper function for curve_fit using our fixed gaussians, means, sigmas....
-        def pc_model_response_fun(x, *params):
-            """ Defines the model we are fitting to the data """
-            # Need to get x data at appropriate lag
-            pf_lag = np.int32(np.around(params[4 * n_gaussians + 4*2]))
-            mli_lag = np.int32(np.around(params[4 * n_gaussians + 4*2 + 1]))
-            eye_data[:, :, 0:4] = self.get_eye_lag_slice(pf_lag, eye_data_all_lags)
-            eye_data[:, :, 4:8] = self.get_eye_lag_slice(mli_lag, eye_data_all_lags)
-            # Use bin smoothing on data before fitting
-            bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-            if fit_avg_data:
-                bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
-            # Reshape to 2D matrices
-            bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
-
-            # First add the intrinsic rate/offset parameter
-            result = np.zeros(bin_eye_data.shape[0]) + params[-1]
-            # Then sum over the basis set predictors
-            for k in range(4):
-                use_means = pos_fixed_means if k < 2 else vel_fixed_means
-                use_std = pos_fixed_std if k < 2 else vel_fixed_std
-                result += gaussian_basis_set(bin_eye_data[:, k], params[k * n_gaussians:(k + 1) * n_gaussians],
-                                                                    use_means, use_std)
-            # Finally add in the relu predictors
-            for k_ind, k in enumerate(range(4, 8)):
-                a = params[4 * n_gaussians + k_ind * 2]
-                b = params[4 * n_gaussians + k_ind * 2 + 1]
-                result += downward_relu(bin_eye_data[:, k], a, b, c=0.)
-            # Cannot return nans so impute data with FR mean
-            result = np.nan_to_num(result, nan=mean_binned_FR, copy=False)
-            # Remove anywhere we did not have firing rate data so this output
-            # matches the input FR data
-            result = result[FR_select]
-            return result
-
-        lag_p0 = 115
-        if p0 is None:
-            # curve_fit seems unable to figure out how many parameters without setting this
-            p0 = np.ones(4*n_gaussians + 4*2 + 2 + 1)
-            p0[4*n_gaussians + 4*2:4*n_gaussians + 4*2 + 2] = lag_p0
-            p0[-1] = 75
-        # Set lower and upper bounds for each parameter
-        lower_bounds = np.zeros(p0.shape)
-        upper_bounds = np.inf * np.ones(p0.shape)
-        # Bounds for Gaussian basis function weights
-        lower_bounds[0:4*n_gaussians] = 0.
-        upper_bounds[0:4*n_gaussians] = 500.
-        # Bounds for downward Relu slopes
-        lower_bounds[4*n_gaussians:4*n_gaussians + 4*2] = np.array([0, -np.inf, 0, -np.inf, 0, -np.inf, 0, -np.inf])
-        upper_bounds[4*n_gaussians:4*n_gaussians + 4*2] = np.array([1, np.inf, 1, np.inf, 1, np.inf, 1, np.inf])
-        # lag bounds
-        lower_bounds[4*n_gaussians + 4*2:4*n_gaussians + 4*2 + 2] = self.lag_range_pf[0]
-        upper_bounds[4*n_gaussians + 4*2:4*n_gaussians + 4*2 + 2] = self.lag_range_pf[1]
-        # Bounds for intrinsic rate/offset
-        lower_bounds[-1] = 10
-        upper_bounds[-1] = 200
-
-        # Need to pass in data at lag_p0
-        eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag_p0, eye_data_all_lags)
-        eye_data[:, :, 4:8] = self.get_eye_lag_slice(lag_p0, eye_data_all_lags)
-        # Use bin smoothing on data before fitting
-        bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-        if fit_avg_data:
-            bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
-        # Reshape to 2D matrices and remove nans
-        bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
-        # Just set nans to 0. for now in input. These are recomputed during
-        # calls to model function pc_model_response_fun
-        bin_eye_data = np.nan_to_num(bin_eye_data, nan=0., copy=False)
-        # Fit the Gaussian basis set to the data
-        popt, pcov = curve_fit(pc_model_response_fun, bin_eye_data,
-                                binned_FR, p0=p0,
-                                bounds=(lower_bounds, upper_bounds),
-                                ftol=ftol,
-                                xtol=xtol,
-                                gtol=gtol,
-                                max_nfev=max_nfev,
-                                loss=loss)
-        # Set binary variables to 0 or 1
-        for k_ind, k in enumerate(range(4, 8)):
-            popt[4 * n_gaussians + k_ind * 2] = np.int32(binary_param(popt[4 * n_gaussians + k_ind * 2]))
-        # Store this for now so we can call predict_gauss_basis_kinematics
-        # below for computing R2.
-        self.fit_results['gauss_basis_kinematics'] = {
-                                'pf_lag': np.int32(np.around(popt[4 * n_gaussians + 4*2])),
-                                'mli_lag': np.int32(np.around(popt[4 * n_gaussians + 4*2])),
-                                'coeffs': popt,
-                                'n_gaussians': n_gaussians,
-                                'pos_means': pos_fixed_means,
-                                'pos_stds': pos_fixed_std,
-                                'vel_means': vel_fixed_means,
-                                'vel_stds': vel_fixed_std,
-                                'R2': None,
-                                'predict_fun': self.predict_gauss_basis_kinematics}
-        # Compute R2
-        if fit_avg_data:
-            test_lag_data = self.get_gauss_basis_kinematics_predict_data_mean(
-                                    self.blocks, self.trial_sets, verbose=False)
-            y_predicted = self.predict_gauss_basis_kinematics(test_lag_data)
-        else:
-            y_predicted = self.predict_gauss_basis_kinematics_by_trial(
-                                    self.blocks, self.trial_sets, verbose=False)
-        sum_squares_error = np.nansum((firing_rate - y_predicted) ** 2)
-        sum_squares_total = np.nansum((firing_rate - np.nanmean(firing_rate)) ** 2)
-        self.fit_results['gauss_basis_kinematics']['R2'] = 1 - sum_squares_error/(sum_squares_total)
-
-        return
 
 
 
