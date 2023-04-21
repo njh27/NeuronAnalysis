@@ -702,9 +702,9 @@ class FitCSLearningFun(object):
         Output "coeffs" are in order the order of the n_gaussians for position
         followed by the n_gaussians for velocity.
         """
-        ftol=1e-6
-        xtol=1e-6
-        gtol=1e-6
+        ftol=1e-8
+        xtol=1e-8
+        gtol=1e-8
         max_nfev=200000
         loss='linear'
 
