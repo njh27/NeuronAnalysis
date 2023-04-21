@@ -719,8 +719,11 @@ class FitCSLearningFun(object):
                                                 bin_threshold=bin_threshold,
                                                 quick_lag_step=quick_lag_step)
 
-        if n_gaussians % 2 == 0:
-            print("Adding a gaussian to make an odd number of Gaussians with 1 centered at zero.")
+        # if n_gaussians % 2 == 0:
+        #     print("Adding a gaussian to make an odd number of Gaussians with 1 centered at zero.")
+        #     n_gaussians += 1
+        if n_gaussians % 2 == 1:
+            print("Adding a gaussian to make an even number of Gaussians without any centered at zero.")
             n_gaussians += 1
 
         # Get all the firing rate data
