@@ -803,14 +803,15 @@ class FitCSLearningFun(object):
         upper_bounds[-1] = 200
 
         # Fit the Gaussian basis set to the data
-        popt, pcov, infodict = curve_fit(pc_model_response_fun, bin_eye_data,
+        popt, pcov, infodict, _, _ = curve_fit(pc_model_response_fun, bin_eye_data,
                                 binned_FR, p0=p0,
                                 bounds=(lower_bounds, upper_bounds),
                                 ftol=ftol,
                                 xtol=xtol,
                                 gtol=gtol,
                                 max_nfev=max_nfev,
-                                loss=loss)
+                                loss=loss,
+                                full_output=True)
         print("Curve fit stopped after {0} function evals.".format(infodict['nfev']))
         # Set binary variables to 0 or 1
         for k_ind, k in enumerate(range(4, 8)):
