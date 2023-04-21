@@ -811,7 +811,7 @@ class FitCSLearningFun(object):
                                 gtol=gtol,
                                 max_nfev=max_nfev,
                                 loss=loss,
-                                *(, ),
+                                *,
                                 full_output=True)
         print("Curve fit stopped after {0} function evals.".format(infodict['nfev']))
         # Set binary variables to 0 or 1
