@@ -728,9 +728,9 @@ class FitCSLearningFun(object):
         # if n_gaussians % 2 == 0:
         #     print("Adding a gaussian to make an odd number of Gaussians with 1 centered at zero.")
         #     n_gaussians += 1
-        if n_gaussians % 2 == 1:
-            print("Adding a gaussian to make an even number of Gaussians without any centered at zero.")
-            n_gaussians += 1
+        # if n_gaussians % 2 == 1:
+        #     print("Adding a gaussian to make an even number of Gaussians without any centered at zero.")
+        #     n_gaussians += 1
 
         # Get all the firing rate data
         firing_rate = self.get_firing_traces()
@@ -796,10 +796,10 @@ class FitCSLearningFun(object):
         p0_V = np.abs(np.linspace(-gauss_max_weight, gauss_max_weight, n_gaussians))
         if p0 is None:
             # curve_fit seems unable to figure out how many parameters without setting this
-            p0 = np.ones(4*n_gaussians + 4*2 + 1)
+            p0 = np.zeros(4*n_gaussians + 4*2 + 1)
             # Initialize each gaussian basis set axis weights as a "V" shape
-            for k_dim in range(0, 4):
-                p0[k_dim * n_gaussians:(k_dim + 1) * n_gaussians] = p0_V
+            # for k_dim in range(0, 4):
+            #     p0[k_dim * n_gaussians:(k_dim + 1) * n_gaussians] = p0_V
             p0[-1] = 75
         # Set lower and upper bounds for each parameter
         lower_bounds = np.zeros(p0.shape)
@@ -808,7 +808,7 @@ class FitCSLearningFun(object):
         upper_bounds[0:4*n_gaussians] = gauss_max_weight
         lower_bounds[4*n_gaussians:4*n_gaussians + 4*2] = np.array([0, -np.inf, 0, -np.inf, 0, -np.inf, 0, -np.inf])
         upper_bounds[4*n_gaussians:4*n_gaussians + 4*2] = np.array([1, np.inf, 1, np.inf, 1, np.inf, 1, np.inf])
-        lower_bounds[-1] = 10
+        lower_bounds[-1] = 0
         upper_bounds[-1] = 200
 
         # Fit the Gaussian basis set to the data
