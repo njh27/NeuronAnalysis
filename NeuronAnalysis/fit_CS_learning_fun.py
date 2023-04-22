@@ -794,7 +794,8 @@ class FitCSLearningFun(object):
 
         gauss_max_weight = np.inf
         # p0_V = np.abs(np.linspace(-gauss_max_weight, gauss_max_weight, n_gaussians))
-        p0_V = np.random.randn(n_gaussians) * 1e4
+        p0_V = np.random.randn(n_gaussians) * 10 + 50
+        p0_V[p0_V < 0.] = 0.
         if p0 is None:
             # curve_fit seems unable to figure out how many parameters without setting this
             p0 = np.ones(4*n_gaussians + 4*2 + 1)
