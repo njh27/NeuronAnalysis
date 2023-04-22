@@ -365,18 +365,26 @@ class PurkinjeCell(Neuron):
         cs_by_trial = self.get_cs_by_trial(time_window, blocks=blocks,
                                             trial_sets=trial_sets)
         smooth_CS_by_trial = np.zeros((len(cs_by_trial), time_window[1] - time_window[0]))
+        # Just need to find data dt for one trial and all should be the same
+        for t_num in range(0, len(self.session)):
+            try:
+                dt_data = self.session['neurons'][t_num]._timeseries.dt
+                # Got a dt
+                break
+            except:
+                # set to default of 1 in case this doesn't work for some reason
+                dt_data = 1.0
+                # dt_data not found for whatever reason so keep trying
+                continue
+        # Go through all CS
         for t_cs_ind, t_cs in enumerate(cs_by_trial):
             if len(t_cs) == 0:
                 continue
-            try:
-                smooth_CS_by_trial[t_cs_ind, np.int32(np.around(t_cs)) - time_window[0]] = 1.0
-                smooth_CS_by_trial[t_cs_ind, :] = gauss_convolve(
-                                            smooth_CS_by_trial[t_cs_ind, :],
-                                            sigma=sigma, cutoff_sigma=cutoff_sigma)
-            except:
-                print(t_cs_ind, len(t_cs))
-                print(t_cs)
-                raise
+            # Bin CS into 1 ms bins
+            smooth_CS_by_trial[t_cs_ind, np.int32(np.floor( (np.array(t_cs) / dt_data) - time_window[0]))] = 1.0
+            smooth_CS_by_trial[t_cs_ind, :] = gauss_convolve(
+                                        smooth_CS_by_trial[t_cs_ind, :],
+                                        sigma=sigma, cutoff_sigma=cutoff_sigma)
         return smooth_CS_by_trial
 
     def get_mean_gauss_convolved_CS_by_trial(self, time_window, blocks=None,
