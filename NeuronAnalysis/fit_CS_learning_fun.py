@@ -505,6 +505,7 @@ class FitCSLearningFun(object):
         X, init_shape = self.get_gauss_basis_kinematics_predict_data_trial(
                                 blocks, trial_sets, verbose, return_shape=True)
         y_hat = self.predict_gauss_basis_kinematics(X)
+        return y_hat
         y_hat = y_hat.reshape(init_shape[0], init_shape[1], order='C')
         return y_hat
 
@@ -847,6 +848,7 @@ class FitCSLearningFun(object):
         else:
             y_predicted = self.predict_gauss_basis_kinematics_by_trial(
                                     self.blocks, self.trial_sets, verbose=False)
+            return y_predicted
         sum_squares_error = np.nansum((firing_rate - y_predicted) ** 2)
         sum_squares_total = np.nansum((firing_rate - np.nanmean(firing_rate)) ** 2)
         self.fit_results['gauss_basis_kinematics']['R2'] = 1 - sum_squares_error/(sum_squares_total)
