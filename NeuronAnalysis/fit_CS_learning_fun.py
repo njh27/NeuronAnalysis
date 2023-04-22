@@ -798,7 +798,7 @@ class FitCSLearningFun(object):
         if p0 is None:
             # curve_fit seems unable to figure out how many parameters without setting this
             p0 = np.ones(4*n_gaussians + 4*2 + 1)
-            Initialize each gaussian basis set axis weights as a "V" shape
+            # Initialize each gaussian basis set axis weights as a "V" shape
             for k_dim in range(0, 4):
                 p0[k_dim * n_gaussians:(k_dim + 1) * n_gaussians] = p0_V
             p0[-1] = 75
