@@ -368,10 +368,15 @@ class PurkinjeCell(Neuron):
         for t_cs_ind, t_cs in enumerate(cs_by_trial):
             if len(t_cs) == 0:
                 continue
-            smooth_CS_by_trial[t_cs_ind, np.int32(np.around(t_cs)) - time_window[0]] = 1.0
-            smooth_CS_by_trial[t_cs_ind, :] = gauss_convolve(
-                                        smooth_CS_by_trial[t_cs_ind, :],
-                                        sigma=sigma, cutoff_sigma=cutoff_sigma)
+            try:
+                smooth_CS_by_trial[t_cs_ind, np.int32(np.around(t_cs)) - time_window[0]] = 1.0
+                smooth_CS_by_trial[t_cs_ind, :] = gauss_convolve(
+                                            smooth_CS_by_trial[t_cs_ind, :],
+                                            sigma=sigma, cutoff_sigma=cutoff_sigma)
+            except:
+                print(t_cs_ind, len(t_cs))
+                print(t_cs)
+                raise
         return smooth_CS_by_trial
 
     def get_mean_gauss_convolved_CS_by_trial(self, time_window, blocks=None,
