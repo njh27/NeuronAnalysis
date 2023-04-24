@@ -61,7 +61,6 @@ class FitNeuronToEye(object):
     def __init__(self, Neuron, time_window=[0, 800], blocks=None, trial_sets=None,
                     lag_range_eye=[-25, 25], lag_range_slip=[60, 120],
                     dc_win=[0, 100], use_series=None):
-        print("CURRENTLY DOES NOT USE BEHAVIOR DATA FROM VALID NEURON TRIALS WHEN GETTING DATA FOR FIT PREDICTIONS")
         self.neuron = Neuron
         if use_series is not None:
             if use_series != Neuron.use_series:
@@ -319,6 +318,8 @@ class FitNeuronToEye(object):
                          ]
         if verbose: print("EYE lag:", self.fit_results['pcwise_lin_eye_kinematics']['eye_lag'])
         s_dim2 = 9 if self.fit_results['pcwise_lin_eye_kinematics']['use_constant'] else 8
+
+        trial_sets = self.neuron.append_valid_trial_set(trial_sets)
         X = np.ones((self.time_window[1]-self.time_window[0], s_dim2))
         X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
                                                 "eye position", lagged_eye_win,
@@ -467,6 +468,8 @@ class FitNeuronToEye(object):
                          ]
         if verbose: print("EYE lag:", self.fit_results['lin_eye_kinematics']['eye_lag'])
         s_dim2 = 7 if self.fit_results['lin_eye_kinematics']['use_constant'] else 6
+
+        trial_sets = self.neuron.append_valid_trial_set(trial_sets)
         X = np.ones((self.time_window[1]-self.time_window[0], s_dim2))
         X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
                                                 "eye position", lagged_eye_win,
@@ -685,6 +688,7 @@ class FitNeuronToEye(object):
         if verbose: print("SLIP lag:", self.fit_results['pcwise_eye_slip_interaction']['slip_lag'])
         s_dim2 = 17 if self.fit_results['pcwise_eye_slip_interaction']['use_constant'] else 16
 
+        trial_sets = self.neuron.append_valid_trial_set(trial_sets)
         if get_avg_data:
             X = np.ones((self.time_window[1]-self.time_window[0], s_dim2))
             X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
@@ -908,9 +912,9 @@ class FitNeuronToEye(object):
         if verbose: print("EYE lag:", self.fit_results['eye_slip_interaction']['eye_lag'])
         if verbose: print("SLIP lag:", self.fit_results['eye_slip_interaction']['slip_lag'])
         s_dim2 = 9 if self.fit_results['eye_slip_interaction']['use_constant'] else 8
+
+        trial_sets = self.neuron.append_valid_trial_set(trial_sets)
         X = np.ones((self.time_window[1]-self.time_window[0], s_dim2))
-
-
         X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
                                                 "eye position",
                                                 slip_lagged_eye_win,
@@ -1087,6 +1091,8 @@ class FitNeuronToEye(object):
         if verbose: print("EYE lag:", self.fit_results['acc_kinem_interaction']['eye_lag'])
         if verbose: print("ACC lag:", self.fit_results['acc_kinem_interaction']['acc_lag'])
         s_dim2 = 11 if self.fit_results['acc_kinem_interaction']['use_constant'] else 10
+
+        trial_sets = self.neuron.append_valid_trial_set(trial_sets)
         X = np.ones((self.time_window[1]-self.time_window[0], s_dim2))
         X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
                                                 "eye position", acc_lagged_eye_win,
@@ -1259,9 +1265,9 @@ class FitNeuronToEye(object):
         if verbose: print("EYE lag:", self.fit_results['eye_slip_interaction']['eye_lag'])
         if verbose: print("SLIP lag:", self.fit_results['eye_slip_interaction']['slip_lag'])
         s_dim2 = 9 if self.fit_results['eye_slip_interaction']['use_constant'] else 8
+
+        trial_sets = self.neuron.append_valid_trial_set(trial_sets)
         X = np.ones((self.time_window[1]-self.time_window[0], s_dim2))
-
-
         X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
                                                 "eye position",
                                                 slip_lagged_eye_win,
@@ -1314,14 +1320,7 @@ class FitNeuronPositionPlanes(FitNeuronToEye):
         self.blocks = blocks
         # Want to make sure we only pull eye data for trials where this neuron
         # was valid by adding its valid trial set to trial_sets
-        if trial_sets is None:
-            trial_sets = [Neuron.name]
-        elif isinstance(trial_sets, list):
-            trial_sets.append(Neuron.name)
-        else:
-            trial_sets = [trial_sets]
-            trial_sets.append(Neuron.name)
-        self.trial_sets = trial_sets
+        self.trial_sets = Neuron.append_valid_trial_set(trial_sets)
         self.fixation_trial_sets = np.zeros(len(Neuron.session), dtype='bool')
         if fixation_trial_sets is not None:
             if not isinstance(fixation_trial_sets, list):
