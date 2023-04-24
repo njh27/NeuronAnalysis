@@ -71,14 +71,7 @@ class FitNeuronToEye(object):
         self.blocks = blocks
         # Want to make sure we only pull eye data for trials where this neuron
         # was valid by adding its valid trial set to trial_sets
-        if trial_sets is None:
-            trial_sets = [Neuron.name]
-        elif isinstance(trial_sets, list):
-            trial_sets.append(Neuron.name)
-        else:
-            trial_sets = [trial_sets]
-            trial_sets.append(Neuron.name)
-        self.trial_sets = trial_sets
+        self.trial_sets = Neuron.append_valid_trial_set(trial_sets)
         self.lag_range_eye = np.array(lag_range_eye, dtype=np.int32)
         self.lag_range_slip = np.array(lag_range_slip, dtype=np.int32)
         if self.lag_range_eye[1] <= self.lag_range_eye[0]:
@@ -101,6 +94,7 @@ class FitNeuronToEye(object):
         """ Gets eye position and velocity in array of trial x self.time_window
             3rd dimension of array is ordered as pursuit, learning position,
             then pursuit, learning velocity.
+            Data are only retrieved for valid neuron trials!
         """
         lag_time_window = self.time_window + np.int32(lag)
         if lag_time_window[1] <= lag_time_window[0]:

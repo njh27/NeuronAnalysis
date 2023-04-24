@@ -96,7 +96,6 @@ class FitCSLearningFun(object):
     def __init__(self, Neuron, time_window=[0, 800], blocks=None, trial_sets=None,
                     lag_range_pf=[-25, 25], lag_range_slip=[60, 120],
                     dc_win=[0, 100], use_series=None):
-        print("CURRENTLY DOES NOT USE BEHAVIOR DATA FROM VALID NEURON TRIALS WHEN GETTING DATA FOR FIT PREDICTIONS")
         self.neuron = Neuron
         if use_series is not None:
             if use_series != Neuron.use_series:
@@ -106,14 +105,7 @@ class FitCSLearningFun(object):
         self.blocks = blocks
         # Want to make sure we only pull eye data for trials where this neuron
         # was valid by adding its valid trial set to trial_sets
-        if trial_sets is None:
-            trial_sets = [Neuron.name]
-        elif isinstance(trial_sets, list):
-            trial_sets.append(Neuron.name)
-        else:
-            trial_sets = [trial_sets]
-            trial_sets.append(Neuron.name)
-        self.trial_sets = trial_sets
+        self.trial_sets = Neuron.append_valid_trial_set(trial_sets)
         self.lag_range_pf = np.array(lag_range_pf, dtype=np.int32)
         self.lag_range_slip = np.array(lag_range_slip, dtype=np.int32)
         if self.lag_range_pf[1] <= self.lag_range_pf[0]:
@@ -136,11 +128,13 @@ class FitCSLearningFun(object):
         """ Gets eye position and velocity in array of trial x self.time_window
             3rd dimension of array is ordered as pursuit, learning position,
             then pursuit, learning velocity.
+            Data are only retrieved for valid neuron trials!
         """
         lag_time_window = self.time_window + np.int32(lag)
         if lag_time_window[1] <= lag_time_window[0]:
             raise ValueError("time_window[1] must be greater than time_window[0]")
 
+        trial_sets = self.neuron.append_valid_trial_set(trial_sets)
         pos_p, pos_l = self.neuron.session.get_xy_traces("eye position",
                                 lag_time_window, blocks, trial_sets,
                                 return_inds=False)
@@ -328,7 +322,9 @@ class FitCSLearningFun(object):
                                                       return_shape=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
         way that it can be used to predict firing rate according to the linear
-        eye kinematic model using predict_lin_eye_kinematics. """
+        eye kinematic model using predict_lin_eye_kinematics.
+        Data are only retrieved for trials that are valid for the fitted neuron. """
+        trial_sets = self.neuron.append_valid_trial_set(trial_sets)
         eye_data_pf = self.get_eye_data_traces(blocks, trial_sets,
                             self.fit_results['gauss_basis_kinematics']['pf_lag'])
         eye_data_mli = self.get_eye_data_traces(blocks, trial_sets,
@@ -346,7 +342,8 @@ class FitCSLearningFun(object):
     def get_gauss_basis_kinematics_predict_data_mean(self, blocks, trial_sets, verbose=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
         way that it can be used to predict firing rate according to the linear
-        eye kinematic model using predict_lin_eye_kinematics. """
+        eye kinematic model using predict_lin_eye_kinematics.
+        Data for predictions are retrieved only for valid neuron trials."""
         lagged_pf_win = [self.time_window[0] + self.fit_results['gauss_basis_kinematics']['pf_lag'],
                           self.time_window[1] + self.fit_results['gauss_basis_kinematics']['pf_lag']
                          ]
@@ -355,6 +352,8 @@ class FitCSLearningFun(object):
                          ]
         if verbose: print("PF lag:", self.fit_results['gauss_basis_kinematics']['pf_lag'])
         if verbose: print("MLI lag:", self.fit_results['gauss_basis_kinematics']['mli_lag'])
+
+        trial_sets = self.neuron.append_valid_trial_set(trial_sets)
         X = np.ones((self.time_window[1]-self.time_window[0], 8))
         X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
                                                 "eye position", lagged_pf_win,
