@@ -81,9 +81,13 @@ class Neuron(object):
     def check_stability(self, win_size=30000, duration=2, tol_percent=20):
         min_rate = 0.05
         # Smooth all data with sigma of 1 bin
-        seg_bins, bin_rates, bin_t_wins = find_stable_ranges(self.get_spikes_ms(),
+        seg_bins, bin_rates, bin_t_wins, raw_bin_rates = find_stable_ranges(self.get_spikes_ms(),
                                             win_size, duration, tol_percent,
                                             min_rate, sigma_smooth=2)
+        self.seg_bins = seg_bins
+        self.bin_t_wins = bin_t_wins
+        self.smooth_bin_rates = bin_rates
+        self.raw_bin_rates = raw_bin_rates
         # No look for stable time windows smoothed with bigger sigma and more
         # tolerance for connecting over segments
         self.stable_time_wins_ms = get_stable_time_wins(seg_bins, bin_rates,
@@ -358,13 +362,23 @@ class PurkinjeCell(Neuron):
 
     def get_gauss_convolved_CS_by_trial(self, time_window, blocks=None,
                                         trial_sets=None, sigma=50,
-                                        cutoff_sigma=4):
+                                        cutoff_sigma=4,
+                                        nan_sacc=False):
         """ Returns a n trials by t time points numpy array of the smoothed
         CS rates over the blocks and trial sets input. """
         # get_cs_by_trial calls self.append_valid_trial_set(trial_sets)
-        cs_by_trial = self.get_cs_by_trial(time_window, blocks=blocks,
-                                            trial_sets=trial_sets)
+        cs_by_trial, cs_t_inds = self.get_cs_by_trial(time_window, blocks=blocks,
+                                            trial_sets=trial_sets,
+                                            return_inds=True)
         smooth_CS_by_trial = np.zeros((len(cs_by_trial), time_window[1] - time_window[0]))
+        if nan_sacc:
+            pos_p, pos_l = self.session.get_xy_traces("eye position",
+                                    time_window, blocks, cs_t_inds,
+                                    return_inds=False)
+            is_pos_nan = np.isnan(pos_p)
+        else:
+            is_pos_nan = np.zeros(smooth_CS_by_trial.shape, dtype='bool')
+
         # Just need to find data dt for one trial and all should be the same
         for t_num in range(0, len(self.session)):
             try:
@@ -382,6 +396,7 @@ class PurkinjeCell(Neuron):
                 continue
             # Bin CS into 1 ms bins
             smooth_CS_by_trial[t_cs_ind, np.int32(np.floor( (np.array(t_cs) / dt_data) - time_window[0]))] = 1.0
+            smooth_CS_by_trial[t_cs_ind, is_pos_nan[t_cs_ind, :]] = 0.
             smooth_CS_by_trial[t_cs_ind, :] = gauss_convolve(
                                         smooth_CS_by_trial[t_cs_ind, :],
                                         sigma=sigma, cutoff_sigma=cutoff_sigma)
@@ -389,13 +404,15 @@ class PurkinjeCell(Neuron):
 
     def get_mean_gauss_convolved_CS_by_trial(self, time_window, blocks=None,
                                                 trial_sets=None, sigma=50,
-                                                cutoff_sigma=4):
+                                                cutoff_sigma=4,
+                                                nan_sacc=False):
         """ Gets mean over all input trials averaging over output from
         get_gauss_convolved_CS_by_trial above. """
         smooth_CS_by_trial = self.get_gauss_convolved_CS_by_trial(time_window,
                                             blocks=blocks,
                                             trial_sets=trial_sets, sigma=sigma,
-                                            cutoff_sigma=cutoff_sigma)
+                                            cutoff_sigma=cutoff_sigma,
+                                            nan_sacc=nan_sacc)
         return np.mean(smooth_CS_by_trial, axis=0)
 
     def get_cs_by_trial(self, time_window, blocks=None, trial_sets=None,
@@ -412,19 +429,21 @@ class PurkinjeCell(Neuron):
                 # Trial is not aligned with others due to missing event
                 continue
             trial_CS = self.trial_cs_times[t]
+            win_cs = []
             if len(trial_CS) == 0:
-                # Data are missing for this neuron on this trial
+                # No CSs on this trial
+                data_out.append([])
+                t_inds_out.append(t)
                 continue
             # Align trial CS on current alignment event NOT IN PLACE!!!
             aligned_CS = trial_CS - self.session._session_trial_data[t]['aligned_time']
-            win_cs = []
             for t_cs in aligned_CS:
                 if (t_cs >= time_window[0]) & (t_cs < time_window[1]):
                     win_cs.append(t_cs)
             data_out.append(win_cs)
             t_inds_out.append(t)
         if return_inds:
-            return data_out, np.array(t_inds, dtype=np.int64)
+            return data_out, np.array(t_inds_out, dtype=np.int64)
         else:
             return data_out
 
@@ -580,6 +599,7 @@ def find_stable_ranges(spikes_ms, win_size, duration, tol_percent=20, min_rate=0
         bin_t_wins.append([t_start, t_stop])
         t_start = t_stop
     bin_rates = np.array(bin_rates)
+    raw_bin_rates = np.copy(bin_rates)
 
     if sigma_smooth is not None:
         if sigma_smooth <= 0.:
@@ -680,7 +700,7 @@ def find_stable_ranges(spikes_ms, win_size, duration, tol_percent=20, min_rate=0
         seg_bins[sb_ind] = np.array(seg_bins[sb_ind])
     bin_t_wins = np.array(bin_t_wins)
 
-    return seg_bins, bin_rates, bin_t_wins
+    return seg_bins, bin_rates, bin_t_wins, raw_bin_rates
 
 def get_stable_time_wins(seg_bins, bin_rates, bin_t_wins, tol_percent=15,
                          sigma_smooth=None, cutoff_sigma=4):
@@ -800,28 +820,3 @@ def get_stable_time_wins(seg_bins, bin_rates, bin_t_wins, tol_percent=15,
             curr_start = keep_time_wins[ind+1, 0]
 
     return stable_time_wins
-
-# import NeuronAnalysis as na
-# reload(na.neurons)
-# neur = neurons[0]
-# win_size = 30000
-# duration = 3
-# tol_percent = 10
-# min_rate = 0.05
-# spikes_ms = neur['spike_indices__'] / (40000 / 1000)
-# seg_bins, bin_rates, bin_t_wins = na.neurons.find_stable_ranges(spikes_ms,
-#                                             win_size, duration, tol_percent,
-#                                             min_rate, sigma_smooth=1)
-# xvals = np.arange(0, len(bin_rates))
-# plt.scatter(xvals, bin_rates, color='k')
-# for sb in seg_bins:
-#     plt.plot(sb, bin_rates[sb])
-# stable_time_wins = na.neurons.get_stable_time_wins(seg_bins, bin_rates, bin_t_wins, tol_percent=15,
-#                          sigma_smooth=2, cutoff_sigma=4)
-# xvals = np.arange(0, len(bin_rates))
-# plt.scatter(xvals, bin_rates, color='k')
-# for sb in seg_bins:
-#     plt.plot(sb, bin_rates[sb])
-# for stw in stable_time_wins:
-#     x = [stw[0]/win_size, stw[1]/win_size]
-#     plt.plot(x, [10, 10], color='g')
