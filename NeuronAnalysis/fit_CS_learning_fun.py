@@ -444,6 +444,59 @@ class FitCSLearningFun(object):
         print("PF lag:", pos_lag, "MLI lag:", neg_lag)
         return pos_lag, neg_lag
 
+    def plot_2D_pos_fit(xy_pos_lims=None, fixed_xy_vel=[15, 6], pos_resolution=0.25):
+        """ Makes plot of model prediction for fixed velocity across a grid of
+        position spanning xy_pos_lims at resolution pos_resolution.
+        call: plt.pcolormesh(pos_vals, pos_vals, fr_hat_mat) to plot output
+        """
+        if xy_pos_lims is None:
+            xy_pos_lims = [np.amin(self.fit_results['gauss_basis_kinematics']['pos_means']),
+                            np.amax(self.fit_results['gauss_basis_kinematics']['pos_means'])]
+        pos_vals = np.arange(xy_pos_lims[0], xy_pos_lims[1] + pos_resolution, pos_resolution)
+        x, y = np.meshgrid(pos_vals, pos_vals)
+        X = np.zeros((x.size, 8))
+        X[:, 0] = np.ravel(x)
+        X[:, 1] = np.ravel(y)
+        X[:, 2] = fixed_xy_vel[0]
+        X[:, 3] = fixed_xy_vel[1]
+
+        # Based on current fixed velocity, infer position input for MLIs?
+        # Not sure if or how to do this at the moment...
+        X[:, 4] = np.ravel(x)
+        X[:, 5] = np.ravel(y)
+        X[:, 6] = fixed_xy_vel[0]
+        X[:, 7] = fixed_xy_vel[1]
+
+        fr_hat = fit_CS_learn.predict_gauss_basis_kinematics(X)
+        fr_hat_mat = fr_hat.reshape(len(pos_vals), len(pos_vals))
+        return pos_vals, fr_hat_mat
+
+    def plot_2D_vel_fit(xy_vel_lims=None, fixed_xy_pos=[4, 1], vel_resolution=0.25):
+        """ Makes plot of model prediction for fixed position across a grid of
+        velocity spanning xy_vel_lims at resolution vel_resolution.
+        call: plt.pcolormesh(vel_vals, vel_vals, fr_hat_mat) to plot output
+        """
+        if xy_vel_lims is None:
+            xy_vel_lims = [np.amin(self.fit_results['gauss_basis_kinematics']['vel_means']),
+                            np.amax(self.fit_results['gauss_basis_kinematics']['vel_means'])]
+        vel_vals = np.arange(xy_vel_lims[0], xy_vel_lims[1] + vel_resolution, vel_resolution)
+        x, y = np.meshgrid(vel_vals, vel_vals)
+        X = np.zeros((x.size, 8))
+        X[:, 0] = fixed_xy_pos[0]
+        X[:, 1] = fixed_xy_pos[1]
+        X[:, 2] = np.ravel(x)
+        X[:, 3] = np.ravel(y)
+
+        # Based on current fixed velocity, infer position input for MLIs?
+        # Not sure if or how to do this at the moment...
+        X[:, 4] = fixed_xy_pos[0]
+        X[:, 5] = fixed_xy_pos[1]
+        X[:, 6] = np.ravel(x)
+        X[:, 7] = np.ravel(y)
+
+        fr_hat = fit_CS_learn.predict_gauss_basis_kinematics(X)
+        fr_hat_mat = fr_hat.reshape(len(vel_vals), len(vel_vals))
+        return vel_vals, fr_hat_mat
 
 
 
