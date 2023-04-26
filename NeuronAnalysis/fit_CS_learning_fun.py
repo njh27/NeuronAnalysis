@@ -115,16 +115,19 @@ class FitCSLearningFun(object):
         self.dc_inds = np.array([dc_win[0] - time_window[0], dc_win[1] - time_window[0]], dtype=np.int32)
         self.fit_results = {}
 
-    def get_firing_traces(self):
+    def get_firing_traces(self, return_inds=False):
         """ Calls the neuron's get firing rate functions using the input blocks
         and time windows used for making the fit object, making this call
         cleaner when used below in other methods.
         """
-        fr = self.neuron.get_firing_traces(self.time_window, self.blocks,
-                            self.trial_sets, return_inds=False)
-        return fr
+        fr, fr_inds = self.neuron.get_firing_traces(self.time_window, self.blocks,
+                            self.trial_sets, return_inds=True)
+        if return_inds:
+            return fr, fr_inds
+        else:
+            return fr
 
-    def get_eye_data_traces(self, blocks, trial_sets, lag=0):
+    def get_eye_data_traces(self, blocks, trial_sets, lag=0, return_inds=False):
         """ Gets eye position and velocity in array of trial x self.time_window
             3rd dimension of array is ordered as pursuit, learning position,
             then pursuit, learning velocity.
@@ -135,14 +138,17 @@ class FitCSLearningFun(object):
             raise ValueError("time_window[1] must be greater than time_window[0]")
 
         trial_sets = self.neuron.append_valid_trial_set(trial_sets)
-        pos_p, pos_l = self.neuron.session.get_xy_traces("eye position",
+        pos_p, pos_l, t_inds = self.neuron.session.get_xy_traces("eye position",
                                 lag_time_window, blocks, trial_sets,
-                                return_inds=False)
+                                return_inds=True)
         vel_p, vel_l = self.neuron.session.get_xy_traces("eye velocity",
                                 lag_time_window, blocks, trial_sets,
                                 return_inds=False)
         eye_data = np.stack((pos_p, pos_l, vel_p, vel_l), axis=2)
-        return eye_data
+        if return_inds:
+            return eye_data, t_inds
+        else:
+            return eye_data
 
     def get_eye_data_traces_all_lags(self):
         """ Gets eye position and velocity in array of trial x
@@ -177,14 +183,16 @@ class FitCSLearningFun(object):
     def fit_gauss_basis_kinematics(self, n_gaussians, std_gaussians, pos_range,
                                     vel_range, bin_width=10, bin_threshold=1,
                                     fit_avg_data=False, p0=None,
-                                    quick_lag_step=10):
+                                    quick_lag_step=10,
+                                    prop_fit=1.0):
         """ Fits the input neuron eye data to position and velocity using a
         basis set of Gaussians according to the input number of Gaussians over
         the state space ranges specified by pos/vel _range.
         Output "coeffs" are in order the order of the n_gaussians for position
         followed by the n_gaussians for velocity.
         A positive and negative temporal lag is fit first using a simple linear
-        model with "get_lags_kinematic_fit".
+        model with "get_lags_kinematic_fit" and the standard 4 direction tuning
+        trials.
         """
         ftol=1e-8
         xtol=1e-8
@@ -192,15 +200,32 @@ class FitCSLearningFun(object):
         max_nfev=200000
         loss='linear'
 
+        if prop_fit > 1.0:
+            raise ValueError("Proportion to fit 'prop_fit' must be a value less than 1!")
+
         pf_lag, mli_lag = self.get_lags_kinematic_fit(bin_width=bin_width,
                                                 bin_threshold=bin_threshold,
                                                 quick_lag_step=quick_lag_step)
 
         # Get all the firing rate data
-        firing_rate = self.get_firing_traces()
+        firing_rate, all_t_inds = self.get_firing_traces(return_inds=True)
+        n_fit_trials = np.int64(np.around(firing_rate.shape[0] * prop_fit))
+        if n_fit_trials < 1:
+            raise ValueError("Proportion to fit 'prop_fit' is too low to fit the minimum of 1 trial out of {0} total trials available.".format(firing_rate.shape[0]))
+        # Now select and remember the trials used for fitting
+        fit_trial_set = np.zeros(len(self.neuron.session), dtype='bool')
+        test_trial_set = np.zeros(len(self.neuron.session), dtype='bool')
+        select_fit_trials = np.zeros(len(all_t_inds), dtype='bool')
+        fit_trial_inds = np.random.choice(np.arange(0, firing_rate.shape[0]), n_fit_trials, replace=False)
+        select_fit_trials[fit_trial_inds] = True # Index into trials used for this fitting object
+        fit_trial_set[all_t_inds[select_fit_trials]] = True # Index into all trials in the session
+        test_trial_set[all_t_inds[~select_fit_trials]] = True # Index into all trials in the session
+
         if fit_avg_data:
-            firing_rate = np.nanmean(firing_rate, axis=0, keepdims=True)
-        binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
+            mean_rate = np.nanmean(firing_rate[select_fit_trials, :], axis=0, keepdims=True)
+            binned_FR = bin_data(mean_rate, bin_width, bin_threshold)
+        else:
+            binned_FR = bin_data(firing_rate[select_fit_trials, :], bin_width, bin_threshold)
         binned_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
         FR_select = ~np.isnan(binned_FR)
 
@@ -211,7 +236,7 @@ class FitCSLearningFun(object):
                             mli_lag)
         eye_data = np.concatenate((eye_data_pf, eye_data_mli), axis=2)
         # Use bin smoothing on data before fitting
-        bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
+        bin_eye_data = bin_data(eye_data[select_fit_trials, :, :], bin_width, bin_threshold)
         if fit_avg_data:
             bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
         # Reshape to 2D matrix
@@ -302,33 +327,54 @@ class FitCSLearningFun(object):
                                 'vel_means': vel_fixed_means,
                                 'vel_stds': vel_fixed_std,
                                 'R2': None,
-                                'predict_fun': self.predict_gauss_basis_kinematics}
+                                'predict_fun': self.predict_gauss_basis_kinematics,
+                                'fit_trial_set': fit_trial_set,
+                                'test_trial_set': test_trial_set,
+                                'is_test_data': np.any(test_trial_set)}
         # Compute R2
+        if self.fit_results['gauss_basis_kinematics']['is_test_data']:
+            test_firing_rate = firing_rate[~select_fit_trials, :]
+        else:
+            # If no test data are available, you need to just compute over all data
+            # so invert the selected trials
+            test_firing_rate = firing_rate[select_fit_trials, :]
         if fit_avg_data:
             test_lag_data = self.get_gauss_basis_kinematics_predict_data_mean(
-                                    self.blocks, self.trial_sets, verbose=False)
+                                    self.blocks, self.trial_sets, test_data_only=True, verbose=False)
             y_predicted = self.predict_gauss_basis_kinematics(test_lag_data)
+            test_mean_rate = np.nanmean(test_firing_rate, axis=0, keepdims=True)
+            sum_squares_error = np.nansum((test_mean_rate - y_predicted) ** 2)
+            sum_squares_total = np.nansum((test_mean_rate - np.nanmean(test_mean_rate)) ** 2)
         else:
             y_predicted = self.predict_gauss_basis_kinematics_by_trial(
-                                    self.blocks, self.trial_sets, verbose=False)
-        sum_squares_error = np.nansum((firing_rate - y_predicted) ** 2)
-        sum_squares_total = np.nansum((firing_rate - np.nanmean(firing_rate)) ** 2)
+                                    self.blocks, self.trial_sets, test_data_only=True, verbose=False)
+            sum_squares_error = np.nansum((test_firing_rate - y_predicted) ** 2)
+            sum_squares_total = np.nansum((test_firing_rate - np.nanmean(test_firing_rate)) ** 2)
+            print(sum_squares_error, sum_squares_total)
         self.fit_results['gauss_basis_kinematics']['R2'] = 1 - sum_squares_error/(sum_squares_total)
 
         return
 
     def get_gauss_basis_kinematics_predict_data_trial(self, blocks, trial_sets,
-                                                      verbose=False,
-                                                      return_shape=False):
+                                                      return_shape=False,
+                                                      test_data_only=True,
+                                                      verbose=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
         way that it can be used to predict firing rate according to the linear
         eye kinematic model using predict_lin_eye_kinematics.
         Data are only retrieved for trials that are valid for the fitted neuron. """
         trial_sets = self.neuron.append_valid_trial_set(trial_sets)
+        if test_data_only:
+            if self.fit_results['gauss_basis_kinematics']['is_test_data']:
+                trial_sets = trial_sets + [self.fit_results['gauss_basis_kinematics']['test_trial_set']]
+            else:
+                print("No test trials are available. Returning everything.")
         eye_data_pf = self.get_eye_data_traces(blocks, trial_sets,
                             self.fit_results['gauss_basis_kinematics']['pf_lag'])
         eye_data_mli = self.get_eye_data_traces(blocks, trial_sets,
                             self.fit_results['gauss_basis_kinematics']['mli_lag'])
+        print("GOT EYE OF SHape", eye_data_pf.shape)
+        print("trial sets", trial_sets)
         if verbose: print("PF lag:", self.fit_results['gauss_basis_kinematics']['pf_lag'])
         if verbose: print("MLI lag:", self.fit_results['gauss_basis_kinematics']['mli_lag'])
         eye_data = np.concatenate((eye_data_pf, eye_data_mli), axis=2)
@@ -339,7 +385,8 @@ class FitCSLearningFun(object):
         else:
             return eye_data
 
-    def get_gauss_basis_kinematics_predict_data_mean(self, blocks, trial_sets, verbose=False):
+    def get_gauss_basis_kinematics_predict_data_mean(self, blocks, trial_sets,
+                                            test_data_only=True, verbose=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
         way that it can be used to predict firing rate according to the linear
         eye kinematic model using predict_lin_eye_kinematics.
@@ -354,6 +401,11 @@ class FitCSLearningFun(object):
         if verbose: print("MLI lag:", self.fit_results['gauss_basis_kinematics']['mli_lag'])
 
         trial_sets = self.neuron.append_valid_trial_set(trial_sets)
+        if test_data_only:
+            if self.fit_results['gauss_basis_kinematics']['is_test_data']:
+                trial_sets = trial_sets + [self.fit_results['gauss_basis_kinematics']['test_trial_set']]
+            else:
+                print("No test trials are available. Returning everything.")
         X = np.ones((self.time_window[1]-self.time_window[0], 8))
         X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
                                                 "eye position", lagged_pf_win,
@@ -394,17 +446,23 @@ class FitCSLearningFun(object):
             y_hat += downward_relu(X[:, k], a, b, c=0.)
         return y_hat
 
-    def predict_gauss_basis_kinematics_by_trial(self, blocks, trial_sets, verbose=False):
+    def predict_gauss_basis_kinematics_by_trial(self, blocks, trial_sets,
+                                            test_data_only=True, verbose=False):
         """
         """
         X, init_shape = self.get_gauss_basis_kinematics_predict_data_trial(
-                                blocks, trial_sets, verbose, return_shape=True)
+                                blocks, trial_sets, return_shape=True,
+                                test_data_only=test_data_only, verbose=verbose)
         y_hat = self.predict_gauss_basis_kinematics(X)
         y_hat = y_hat.reshape(init_shape[0], init_shape[1], order='C')
         return y_hat
 
     def get_lags_kinematic_fit(self, bin_width=10, bin_threshold=1, quick_lag_step=10):
-        """
+        """ Uses the simple position/velocity only linear model on each of the
+        4 direction tuning trials in block "StandTunePre" NO MATTER WHAT BLOCKS
+        ARE INPUT FOR THE REMAINING FITS! The optimal lag is found fo reach
+        direction and the best lag for the highest and lowest firing rate
+        directions are returned.
         """
         lag_fit_time_window = [0, 250]
         fit_obj_time_window = [lag_fit_time_window[0] + self.lag_range_pf[0],
@@ -436,15 +494,13 @@ class FitCSLearningFun(object):
             if FR_peak_mod > max_peak_mod:
                 max_peak_mod = FR_peak_mod
                 pos_lag = lag_fit_neuron_eye.fit_results['lin_eye_kinematics']['eye_lag']
-                print("NEW max!", t_set, max_peak_mod, pos_lag)
             if FR_peak_mod < min_peak_mod:
                 min_peak_mod = FR_peak_mod
                 neg_lag = lag_fit_neuron_eye.fit_results['lin_eye_kinematics']['eye_lag']
-                print("NEW min!", t_set, min_peak_mod, neg_lag)
         print("PF lag:", pos_lag, "MLI lag:", neg_lag)
         return pos_lag, neg_lag
 
-    def plot_2D_pos_fit(xy_pos_lims=None, fixed_xy_vel=[15, 6], pos_resolution=0.25):
+    def plot_2D_pos_fit(self, xy_pos_lims=None, fixed_xy_vel=[15, 6], pos_resolution=0.25):
         """ Makes plot of model prediction for fixed velocity across a grid of
         position spanning xy_pos_lims at resolution pos_resolution.
         call: plt.pcolormesh(pos_vals, pos_vals, fr_hat_mat) to plot output
@@ -452,6 +508,10 @@ class FitCSLearningFun(object):
         if xy_pos_lims is None:
             xy_pos_lims = [np.amin(self.fit_results['gauss_basis_kinematics']['pos_means']),
                             np.amax(self.fit_results['gauss_basis_kinematics']['pos_means'])]
+        if xy_pos_lims[0] is None:
+            xy_pos_lims[0] = np.amin(self.fit_results['gauss_basis_kinematics']['pos_means'])
+        if xy_pos_lims[1] is None:
+            xy_pos_lims[1] = np.amax(self.fit_results['gauss_basis_kinematics']['pos_means'])
         pos_vals = np.arange(xy_pos_lims[0], xy_pos_lims[1] + pos_resolution, pos_resolution)
         x, y = np.meshgrid(pos_vals, pos_vals)
         X = np.zeros((x.size, 8))
@@ -467,11 +527,11 @@ class FitCSLearningFun(object):
         X[:, 6] = fixed_xy_vel[0]
         X[:, 7] = fixed_xy_vel[1]
 
-        fr_hat = fit_CS_learn.predict_gauss_basis_kinematics(X)
+        fr_hat = self.predict_gauss_basis_kinematics(X)
         fr_hat_mat = fr_hat.reshape(len(pos_vals), len(pos_vals))
         return pos_vals, fr_hat_mat
 
-    def plot_2D_vel_fit(xy_vel_lims=None, fixed_xy_pos=[4, 1], vel_resolution=0.25):
+    def plot_2D_vel_fit(self, xy_vel_lims=None, fixed_xy_pos=[4, 1], vel_resolution=0.25):
         """ Makes plot of model prediction for fixed position across a grid of
         velocity spanning xy_vel_lims at resolution vel_resolution.
         call: plt.pcolormesh(vel_vals, vel_vals, fr_hat_mat) to plot output
@@ -479,6 +539,10 @@ class FitCSLearningFun(object):
         if xy_vel_lims is None:
             xy_vel_lims = [np.amin(self.fit_results['gauss_basis_kinematics']['vel_means']),
                             np.amax(self.fit_results['gauss_basis_kinematics']['vel_means'])]
+        if xy_vel_lims[0] is None:
+            xy_vel_lims[0] = np.amin(self.fit_results['gauss_basis_kinematics']['vel_means'])
+        if xy_vel_lims[1] is None:
+            xy_vel_lims[1] = np.amax(self.fit_results['gauss_basis_kinematics']['vel_means'])
         vel_vals = np.arange(xy_vel_lims[0], xy_vel_lims[1] + vel_resolution, vel_resolution)
         x, y = np.meshgrid(vel_vals, vel_vals)
         X = np.zeros((x.size, 8))
@@ -494,7 +558,7 @@ class FitCSLearningFun(object):
         X[:, 6] = np.ravel(x)
         X[:, 7] = np.ravel(y)
 
-        fr_hat = fit_CS_learn.predict_gauss_basis_kinematics(X)
+        fr_hat = self.predict_gauss_basis_kinematics(X)
         fr_hat_mat = fr_hat.reshape(len(vel_vals), len(vel_vals))
         return vel_vals, fr_hat_mat
 

@@ -162,11 +162,14 @@ class Neuron(object):
         elif not isinstance(trial_sets, list):
             trial_sets = [trial_sets]
             trial_sets.append(self.name)
-        elif self.name in trial_sets:
-            # Valid trial set is already in trial sets so do nothing
-            pass
         else:
-            #trial_sets is a list that does not contain our valid set so add it
+            #trial_sets is a list
+            for x in trial_sets:
+                if isinstance(x, str):
+                    if x == self.name:
+                        # Neuron name is already in the trial_sets list so do nothing
+                        return trial_sets
+            # trial_sets does not contain our neruon's valid set so add it
             trial_sets.append(self.name)
         return trial_sets
 
