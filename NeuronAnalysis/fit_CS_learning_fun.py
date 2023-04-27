@@ -214,12 +214,15 @@ class FitCSLearningFun(object):
             raise ValueError("Proportion to fit 'prop_fit' is too low to fit the minimum of 1 trial out of {0} total trials available.".format(firing_rate.shape[0]))
         # Now select and remember the trials used for fitting
         fit_trial_set = np.zeros(len(self.neuron.session), dtype='bool')
-        test_trial_set = np.zeros(len(self.neuron.session), dtype='bool')
+        n_test_trials = firing_rate.shape[0] - n_fit_trials
+        is_test_data = False if n_test_trials == 0 else True
+        # test_trial_set = np.zeros(len(self.neuron.session), dtype='bool')
         select_fit_trials = np.zeros(len(all_t_inds), dtype='bool')
         fit_trial_inds = np.random.choice(np.arange(0, firing_rate.shape[0]), n_fit_trials, replace=False)
         select_fit_trials[fit_trial_inds] = True # Index into trials used for this fitting object
         fit_trial_set[all_t_inds[select_fit_trials]] = True # Index into all trials in the session
-        test_trial_set[all_t_inds[~select_fit_trials]] = True # Index into all trials in the session
+        test_trial_set = ~fit_trial_set
+        # test_trial_set[all_t_inds[~select_fit_trials]] = True # Index into all trials in the session
 
         if fit_avg_data:
             mean_rate = np.nanmean(firing_rate[select_fit_trials, :], axis=0, keepdims=True)
@@ -330,7 +333,7 @@ class FitCSLearningFun(object):
                                 'predict_fun': self.predict_gauss_basis_kinematics,
                                 'fit_trial_set': fit_trial_set,
                                 'test_trial_set': test_trial_set,
-                                'is_test_data': np.any(test_trial_set)}
+                                'is_test_data': is_test_data}
         # Compute R2
         if self.fit_results['gauss_basis_kinematics']['is_test_data']:
             test_firing_rate = firing_rate[~select_fit_trials, :]
