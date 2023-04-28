@@ -261,8 +261,8 @@ class FitNNModel(object):
         input Gaussian space that spans position and velocity. """
         # Find max position and velocity values so we can pick appropriate Gaussian centers
         max_abs_eye = np.maximum(np.nanmax(np.abs(bin_eye_data_train), axis=0), np.nanmax(np.abs(bin_eye_data_test), axis=0))
-        max_abs_pos = max(np.amax(max_abs_eye[0:2]), np.amax(max_abs_eye[4:6]))
-        max_abs_vel = max(np.amax(max_abs_eye[2:4]), np.amax(max_abs_eye[6:8]))
+        max_abs_pos = max(np.amax(max_abs_eye[0:2]), 1) #np.amax(max_abs_eye[4:6]))
+        max_abs_vel = max(np.amax(max_abs_eye[2:4]), 1) #np.amax(max_abs_eye[6:8]))
         pos_range = np.ceil(max_abs_pos + std_gaussians/2)
         vel_range = np.ceil(max_abs_vel + std_gaussians/2)
         print("Set pos_range to: ", pos_range, "and vel range to: ", vel_range)
