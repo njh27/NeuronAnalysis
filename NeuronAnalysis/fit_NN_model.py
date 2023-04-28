@@ -289,8 +289,8 @@ class FitNNModel(object):
         eye_input_train = np.zeros((bin_eye_data_train.shape[0], n_features))
         eye_input_test = np.zeros((bin_eye_data_test.shape[0], n_features))
 
-        eye_input_train_s = np.zeros((bin_eye_data_train.shape[0], n_features))
-        eye_input_test_s = np.zeros((bin_eye_data_test.shape[0], n_features))
+        # eye_input_train_s = np.zeros((bin_eye_data_train.shape[0], n_features))
+        # eye_input_test_s = np.zeros((bin_eye_data_test.shape[0], n_features))
         for k in range(0, 4):
             fixed_means = pos_fixed_means if k < 2 else vel_fixed_means
             fixed_sigma = pos_fixed_std if k < 2 else vel_fixed_std
@@ -303,14 +303,14 @@ class FitNNModel(object):
                                                                             fixed_means,
                                                                             fixed_sigma)
 
-            eye_input_train_s[:, k * n_gaussians:(k + 1) * n_gaussians] = sigmoid_activation(
-                                                                            bin_eye_data_train[:, k],
-                                                                            1.0, fixed_means)
-            eye_input_test_s[:, k * n_gaussians:(k + 1) * n_gaussians] = sigmoid_activation(
-                                                                            bin_eye_data_test[:, k],
-                                                                            1.0, fixed_means)
+            # eye_input_train_s[:, k * n_gaussians:(k + 1) * n_gaussians] = sigmoid_activation(
+            #                                                                 bin_eye_data_train[:, k],
+            #                                                                 1.0, fixed_means)
+            # eye_input_test_s[:, k * n_gaussians:(k + 1) * n_gaussians] = sigmoid_activation(
+            #                                                                 bin_eye_data_test[:, k],
+            #                                                                 1.0, fixed_means)
 
-        return bin_eye_data_train, eye_input_train, eye_input_train_s
+        return eye_input_train, eye_input_test, binned_FR_train
 
         # Store this for now so we can call predict_gauss_basis_kinematics
         # below for computing R2.
