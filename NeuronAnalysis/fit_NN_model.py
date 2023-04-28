@@ -63,12 +63,12 @@ def gaussian(x, mu, sigma, scale):
 
 
 # Define the model function as a linear combination of Gaussian functions
-def gaussian_basis_filter(x, fixed_means, fixed_sigma):
+def gaussian_activation(x, fixed_means, fixed_sigma):
     num_gaussians = len(fixed_means)
-    x_filter = np.zeros_like(x)
-    for i in range(num_gaussians):
-        x_filter += gaussian(x, fixed_means[i], fixed_sigma, scale=1.0)
-    return x_filter
+    x_transform = np.zeros((x.size, num_gaussians))
+    for k in range(num_gaussians):
+        x_transform[:, k] = gaussian(x, fixed_means[k], fixed_sigma, scale=1.0)
+    return x_transform
 
 def downward_relu(x, a, b, c=0.):
     """ Rectified linear function that always chooses a slope that goes
@@ -273,75 +273,26 @@ class FitNNModel(object):
         vel_fixed_means = np.linspace(-vel_range, vel_range, n_gaussians)
         pos_fixed_std = std_gaussians
         vel_fixed_std = std_gaussians
+        n_features = n_gaussians * bin_eye_data_train.shape[1]
 
-        # Transform data into "input" format by filtering them through the
-        # Gaussian basis functions
+        # Transform data into "input" n_gaussians dimensional format
+        # This is effectively like taking our 4 input data features and passing
+        # them through n_guassians number of hidden layer units using a
+        # Gaussian activation function and fixed weights
+        eye_input_train = np.zeros((bin_eye_data_train.shape[0], n_features))
+        eye_input_test = np.zeros((bin_eye_data_test.shape[0], n_features))
         for k in range(0, 4):
             fixed_means = pos_fixed_means if k < 2 else vel_fixed_means
             fixed_sigma = pos_fixed_std if k < 2 else vel_fixed_std
-            bin_eye_data_train[:, k] = gaussian_basis_filter(
-                                        bin_eye_data_train[:, k],
-                                        fixed_means,
-                                        fixed_sigma)
-        def apply_filter_by_feature(X):
-            X_filtered = np.zeros_like(X)
-            for k in range(0, 4):
-                use_means = pos_fixed_means if k < 2 else vel_fixed_means
-                use_std = pos_fixed_std if k < 2 else vel_fixed_std
-
-
-
-        # Wrapper function for curve_fit using our fixed gaussians, means, sigmas....
-        def pc_model_response_fun(x, *params):
-            """ Defines the model we are fitting to the data """
-            # First add the intrinsic rate/offset parameter
-            result = np.zeros(x.shape[0]) + params[-1]
-            # Then sum over the basis set predictors
-            for k in range(4):
-                use_means = pos_fixed_means if k < 2 else vel_fixed_means
-                use_std = pos_fixed_std if k < 2 else vel_fixed_std
-                result += gaussian_basis_set(x[:, k], params[k * n_gaussians:(k + 1) * n_gaussians],
-                                                                    use_means, use_std)
-            # Finally add in the relu predictors
-            for k_ind, k in enumerate(range(4, 8)):
-                a = params[4 * n_gaussians + k_ind * 2]
-                b = params[4 * n_gaussians + k_ind * 2 + 1]
-                result += downward_relu(x[:, k], a, b, c=0.)
-            return result
-
-        gauss_max_weight = np.inf
-        # p0_V = np.abs(np.linspace(-gauss_max_weight, gauss_max_weight, n_gaussians))
-        if p0 is None:
-            # curve_fit seems unable to figure out how many parameters without setting this
-            p0 = np.ones(4*n_gaussians + 4*2 + 1)
-            # Initialize each gaussian basis set axis weights
-            for k_dim in range(0, 4):
-                p0_V = np.random.randn(n_gaussians) * 5 + 25
-                p0_V[p0_V < 0.] = 0.
-                p0[k_dim * n_gaussians:(k_dim + 1) * n_gaussians] = p0_V
-            p0[-1] = 75
-        # Set lower and upper bounds for each parameter
-        lower_bounds = np.zeros(p0.shape)
-        upper_bounds = np.inf * np.ones(p0.shape)
-        lower_bounds[0:4*n_gaussians] = 0.
-        upper_bounds[0:4*n_gaussians] = gauss_max_weight
-        lower_bounds[4*n_gaussians:4*n_gaussians + 4*2] = np.array([0, -np.inf, 0, -np.inf, 0, -np.inf, 0, -np.inf])
-        upper_bounds[4*n_gaussians:4*n_gaussians + 4*2] = np.array([1, np.inf, 1, np.inf, 1, np.inf, 1, np.inf])
-        lower_bounds[-1] = 0
-        upper_bounds[-1] = 200
-
-        # Fit the Gaussian basis set to the data
-        popt, pcov = curve_fit(pc_model_response_fun, bin_eye_data,
-                                binned_FR, p0=p0,
-                                bounds=(lower_bounds, upper_bounds),
-                                ftol=ftol,
-                                xtol=xtol,
-                                gtol=gtol,
-                                max_nfev=max_nfev,
-                                loss=loss)
-        # Set binary variables to 0 or 1
-        for k_ind, k in enumerate(range(4, 8)):
-            popt[4 * n_gaussians + k_ind * 2] = np.int32(binary_param(popt[4 * n_gaussians + k_ind * 2]))
+            eye_input_train[:, k * n_gaussians:(k + 1) * n_gaussians] = gaussian_activation(
+                                                                            bin_eye_data_train[:, k],
+                                                                            fixed_means,
+                                                                            fixed_sigma)
+            eye_input_test[:, k * n_gaussians:(k + 1) * n_gaussians] = gaussian_activation(
+                                                                            bin_eye_data_test[:, k],
+                                                                            fixed_means,
+                                                                            fixed_sigma)
+        return bin_eye_data_train, eye_input_train
 
         # Store this for now so we can call predict_gauss_basis_kinematics
         # below for computing R2.
