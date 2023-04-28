@@ -1,5 +1,6 @@
 import numpy as np
-from scipy.optimize import curve_fit
+import tensorflow as tf
+from tensorflow.keras import layers, models
 import warnings
 from NeuronAnalysis.fit_neuron_to_eye import FitNeuronToEye
 
@@ -62,12 +63,12 @@ def gaussian(x, mu, sigma, scale):
 
 
 # Define the model function as a linear combination of Gaussian functions
-def gaussian_basis_set(x, scales, fixed_means, fixed_sigma):
+def gaussian_basis_filter(x, fixed_means, fixed_sigma):
     num_gaussians = len(fixed_means)
-    result = np.zeros_like(x)
+    x_filter = np.zeros_like(x)
     for i in range(num_gaussians):
-        result += gaussian(x, fixed_means[i], fixed_sigma, scales[i])
-    return result
+        x_filter += gaussian(x, fixed_means[i], fixed_sigma, scale=1.0)
+    return x_filter
 
 def downward_relu(x, a, b, c=0.):
     """ Rectified linear function that always chooses a slope that goes
@@ -173,11 +174,11 @@ class FitNNModel(object):
         ind_stop = ind_start + self.fit_dur
         return eye_data[:, ind_start:ind_stop, :]
 
-    def fit_gauss_basis_kinematics(self, n_gaussians, std_gaussians, pos_range,
-                                    vel_range, bin_width=10, bin_threshold=5,
-                                    fit_avg_data=False, p0=None,
+    def fit_gauss_basis_kinematics(self, n_gaussians, std_gaussians,
+                                    bin_width=10, bin_threshold=5,
+                                    fit_avg_data=False,
                                     quick_lag_step=10,
-                                    prop_fit=1.0):
+                                    train_split=1.0):
         """ Fits the input neuron eye data to position and velocity using a
         basis set of Gaussians according to the input number of Gaussians over
         the state space ranges specified by pos/vel _range.
@@ -187,12 +188,6 @@ class FitNNModel(object):
         model with "get_lags_kinematic_fit" and the standard 4 direction tuning
         trials.
         """
-        ftol=1e-8
-        xtol=1e-8
-        gtol=1e-8
-        max_nfev=200000
-        loss='linear'
-
         if prop_fit > 1.0:
             raise ValueError("Proportion to fit 'prop_fit' must be a value less than 1!")
 
@@ -200,11 +195,13 @@ class FitNNModel(object):
                                                 bin_threshold=bin_threshold,
                                                 quick_lag_step=quick_lag_step)
 
-        # Get all the firing rate data
+        # Setup all the indices for which trials we will be using and which
+        # subset of trials will be used as training vs. test data
         firing_rate, all_t_inds = self.get_firing_traces(return_inds=True)
         n_fit_trials = np.int64(np.around(firing_rate.shape[0] * prop_fit))
         if n_fit_trials < 1:
             raise ValueError("Proportion to fit 'prop_fit' is too low to fit the minimum of 1 trial out of {0} total trials available.".format(firing_rate.shape[0]))
+        n_test_trials = firing_rate.shape[0] - n_fit_trials
         # Now select and remember the trials used for fitting
         fit_trial_set = np.zeros(len(self.neuron.session), dtype='bool')
         n_test_trials = firing_rate.shape[0] - n_fit_trials
@@ -215,50 +212,85 @@ class FitNNModel(object):
         select_fit_trials[fit_trial_inds] = True # Index into trials used for this fitting object
         fit_trial_set[all_t_inds[select_fit_trials]] = True # Index into all trials in the session
         test_trial_set = ~fit_trial_set
-        # test_trial_set[all_t_inds[~select_fit_trials]] = True # Index into all trials in the session
 
+        """ Here we have to do some work to get all the data in the correct format """
+        # First get all firing rate data, bin and format
         if fit_avg_data:
-            mean_rate = np.nanmean(firing_rate[select_fit_trials, :], axis=0, keepdims=True)
-            binned_FR = bin_data(mean_rate, bin_width, bin_threshold)
+            mean_rate_train = np.nanmean(firing_rate[select_fit_trials, :], axis=0, keepdims=True)
+            binned_FR_train = bin_data(mean_rate_train, bin_width, bin_threshold)
+            mean_rate_test = np.nanmean(firing_rate[~select_fit_trials, :], axis=0, keepdims=True)
+            binned_FR_test = bin_data(mean_rate_test, bin_width, bin_threshold)
         else:
-            binned_FR = bin_data(firing_rate[select_fit_trials, :], bin_width, bin_threshold)
-        binned_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-        FR_select = ~np.isnan(binned_FR)
+            binned_FR_train = bin_data(firing_rate[select_fit_trials, :], bin_width, bin_threshold)
+            binned_FR_test = bin_data(firing_rate[~select_fit_trials, :], bin_width, bin_threshold)
+        binned_FR_train = binned_FR_train.reshape(binned_FR_train.shape[0]*binned_FR_train.shape[1], order='C')
+        FR_select_train = ~np.isnan(binned_FR_train)
+        binned_FR_test = binned_FR_test.reshape(binned_FR_test.shape[0]*binned_FR_test.shape[1], order='C')
+        FR_select_test = ~np.isnan(binned_FR_test)
 
+        # Now get all the eye data at correct lags, bin and format
         # Get all the eye data at the desired lags
-        eye_data_pf = self.get_eye_data_traces(self.blocks, self.trial_sets,
+        # eye_data_pf = self.get_eye_data_traces(self.blocks, self.trial_sets,
+        #                     pf_lag)
+        # eye_data_mli = self.get_eye_data_traces(self.blocks, self.trial_sets,
+        #                     mli_lag)
+        # eye_data = np.concatenate((eye_data_pf, eye_data_mli), axis=2)
+        eye_data = self.get_eye_data_traces(self.blocks, self.trial_sets,
                             pf_lag)
-        eye_data_mli = self.get_eye_data_traces(self.blocks, self.trial_sets,
-                            mli_lag)
-        eye_data = np.concatenate((eye_data_pf, eye_data_mli), axis=2)
         # Use bin smoothing on data before fitting
-        bin_eye_data = bin_data(eye_data[select_fit_trials, :, :], bin_width, bin_threshold)
+        bin_eye_data_train = bin_data(eye_data[select_fit_trials, :, :], bin_width, bin_threshold)
+        bin_eye_data_test = bin_data(eye_data[~select_fit_trials, :, :], bin_width, bin_threshold)
         if fit_avg_data:
-            bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
+            bin_eye_data_train = np.nanmean(bin_eye_data_train, axis=0, keepdims=True)
+            bin_eye_data_test = np.nanmean(bin_eye_data_test, axis=0, keepdims=True)
         # Reshape to 2D matrix
-        bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
+        bin_eye_data_train = bin_eye_data_train.reshape(
+                                bin_eye_data_train.shape[0]*bin_eye_data_train.shape[1], bin_eye_data_train.shape[2], order='C')
+        bin_eye_data_test = bin_eye_data_test.reshape(
+                                bin_eye_data_test.shape[0]*bin_eye_data_test.shape[1], bin_eye_data_test.shape[2], order='C')
 
-        # Now get all valid firing rate and eye data
-        select_good = np.logical_and(~np.any(np.isnan(bin_eye_data), axis=1), FR_select)
-        bin_eye_data = bin_eye_data[select_good, :]
-        binned_FR = binned_FR[select_good]
+        # Now get all valid firing rate and eye data by removing nans
+        select_good_train = np.logical_and(~np.any(np.isnan(bin_eye_data_train), axis=1), FR_select_train)
+        bin_eye_data_train = bin_eye_data_train[select_good_train, :]
+        binned_FR_train = binned_FR_train[select_good_train]
+        select_good_test = np.logical_and(~np.any(np.isnan(bin_eye_data_test), axis=1), FR_select_test)
+        bin_eye_data_test = bin_eye_data_test[select_good_test, :]
+        binned_FR_test = binned_FR_test[select_good_test]
 
+        """ Now data are setup and formated, we need to transform them into the
+        input Gaussian space that spans position and velocity. """
         # Find max position and velocity values so we can pick appropriate Gaussian centers
-        max_abs_eye = np.nanmax(np.abs(bin_eye_data), axis=0)
+        max_abs_eye = np.maximum(np.nanmax(np.abs(bin_eye_data_train), axis=0), np.nanmax(np.abs(bin_eye_data_test), axis=0))
         max_abs_pos = max(np.amax(max_abs_eye[0:2]), np.amax(max_abs_eye[4:6]))
         max_abs_vel = max(np.amax(max_abs_eye[2:4]), np.amax(max_abs_eye[6:8]))
-
         pos_range = np.ceil(max_abs_pos + std_gaussians/2)
         vel_range = np.ceil(max_abs_vel + std_gaussians/2)
-        print("Reset pos_range to: ", pos_range, "and vel range to: ", vel_range)
+        print("Set pos_range to: ", pos_range, "and vel range to: ", vel_range)
 
         # Set up the basic values and fit function for basis set
         # Use inputs to set these variables and keep in scope for wrapper
         pos_fixed_means = np.linspace(-pos_range, pos_range, n_gaussians)
         vel_fixed_means = np.linspace(-vel_range, vel_range, n_gaussians)
-        # all_fixed_means = np.vstack((pos_fixed_means, vel_fixed_means))
         pos_fixed_std = std_gaussians
         vel_fixed_std = std_gaussians
+
+        # Transform data into "input" format by filtering them through the
+        # Gaussian basis functions
+        for k in range(0, 4):
+            fixed_means = pos_fixed_means if k < 2 else vel_fixed_means
+            fixed_sigma = pos_fixed_std if k < 2 else vel_fixed_std
+            bin_eye_data_train[:, k] = gaussian_basis_filter(
+                                        bin_eye_data_train[:, k],
+                                        fixed_means,
+                                        fixed_sigma)
+        def apply_filter_by_feature(X):
+            X_filtered = np.zeros_like(X)
+            for k in range(0, 4):
+                use_means = pos_fixed_means if k < 2 else vel_fixed_means
+                use_std = pos_fixed_std if k < 2 else vel_fixed_std
+
+
+
         # Wrapper function for curve_fit using our fixed gaussians, means, sigmas....
         def pc_model_response_fun(x, *params):
             """ Defines the model we are fitting to the data """
