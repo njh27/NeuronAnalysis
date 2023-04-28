@@ -1,9 +1,6 @@
 import numpy as np
-try:
-    import tensorflow as tf
-    from tensorflow.keras import layers, models
-except:
-    pass
+import tensorflow as tf
+from tensorflow.keras import layers, models
 import warnings
 from NeuronAnalysis.fit_neuron_to_eye import FitNeuronToEye
 
