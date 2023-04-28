@@ -84,15 +84,15 @@ def downward_relu(x, a, b, c=0.):
 
 
 
-class FitCSLearningFun(object):
+class FitNNModel(object):
     """ Class that fits neuron firing rates to eye data and is capable of
         calculating and outputting some basic info and predictions. Time window
         indicates the FIRING RATE time window, other data will be lagged relative
         to the fixed firing rate window. """
 
     def __init__(self, Neuron, time_window=[0, 800], blocks=None, trial_sets=None,
-                    lag_range_pf=[-25, 25], lag_range_slip=[60, 120],
-                    dc_win=[0, 100], use_series=None):
+                    lag_range_pf=[-25, 25],
+                    use_series=None):
         self.neuron = Neuron
         if use_series is not None:
             if use_series != Neuron.use_series:
@@ -106,7 +106,6 @@ class FitCSLearningFun(object):
         self.lag_range_pf = np.array(lag_range_pf, dtype=np.int32)
         if self.lag_range_pf[1] <= self.lag_range_pf[0]:
             raise ValueError("lag_range_pf[1] must be greater than lag_range_pf[0]")
-        self.dc_inds = np.array([dc_win[0] - time_window[0], dc_win[1] - time_window[0]], dtype=np.int32)
         self.fit_results = {}
 
     def get_firing_traces(self, return_inds=False):
@@ -175,7 +174,7 @@ class FitCSLearningFun(object):
         return eye_data[:, ind_start:ind_stop, :]
 
     def fit_gauss_basis_kinematics(self, n_gaussians, std_gaussians, pos_range,
-                                    vel_range, bin_width=10, bin_threshold=1,
+                                    vel_range, bin_width=10, bin_threshold=5,
                                     fit_avg_data=False, p0=None,
                                     quick_lag_step=10,
                                     prop_fit=1.0):
