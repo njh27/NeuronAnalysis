@@ -310,7 +310,7 @@ class FitNNModel(object):
             #                                                                 bin_eye_data_test[:, k],
             #                                                                 1.0, fixed_means)
 
-        return eye_input_train, eye_input_test, binned_FR_train
+        return eye_input_train, eye_input_test, binned_FR_train, binned_FR_test
 
         # Store this for now so we can call predict_gauss_basis_kinematics
         # below for computing R2.
