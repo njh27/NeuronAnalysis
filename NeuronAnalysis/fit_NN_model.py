@@ -51,8 +51,6 @@ def bin_data(data, bin_width, bin_threshold=0):
     return binned_data
 
 
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
 
 def binary_param(p):
     return np.around(sigmoid(p))
@@ -61,6 +59,15 @@ def binary_param(p):
 def gaussian(x, mu, sigma, scale):
     return scale * np.exp(-( ((x - mu) ** 2) / (2*(sigma**2))) )
 
+def sigmoid(x, a=1, b=0):
+    return 1 / (1 + np.exp(-(a * x + b)))
+
+def sigmoid_activation(x, fixed_scale, fixed_centers):
+    num_sigmoids = len(fixed_centers)
+    x_transform = np.zeros((x.size, num_sigmoids))
+    for k in range(num_sigmoids):
+        x_transform[:, k] = sigmoid(x, fixed_scale, fixed_centers[k])
+    return x_transform
 
 # Define the model function as a linear combination of Gaussian functions
 def gaussian_activation(x, fixed_means, fixed_sigma):
@@ -281,6 +288,9 @@ class FitNNModel(object):
         # Gaussian activation function and fixed weights
         eye_input_train = np.zeros((bin_eye_data_train.shape[0], n_features))
         eye_input_test = np.zeros((bin_eye_data_test.shape[0], n_features))
+
+        eye_input_train_s = np.zeros((bin_eye_data_train.shape[0], n_features))
+        eye_input_test_s = np.zeros((bin_eye_data_test.shape[0], n_features))
         for k in range(0, 4):
             fixed_means = pos_fixed_means if k < 2 else vel_fixed_means
             fixed_sigma = pos_fixed_std if k < 2 else vel_fixed_std
@@ -292,7 +302,15 @@ class FitNNModel(object):
                                                                             bin_eye_data_test[:, k],
                                                                             fixed_means,
                                                                             fixed_sigma)
-        return bin_eye_data_train, eye_input_train
+
+            eye_input_train_s[:, k * n_gaussians:(k + 1) * n_gaussians] = sigmoid_activation(
+                                                                            bin_eye_data_train[:, k],
+                                                                            1.0, fixed_means)
+            eye_input_test_s[:, k * n_gaussians:(k + 1) * n_gaussians] = sigmoid_activation(
+                                                                            bin_eye_data_test[:, k],
+                                                                            1.0, fixed_means)
+
+        return bin_eye_data_train, eye_input_train, eye_input_train_s
 
         # Store this for now so we can call predict_gauss_basis_kinematics
         # below for computing R2.
