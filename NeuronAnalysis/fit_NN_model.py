@@ -51,10 +51,6 @@ def bin_data(data, bin_width, bin_threshold=0):
     return binned_data
 
 
-
-def binary_param(p):
-    return np.around(sigmoid(p))
-
 # Define Gaussian function
 def gaussian(x, mu, sigma, scale):
     return scale * np.exp(-( ((x - mu) ** 2) / (2*(sigma**2))) )
@@ -77,18 +73,13 @@ def gaussian_activation(x, fixed_means, fixed_sigma):
         x_transform[:, k] = gaussian(x, fixed_means[k], fixed_sigma, scale=1.0)
     return x_transform
 
-def downward_relu(x, a, b, c=0.):
-    """ Rectified linear function that always chooses a slope that goes
-    negative on the y-axis as you move away from the rectification point c. """
-    # binary parameter selecting whether we will use only negative or positive values of x
-    a = binary_param(a)
-    # weight slope is set depending on a to be "downward"
-    if b >= 0:
-        b = -1*b if a == 1 else b
-    else:
-        b = -1*b if a == 0 else b
-    # c is the rectification point
-    return b * ( a * np.maximum(0, x - c) + ((a + 1) % 2) * np.minimum(0, x - c) )
+def negative_relu(x, c=0.):
+    """ Basic relu function but returns negative result. """
+    return -1*np.maximum(0., x-c)
+
+def reflected_negative_relu(x, c=0.):
+    """ Basic relu function but returns negative result, reflected about y axis. """
+    return np.minimum(0., x-c)
 
 
 
@@ -280,7 +271,8 @@ class FitNNModel(object):
         vel_fixed_means = np.linspace(-vel_range, vel_range, n_gaussians)
         pos_fixed_std = std_gaussians
         vel_fixed_std = std_gaussians
-        n_features = n_gaussians * bin_eye_data_train.shape[1]
+        n_features = n_gaussians * bin_eye_data_train.shape[1] + 8
+        first_relu_ind = n_gaussians * bin_eye_data_train.shape[1]
 
         # Transform data into "input" n_gaussians dimensional format
         # This is effectively like taking our 4 input data features and passing
@@ -294,21 +286,28 @@ class FitNNModel(object):
         for k in range(0, 4):
             fixed_means = pos_fixed_means if k < 2 else vel_fixed_means
             fixed_sigma = pos_fixed_std if k < 2 else vel_fixed_std
-            # eye_input_train[:, k * n_gaussians:(k + 1) * n_gaussians] = gaussian_activation(
-            #                                                                 bin_eye_data_train[:, k],
-            #                                                                 fixed_means,
-            #                                                                 fixed_sigma)
-            # eye_input_test[:, k * n_gaussians:(k + 1) * n_gaussians] = gaussian_activation(
-            #                                                                 bin_eye_data_test[:, k],
-            #                                                                 fixed_means,
-            #                                                                 fixed_sigma)
-
-            eye_input_train[:, k * n_gaussians:(k + 1) * n_gaussians] = sigmoid_activation(
+            eye_input_train[:, k * n_gaussians:(k + 1) * n_gaussians] = gaussian_activation(
                                                                             bin_eye_data_train[:, k],
-                                                                            1.0, fixed_means)
-            eye_input_test[:, k * n_gaussians:(k + 1) * n_gaussians] = sigmoid_activation(
+                                                                            fixed_means,
+                                                                            fixed_sigma)
+            eye_input_test[:, k * n_gaussians:(k + 1) * n_gaussians] = gaussian_activation(
                                                                             bin_eye_data_test[:, k],
-                                                                            1.0, fixed_means)
+                                                                            fixed_means,
+                                                                            fixed_sigma)
+
+            eye_input_train[:, (first_relu_ind + 2 * k)] = negative_relu(
+                                                                bin_eye_data_train[:, k],
+                                                                c=0.0)
+            eye_input_train[:, (first_relu_ind + (2 * k + 1))] = reflected_negative_relu(
+                                                                bin_eye_data_train[:, k],
+                                                                c=0.0)
+
+            # eye_input_train[:, k * n_gaussians:(k + 1) * n_gaussians] = sigmoid_activation(
+            #                                                                 bin_eye_data_train[:, k],
+            #                                                                 1.0, fixed_means)
+            # eye_input_test[:, k * n_gaussians:(k + 1) * n_gaussians] = sigmoid_activation(
+            #                                                                 bin_eye_data_test[:, k],
+            #                                                                 1.0, fixed_means)
 
         return eye_input_train, eye_input_test, binned_FR_train, binned_FR_test, pos_fixed_means, vel_fixed_means, pos_fixed_std, vel_fixed_std
 
