@@ -302,6 +302,13 @@ class FitNNModel(object):
                                                                 bin_eye_data_train[:, k],
                                                                 c=0.0)
 
+            eye_input_test[:, (first_relu_ind + 2 * k)] = negative_relu(
+                                                                bin_eye_data_test[:, k],
+                                                                c=0.0)
+            eye_input_test[:, (first_relu_ind + (2 * k + 1))] = reflected_negative_relu(
+                                                                bin_eye_data_test[:, k],
+                                                                c=0.0)
+
             # eye_input_train[:, k * n_gaussians:(k + 1) * n_gaussians] = sigmoid_activation(
             #                                                                 bin_eye_data_train[:, k],
             #                                                                 1.0, fixed_means)
