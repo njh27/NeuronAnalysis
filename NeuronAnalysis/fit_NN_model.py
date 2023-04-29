@@ -271,7 +271,7 @@ class FitNNModel(object):
         pos_fixed_std = std_gaussians
         vel_fixed_std = std_gaussians
         n_features = n_gaussians * 4 + 8
-        first_relu_ind = n_gaussians * bin_eye_data_train.shape[1]
+        first_relu_ind = n_gaussians * 4
 
         # Transform data into "input" n_gaussians dimensional format
         # This is effectively like taking our 4 input data features and passing
