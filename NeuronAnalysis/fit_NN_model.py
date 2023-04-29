@@ -228,13 +228,12 @@ class FitNNModel(object):
 
         # Now get all the eye data at correct lags, bin and format
         # Get all the eye data at the desired lags
-        # eye_data_pf = self.get_eye_data_traces(self.blocks, self.trial_sets,
-        #                     pf_lag)
-        # eye_data_mli = self.get_eye_data_traces(self.blocks, self.trial_sets,
-        #                     mli_lag)
-        # eye_data = np.concatenate((eye_data_pf, eye_data_mli), axis=2)
-        eye_data = self.get_eye_data_traces(self.blocks, self.trial_sets,
+        eye_data_pf = self.get_eye_data_traces(self.blocks, self.trial_sets,
                             pf_lag)
+        eye_data_mli = self.get_eye_data_traces(self.blocks, self.trial_sets,
+                            mli_lag)
+        eye_data = np.concatenate((eye_data_pf, eye_data_mli), axis=2)
+
         # Use bin smoothing on data before fitting
         bin_eye_data_train = bin_data(eye_data[select_fit_trials, :, :], bin_width, bin_threshold)
         bin_eye_data_test = bin_data(eye_data[~select_fit_trials, :, :], bin_width, bin_threshold)
@@ -259,8 +258,8 @@ class FitNNModel(object):
         input Gaussian space that spans position and velocity. """
         # Find max position and velocity values so we can pick appropriate Gaussian centers
         max_abs_eye = np.maximum(np.nanmax(np.abs(bin_eye_data_train), axis=0), np.nanmax(np.abs(bin_eye_data_test), axis=0))
-        max_abs_pos = max(np.amax(max_abs_eye[0:2]), 1) #np.amax(max_abs_eye[4:6]))
-        max_abs_vel = max(np.amax(max_abs_eye[2:4]), 1) #np.amax(max_abs_eye[6:8]))
+        max_abs_pos = max(np.amax(max_abs_eye[0:2]), np.amax(max_abs_eye[4:6]))
+        max_abs_vel = max(np.amax(max_abs_eye[2:4]), np.amax(max_abs_eye[6:8]))
         pos_range = np.ceil(max_abs_pos + std_gaussians/2)
         vel_range = np.ceil(max_abs_vel + std_gaussians/2)
         print("Set pos_range to: ", pos_range, "and vel range to: ", vel_range)
@@ -303,10 +302,10 @@ class FitNNModel(object):
                                                                 c=0.0)
 
             eye_input_test[:, (first_relu_ind + 2 * k)] = negative_relu(
-                                                                bin_eye_data_test[:, k],
+                                                                bin_eye_data_test[:, 4 + 2 * k],
                                                                 c=0.0)
             eye_input_test[:, (first_relu_ind + (2 * k + 1))] = reflected_negative_relu(
-                                                                bin_eye_data_test[:, k],
+                                                                bin_eye_data_test[:, 4 + (2 * k + 1)],
                                                                 c=0.0)
 
             # eye_input_train[:, k * n_gaussians:(k + 1) * n_gaussians] = sigmoid_activation(
