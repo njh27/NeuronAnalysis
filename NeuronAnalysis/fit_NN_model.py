@@ -270,7 +270,7 @@ class FitNNModel(object):
         vel_fixed_means = np.linspace(-vel_range, vel_range, n_gaussians)
         pos_fixed_std = std_gaussians
         vel_fixed_std = std_gaussians
-        n_features = n_gaussians * bin_eye_data_train.shape[1] + 8
+        n_features = n_gaussians * 4 + 8
         first_relu_ind = n_gaussians * bin_eye_data_train.shape[1]
 
         # Transform data into "input" n_gaussians dimensional format
