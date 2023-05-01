@@ -55,22 +55,22 @@ def bin_data(data, bin_width, bin_threshold=0):
 def gaussian(x, mu, sigma, scale):
     return scale * np.exp(-( ((x - mu) ** 2) / (2*(sigma**2))) )
 
-def sigmoid(x, a=1, b=0, c=1):
-    return c / (1 + np.exp(-(a * x + b)))
+def sigmoid(x, a=1, b=0, c=1, d=0):
+    return c / (1 + np.exp(-(x-b)/a)) + d
 
-def sigmoid_activation(x, fixed_scale, fixed_centers, fixed_asymptote=1):
+def sigmoid_activation(x, fixed_scale, fixed_centers, fixed_asymptote=1, fixed_bias=0.0):
     num_sigmoids = len(fixed_centers)
     x_transform = np.zeros((x.size, num_sigmoids))
     for k in range(num_sigmoids):
-        x_transform[:, k] = sigmoid(x, fixed_scale, fixed_centers[k], fixed_asymptote)
+        x_transform[:, k] = sigmoid(x, fixed_scale, fixed_centers[k], fixed_asymptote, fixed_bias)
     return x_transform
 
 # Define the model function as a linear combination of Gaussian functions
-def gaussian_activation(x, fixed_means, fixed_sigma):
+def gaussian_activation(x, fixed_means, fixed_sigmas):
     num_gaussians = len(fixed_means)
     x_transform = np.zeros((x.size, num_gaussians))
     for k in range(num_gaussians):
-        x_transform[:, k] = gaussian(x, fixed_means[k], fixed_sigma, scale=1.0)
+        x_transform[:, k] = gaussian(x, fixed_means[k], fixed_sigmas[k], scale=1.0)
     return x_transform
 
 def negative_relu(x, c=0.):
@@ -80,6 +80,58 @@ def negative_relu(x, c=0.):
 def reflected_negative_relu(x, c=0.):
     """ Basic relu function but returns negative result, reflected about y axis. """
     return np.minimum(0., x-c)
+
+def eye_input_to_PC_gauss_relu(eye_data, gauss_means,
+                                gauss_stds):
+    """ Takes the total 8 dimensional eye data input (x,y position, and
+    velocity times 2 lags) and converts it into the n_gaussians by 4 + 8 relu
+    function input model of PC input. Done point by point for n x 4
+    input "eye_data". """
+    # Currently hard coded but could change in future
+    n_eye_dims = 4
+    n_eye_lags = 2
+    n_total_eye_dims = n_eye_dims * n_eye_lags
+    n_gaussians_per_dim = int(len(gauss_means) / n_eye_dims)
+    if n_gaussians_per_dim < 1:
+        raise ValueError("Not enough gaussian means input to cover {0} dimensions of eye data.".format(n_eye_dims))
+    n_features = len(gauss_means) + 8 # Total input featur to PC is gaussians + relus
+    first_relu_ind = len(gauss_means)
+    if isinstance(gauss_stds, np.ndarray):
+        if len(gauss_stds) == 1:
+            gauss_stds = np.full(gauss_means.shape, gauss_stds[0])
+        if len(gauss_stds) != len(gauss_means):
+            raise ValueError("Input standard deviations must be same size as means or 1")
+    elif isinstance(gauss_stds, list):
+        if len(gauss_stds) == 1:
+            gauss_stds = np.full(gauss_means.shape, gauss_stds[0])
+        if len(gauss_stds) != len(gauss_means):
+            raise ValueError("Input standard deviations must be same size as means or 1")
+    else:
+        # We suppose gauss stds is a single numeric value
+        gauss_stds = int(gauss_stds)
+        gauss_stds = np.full(gauss_means.shape, gauss_stds)
+
+    # Transform data into "input" n_gaussians dimensional format
+    # This is effectively like taking our 4 input data features and passing
+    # them through n_guassians number of hidden layer units using a
+    # Gaussian activation function and fixed weights plus some relu units
+    eye_transform = np.zeros((eye_data.shape[0], n_features))
+    for k in range(0, n_eye_dims):
+        # First do Gaussian activation on first 4 eye dims
+        dim_means = gauss_means[k * n_eye_dims:(k + 1) * n_eye_dims]
+        dim_stds = gauss_stds[k * n_eye_dims:(k + 1) * n_eye_dims]
+        eye_transform[:, k * n_eye_dims:(k + 1) * n_eye_dims] = gaussian_activation(
+                                                                        eye_data[:, k],
+                                                                        dim_means,
+                                                                        dim_stds)
+        # Then relu activation on second 4 eye dims
+        eye_transform[:, (first_relu_ind + 2 * k)] = negative_relu(
+                                                            eye_data[:, n_eye_dims + k],
+                                                            c=0.0)
+        eye_transform[:, (first_relu_ind + (2 * k + 1))] = reflected_negative_relu(
+                                                            eye_data[:, n_eye_dims + k],
+                                                            c=0.0)
+    return eye_transform
 
 
 
@@ -272,55 +324,22 @@ class FitNNModel(object):
         # Use inputs to set these variables and keep in scope for wrapper
         pos_fixed_means = np.linspace(-pos_range, pos_range, n_gaussians)
         vel_fixed_means = np.linspace(-vel_range, vel_range, n_gaussians)
-        pos_fixed_std = std_gaussians
-        vel_fixed_std = std_gaussians
-        n_features = n_gaussians * 4 + 8
-        first_relu_ind = n_gaussians * 4
 
-        # Transform data into "input" n_gaussians dimensional format
-        # This is effectively like taking our 4 input data features and passing
-        # them through n_guassians number of hidden layer units using a
-        # Gaussian activation function and fixed weights
-        eye_input_train = np.zeros((bin_eye_data_train.shape[0], n_features))
-        eye_input_test = np.zeros((bin_eye_data_test.shape[0], n_features))
+        # Reformat gaussins for input transform
+        gauss_means = np.hstack([pos_fixed_means,
+                                 vel_fixed_means,
+                                 pos_fixed_means,
+                                 vel_fixed_means])
+        gauss_stds = std_gaussians
+        eye_input_train = eye_input_to_PC_gauss_relu(bin_eye_data_train,
+                                        gauss_means, gauss_stds)
+        eye_input_test = eye_input_to_PC_gauss_relu(bin_eye_data_test,
+                                        gauss_means, gauss_stds)
 
-        # eye_input_train_s = np.zeros((bin_eye_data_train.shape[0], n_features))
-        # eye_input_test_s = np.zeros((bin_eye_data_test.shape[0], n_features))
-        for k in range(0, 4):
-            fixed_means = pos_fixed_means if k < 2 else vel_fixed_means
-            fixed_sigma = pos_fixed_std if k < 2 else vel_fixed_std
-            eye_input_train[:, k * n_gaussians:(k + 1) * n_gaussians] = gaussian_activation(
-                                                                            bin_eye_data_train[:, k],
-                                                                            fixed_means,
-                                                                            fixed_sigma)
-            eye_input_train[:, (first_relu_ind + 2 * k)] = negative_relu(
-                                                                bin_eye_data_train[:, 4 + k],
-                                                                c=0.0)
-            eye_input_train[:, (first_relu_ind + (2 * k + 1))] = reflected_negative_relu(
-                                                                bin_eye_data_train[:, 4 + k],
-                                                                c=0.0)
-            # eye_input_train[:, k * n_gaussians:(k + 1) * n_gaussians] = sigmoid_activation(
-            #                                                                 bin_eye_data_train[:, k],
-            #                                                                 1.0, fixed_means)
 
-            if not is_test_data:
-                # bin_eye_data_test is empty so skip computing eye_input_test below
-                continue
-            eye_input_test[:, k * n_gaussians:(k + 1) * n_gaussians] = gaussian_activation(
-                                                                            bin_eye_data_test[:, k],
-                                                                            fixed_means,
-                                                                            fixed_sigma)
-            eye_input_test[:, (first_relu_ind + 2 * k)] = negative_relu(
-                                                                bin_eye_data_test[:, 4 + k],
-                                                                c=0.0)
-            eye_input_test[:, (first_relu_ind + (2 * k + 1))] = reflected_negative_relu(
-                                                                bin_eye_data_test[:, 4 + k],
-                                                                c=0.0)
-            # eye_input_test[:, k * n_gaussians:(k + 1) * n_gaussians] = sigmoid_activation(
-            #                                                                 bin_eye_data_test[:, k],
-            #                                                                 1.0, fixed_means)
-
-        return eye_input_train, eye_input_test, binned_FR_train, binned_FR_test, pos_fixed_means, vel_fixed_means, pos_fixed_std, vel_fixed_std
+        pos_fixed_std = gauss_stds
+        vel_fixed_std = gauss_stds
+        return eye_input_train, eye_input_test, binned_FR_train, binned_FR_test, pos_fixed_means, vel_fixed_means, pos_fixed_std, vel_fixed_std, is_test_data
 
         # Store this for now so we can call predict_gauss_basis_kinematics
         # below for computing R2.
