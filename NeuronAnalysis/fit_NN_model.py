@@ -92,6 +92,7 @@ def eye_input_to_PC_gauss_relu(eye_data, gauss_means,
     n_eye_lags = 2
     n_total_eye_dims = n_eye_dims * n_eye_lags
     n_gaussians_per_dim = int(len(gauss_means) / n_eye_dims)
+    print("Using {0} Gaussians per dim.".format(n_gaussians_per_dim))
     if n_gaussians_per_dim < 1:
         raise ValueError("Not enough gaussian means input to cover {0} dimensions of eye data.".format(n_eye_dims))
     n_features = len(gauss_means) + 8 # Total input featur to PC is gaussians + relus
