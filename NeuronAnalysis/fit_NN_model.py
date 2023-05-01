@@ -69,6 +69,7 @@ def sigmoid_activation(x, fixed_scale, fixed_centers, fixed_asymptote=1, fixed_b
 def gaussian_activation(x, fixed_means, fixed_sigmas):
     num_gaussians = len(fixed_means)
     x_transform = np.zeros((x.size, num_gaussians))
+    print("SIGMAs: ", fixed_sigmas.shape, fixed_sigmas[0].shape)
     for k in range(num_gaussians):
         x_transform[:, k] = gaussian(x, fixed_means[k], fixed_sigmas[k], scale=1.0)
     return x_transform
