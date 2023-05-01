@@ -55,14 +55,14 @@ def bin_data(data, bin_width, bin_threshold=0):
 def gaussian(x, mu, sigma, scale):
     return scale * np.exp(-( ((x - mu) ** 2) / (2*(sigma**2))) )
 
-def sigmoid(x, a=1, b=0):
-    return 1 / (1 + np.exp(-(a * x + b)))
+def sigmoid(x, a=1, b=0, c=1):
+    return c / (1 + np.exp(-(a * x + b)))
 
-def sigmoid_activation(x, fixed_scale, fixed_centers):
+def sigmoid_activation(x, fixed_scale, fixed_centers, fixed_asymptote=1):
     num_sigmoids = len(fixed_centers)
     x_transform = np.zeros((x.size, num_sigmoids))
     for k in range(num_sigmoids):
-        x_transform[:, k] = sigmoid(x, fixed_scale, fixed_centers[k])
+        x_transform[:, k] = sigmoid(x, fixed_scale, fixed_centers[k], fixed_asymptote)
     return x_transform
 
 # Define the model function as a linear combination of Gaussian functions
@@ -257,7 +257,11 @@ class FitNNModel(object):
         """ Now data are setup and formated, we need to transform them into the
         input Gaussian space that spans position and velocity. """
         # Find max position and velocity values so we can pick appropriate Gaussian centers
-        max_abs_eye = np.maximum(np.nanmax(np.abs(bin_eye_data_train), axis=0), np.nanmax(np.abs(bin_eye_data_test), axis=0))
+        if is_test_data:
+            max_abs_eye = np.maximum(np.nanmax(np.abs(bin_eye_data_train), axis=0), np.nanmax(np.abs(bin_eye_data_test), axis=0))
+        else:
+            # bin_eye_data_test is empty so skip it
+            max_abs_eye = np.nanmax(np.abs(bin_eye_data_train), axis=0)
         max_abs_pos = max(np.amax(max_abs_eye[0:2]), np.amax(max_abs_eye[4:6]))
         max_abs_vel = max(np.amax(max_abs_eye[2:4]), np.amax(max_abs_eye[6:8]))
         pos_range = np.ceil(max_abs_pos + std_gaussians/2)
@@ -289,27 +293,29 @@ class FitNNModel(object):
                                                                             bin_eye_data_train[:, k],
                                                                             fixed_means,
                                                                             fixed_sigma)
-            eye_input_test[:, k * n_gaussians:(k + 1) * n_gaussians] = gaussian_activation(
-                                                                            bin_eye_data_test[:, k],
-                                                                            fixed_means,
-                                                                            fixed_sigma)
-
             eye_input_train[:, (first_relu_ind + 2 * k)] = negative_relu(
                                                                 bin_eye_data_train[:, 4 + k],
                                                                 c=0.0)
             eye_input_train[:, (first_relu_ind + (2 * k + 1))] = reflected_negative_relu(
                                                                 bin_eye_data_train[:, 4 + k],
                                                                 c=0.0)
+            # eye_input_train[:, k * n_gaussians:(k + 1) * n_gaussians] = sigmoid_activation(
+            #                                                                 bin_eye_data_train[:, k],
+            #                                                                 1.0, fixed_means)
+
+            if not is_test_data:
+                # bin_eye_data_test is empty so skip computing eye_input_test below
+                continue
+            eye_input_test[:, k * n_gaussians:(k + 1) * n_gaussians] = gaussian_activation(
+                                                                            bin_eye_data_test[:, k],
+                                                                            fixed_means,
+                                                                            fixed_sigma)
             eye_input_test[:, (first_relu_ind + 2 * k)] = negative_relu(
                                                                 bin_eye_data_test[:, 4 + k],
                                                                 c=0.0)
             eye_input_test[:, (first_relu_ind + (2 * k + 1))] = reflected_negative_relu(
                                                                 bin_eye_data_test[:, 4 + k],
                                                                 c=0.0)
-
-            # eye_input_train[:, k * n_gaussians:(k + 1) * n_gaussians] = sigmoid_activation(
-            #                                                                 bin_eye_data_train[:, k],
-            #                                                                 1.0, fixed_means)
             # eye_input_test[:, k * n_gaussians:(k + 1) * n_gaussians] = sigmoid_activation(
             #                                                                 bin_eye_data_test[:, k],
             #                                                                 1.0, fixed_means)
