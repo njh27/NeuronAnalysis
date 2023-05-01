@@ -118,9 +118,9 @@ def eye_input_to_PC_gauss_relu(eye_data, gauss_means,
     eye_transform = np.zeros((eye_data.shape[0], n_features))
     for k in range(0, n_eye_dims):
         # First do Gaussian activation on first 4 eye dims
-        dim_means = gauss_means[k * n_eye_dims:(k + 1) * n_eye_dims]
-        dim_stds = gauss_stds[k * n_eye_dims:(k + 1) * n_eye_dims]
-        eye_transform[:, k * n_eye_dims:(k + 1) * n_eye_dims] = gaussian_activation(
+        dim_means = gauss_means[k * n_gaussians_per_dim:(k + 1) * n_gaussians_per_dim]
+        dim_stds = gauss_stds[k * n_gaussians_per_dim:(k + 1) * n_gaussians_per_dim]
+        eye_transform[:, k * n_gaussians_per_dim:(k + 1) * n_gaussians_per_dim] = gaussian_activation(
                                                                         eye_data[:, k],
                                                                         dim_means,
                                                                         dim_stds)
