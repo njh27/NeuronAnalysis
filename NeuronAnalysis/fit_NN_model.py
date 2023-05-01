@@ -334,9 +334,13 @@ class FitNNModel(object):
         gauss_stds = std_gaussians
         eye_input_train = eye_input_to_PC_gauss_relu(bin_eye_data_train,
                                         gauss_means, gauss_stds)
-        eye_input_test = eye_input_to_PC_gauss_relu(bin_eye_data_test,
-                                        gauss_means, gauss_stds)
-
+        if is_test_data:
+            eye_input_test = eye_input_to_PC_gauss_relu(bin_eye_data_test,
+                                            gauss_means, gauss_stds)
+            val_data = (eye_input_test, binned_FR_test)
+        else:
+            eye_input_test = []
+            val_data = None
 
         pos_fixed_std = gauss_stds
         vel_fixed_std = gauss_stds
