@@ -353,6 +353,8 @@ class FitNNModel(object):
                 max_mean_step = max((pos_fixed_means[1] - pos_fixed_means[0]), (vel_fixed_means[1] - vel_fixed_means[0]))
                 std_gaussians = max_mean_step
                 print("Updating STDs to {0} so they pack tightly.".format(std_gaussians))
+                pos_fixed_stds = std_gaussians
+                vel_fixed_stds = std_gaussians
         else:
             pos_fixed_stds = std_gaussians
             vel_fixed_stds = std_gaussians
