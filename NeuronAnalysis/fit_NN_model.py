@@ -229,7 +229,10 @@ class FitNNModel(object):
                                     bin_width=10, bin_threshold=5,
                                     fit_avg_data=False,
                                     quick_lag_step=10,
-                                    train_split=1.0):
+                                    train_split=1.0,
+                                    learning_rate=0.02,
+                                    epochs=200,
+                                    batch_size=None):
         """ Fits the input neuron eye data to position and velocity using a
         basis set of Gaussians according to the input number of Gaussians over
         the state space ranges specified by pos/vel _range.
@@ -339,6 +342,9 @@ class FitNNModel(object):
         pos_fixed_means = np.linspace(-pos_range, pos_range, n_gaussians)
         vel_fixed_means = np.linspace(-vel_range, vel_range, n_gaussians)
 
+        pos_fixed_stds = std_gaussians
+        vel_fixed_stds = std_gaussians
+
         # Reformat gaussins for input transform
         gauss_means = np.hstack([pos_fixed_means,
                                  pos_fixed_means,
@@ -349,8 +355,11 @@ class FitNNModel(object):
                 max_mean_step = max((pos_fixed_means[1] - pos_fixed_means[0]), (vel_fixed_means[1] - vel_fixed_means[0]))
                 std_gaussians = max_mean_step
                 print("Updating STDs to {0} so they pack tightly.".format(std_gaussians))
-
-
+        else:
+            std_gaussians = np.hstack([pos_fixed_stds,
+                                       pos_fixed_stds,
+                                       vel_fixed_stds,
+                                       vel_fixed_stds])
 
         eye_input_train = eye_input_to_PC_gauss_relu(bin_eye_data_train,
                                         gauss_means, std_gaussians)
@@ -362,26 +371,56 @@ class FitNNModel(object):
             eye_input_test = []
             val_data = None
 
-        pos_fixed_std = std_gaussians
-        vel_fixed_std = std_gaussians
-        return eye_input_train, eye_input_test, binned_FR_train, binned_FR_test, pos_fixed_means, vel_fixed_means, pos_fixed_std, vel_fixed_std, is_test_data
+        # Create the neural network model
+        model = models.Sequential([
+            layers.Input(shape=(n_gaussians*4 + 8,)),
+            layers.Dense(1, activation="relu", kernel_constraint=constraints.NonNeg()),
+        ])
+        learning_rate = .2
+        clip_value = None
+        optimizer = SGD(learning_rate=learning_rate, clipvalue=clip_value)
+        optimizer_str = "SGD"
+        epochs = 20
+        batch_size = 1200
+
+        # Compile the model
+        model.compile(optimizer=optimizer_str, loss='mean_squared_error')
+
+        # Train the model
+        if is_test_data:
+            val_data = (eye_input_test, binned_FR_test)
+            test_data_only = True
+        else:
+            val_data = None
+            test_data_only = False
+        history = model.fit(eye_input_train, binned_FR_train, epochs=epochs, batch_size=batch_size,
+                                        validation_data=val_data, verbose=0)
+        if is_test_data:
+            test_loss = history.history['val_loss']
+        else:
+            test_loss = None
+        train_loss = history.history['loss']
 
         # Store this for now so we can call predict_gauss_basis_kinematics
         # below for computing R2.
         self.fit_results['gauss_basis_kinematics'] = {
                                 'pf_lag': pf_lag,
                                 'mli_lag': mli_lag,
-                                'coeffs': popt,
+                                'coeffs': model.layers[0].get_weights()[0],
+                                'bias': model.layers[0].get_weights()[1],
                                 'n_gaussians': n_gaussians,
                                 'pos_means': pos_fixed_means,
                                 'pos_stds': pos_fixed_std,
                                 'vel_means': vel_fixed_means,
                                 'vel_stds': vel_fixed_std,
+                                'is_multi_STD': is_multi_STD,
                                 'R2': None,
                                 'predict_fun': self.predict_gauss_basis_kinematics,
                                 'fit_trial_set': fit_trial_set,
                                 'test_trial_set': test_trial_set,
-                                'is_test_data': is_test_data}
+                                'is_test_data': is_test_data,
+                                'test_loss': test_loss,
+                                'train_loss': train_loss}
         # Compute R2
         if self.fit_results['gauss_basis_kinematics']['is_test_data']:
             test_firing_rate = firing_rate[~select_fit_trials, :]
@@ -483,18 +522,27 @@ class FitNNModel(object):
             raise ValueError("Gaussian basis kinematics model is fit for 8 data dimensions but input data dimension is {0}.".format(X.shape[1]))
         scales = self.fit_results['gauss_basis_kinematics']['coeffs']
         n_gaussians = self.fit_results['gauss_basis_kinematics']['n_gaussians']
-        y_hat = np.zeros(X.shape[0]) + scales[-1] # Add intrisic rate constant
-        # Added in fitted Gaussian basis
-        for k in range(4):
-            use_means = self.fit_results['gauss_basis_kinematics']['pos_means'] if k < 2 else self.fit_results['gauss_basis_kinematics']['vel_means']
-            use_std = self.fit_results['gauss_basis_kinematics']['pos_stds'] if k < 2 else self.fit_results['gauss_basis_kinematics']['vel_stds']
-            y_hat += gaussian_basis_set(X[:, k], scales[k * n_gaussians:(k + 1) * n_gaussians],
-                                                                use_means, use_std)
-        # Now add in the fitted linear components
-        for k_ind, k in enumerate(range(4, 8)):
-            a = scales[4 * n_gaussians + k_ind * 2]
-            b = scales[4 * n_gaussians + k_ind * 2 + 1]
-            y_hat += downward_relu(X[:, k], a, b, c=0.)
+
+        pos_means = self.fit_results['gauss_basis_kinematics']['pos_means']
+        vel_means = self.fit_results['gauss_basis_kinematics']['vel_means']
+        gauss_means = np.hstack([pos_means,
+                                 pos_means,
+                                 vel_means,
+                                 vel_means])
+        pos_stds = self.fit_results['gauss_basis_kinematics']['pos_stds']
+        vel_stds = self.fit_results['gauss_basis_kinematics']['vel_stds']
+        if self.fit_results['gauss_basis_kinematics']['is_multi_STD']:
+            gauss_stds = np.hstack([pos_stds,
+                                    pos_stds,
+                                    vel_stds,
+                                    vel_stds])
+        else:
+            gauss_stds = pos_stds
+        X_input = na.fit_NN_model.eye_input_to_PC_gauss_relu(X,
+                                        gauss_means, gauss_stds)
+        # y_hat = model.predict(X_input).squeeze()
+        y_hat = X_input @ self.fit_results['gauss_basis_kinematics']['coeffs']
+        y_hat += self.fit_results['gauss_basis_kinematics']['bias']
         return y_hat
 
     def predict_gauss_basis_kinematics_by_trial(self, blocks, trial_sets,
