@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import layers, models
+from tensorflow.keras import layers, models, constraints, initializers
+from tensorflow.keras.optimizers import SGD
 import warnings
 from NeuronAnalysis.fit_neuron_to_eye import FitNeuronToEye
 
@@ -245,7 +246,7 @@ class FitNNModel(object):
                                                 bin_threshold=bin_threshold,
                                                 quick_lag_step=quick_lag_step)
 
-        if isinstance(std_gaussians, list) or isinstance(std_gaussians, np.ndarry):
+        if isinstance(std_gaussians, list) or isinstance(std_gaussians, np.ndarray):
             if len(std_gaussians) > 1:
                 if len(std_gaussians) != len(n_gaussians):
                     raise ValueError("If inputting more than 1 gaussian STD it must be same length as n_gaussians.")
@@ -615,5 +616,28 @@ class FitNNModel(object):
 
 
 
-    def stuff(self):
-        pass
+class CustomSigmoid(layers.Layer):
+    def __init__(self, scale=1.0, shift=0.0, asymptote=1.0, bias=0.0, num_outputs=1, **kwargs):
+        super(CustomSigmoid, self).__init__(**kwargs)
+        self.scale_init = scale
+        self.shift_init = shift
+        self.asymptote_init = asymptote
+        self.bias_init = bias
+        self.num_outputs = num_outputs
+
+    def build(self, input_shape):
+        self.scale = self.add_weight("scale", shape=[self.num_outputs],
+                                     initializer=initializers.Constant(self.scale_init),
+                                     trainable=True)
+        self.shift = self.add_weight("shift", shape=[self.num_outputs],
+                                     initializer=initializers.Constant(self.shift_init),
+                                     trainable=True)
+        self.asymptote = self.add_weight("asymptote", shape=[self.num_outputs],
+                                         initializer=initializers.Constant(self.asymptote_init),
+                                         trainable=True)
+        self.bias = self.add_weight("bias", shape=[self.num_outputs],
+                                     initializer=initializers.Constant(self.bias_init),
+                                     trainable=False)
+
+    def call(self, inputs):
+        return self.asymptote / (1 + tf.math.exp(-(inputs - self.shift) / self.scale)) + self.bias
