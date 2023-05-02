@@ -54,7 +54,10 @@ def bin_data(data, bin_width, bin_threshold=0):
 
 # Define Gaussian function
 def gaussian(x, mu, sigma, scale):
-    return scale * np.exp(-( ((x - mu) ** 2) / (2*(sigma**2))) )
+    value = scale * np.exp(-( ((x - mu) ** 2) / (2*(sigma**2))) )
+    if np.any(np.any(np.isnan(value))):
+        print("FOUDN SOME Nans with Sigma {0}, and mu {1}.".format(sigma, mu))
+    return value
 
 def sigmoid(x, a=1, b=0, c=1, d=0):
     return c / (1 + np.exp(-(x-b)/a)) + d
