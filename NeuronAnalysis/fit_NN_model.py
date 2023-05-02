@@ -417,7 +417,8 @@ class FitNNModel(object):
                                 'test_trial_set': test_trial_set,
                                 'is_test_data': is_test_data,
                                 'test_loss': test_loss,
-                                'train_loss': train_loss}
+                                'train_loss': train_loss,
+                                'model': model}
         # Compute R2
         if self.fit_results['gauss_basis_kinematics']['is_test_data']:
             test_firing_rate = firing_rate[~select_fit_trials, :]
@@ -538,8 +539,9 @@ class FitNNModel(object):
         X_input = eye_input_to_PC_gauss_relu(X,
                                         gauss_means, gauss_stds)
         # y_hat = model.predict(X_input).squeeze()
-        y_hat = X_input @ self.fit_results['gauss_basis_kinematics']['coeffs']
-        y_hat += self.fit_results['gauss_basis_kinematics']['bias']
+        # y_hat = X_input @ self.fit_results['gauss_basis_kinematics']['coeffs']
+        # y_hat += self.fit_results['gauss_basis_kinematics']['bias']
+        y_hat = self.fit_results['gauss_basis_kinematics']['model'].predict(X_input).squeeze()
         return y_hat
 
     def predict_gauss_basis_kinematics_by_trial(self, blocks, trial_sets,
