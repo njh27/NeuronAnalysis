@@ -54,6 +54,8 @@ def bin_data(data, bin_width, bin_threshold=0):
 
 # Define Gaussian function
 def gaussian(x, mu, sigma, scale):
+    if np.any(np.any(np.isnan(x))):
+        print("FOUDN SOME Nans in the X INPUT!!!")
     value = scale * np.exp(-( ((x - mu) ** 2) / (2*(sigma**2))) )
     if np.any(np.any(np.isnan(value))):
         print("FOUDN SOME Nans with Sigma {0}, and mu {1}.".format(sigma, mu))
