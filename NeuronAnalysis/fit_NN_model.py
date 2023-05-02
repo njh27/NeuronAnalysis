@@ -326,6 +326,10 @@ class FitNNModel(object):
         select_good_train = np.logical_and(~np.any(np.isnan(bin_eye_data_train), axis=1), FR_select_train)
         bin_eye_data_train = bin_eye_data_train[select_good_train, :]
         binned_FR_train = binned_FR_train[select_good_train]
+
+        if np.any(np.any(np.isnan(bin_eye_data_train))):
+            raise ValueError("THere are nans in the eye data!")
+
         select_good_test = np.logical_and(~np.any(np.isnan(bin_eye_data_test), axis=1), FR_select_test)
         bin_eye_data_test = bin_eye_data_test[select_good_test, :]
         binned_FR_test = binned_FR_test[select_good_test]
