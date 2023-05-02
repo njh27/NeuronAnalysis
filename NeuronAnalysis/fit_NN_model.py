@@ -452,26 +452,26 @@ class FitNNModel(object):
                                 'train_loss': train_loss,
                                 'model': model}
         # Compute R2
-        print("STARTING R2 HERE !")
-        if self.fit_results['gauss_basis_kinematics']['is_test_data']:
-            test_firing_rate = firing_rate[~select_fit_trials, :]
-        else:
-            # If no test data are available, you need to just compute over all data
-            test_firing_rate = firing_rate[select_fit_trials, :]
-        if fit_avg_data:
-            test_lag_data = self.get_gauss_basis_kinematics_predict_data_mean(
-                                    self.blocks, self.trial_sets, test_data_only=test_data_only, verbose=False)
-            y_predicted = self.predict_gauss_basis_kinematics(test_lag_data)
-            test_mean_rate = np.nanmean(test_firing_rate, axis=0, keepdims=True)
-            sum_squares_error = np.nansum((test_mean_rate - y_predicted) ** 2)
-            sum_squares_total = np.nansum((test_mean_rate - np.nanmean(test_mean_rate)) ** 2)
-        else:
-            y_predicted = self.predict_gauss_basis_kinematics_by_trial(
-                                    self.blocks, self.trial_sets, test_data_only=test_data_only, verbose=False)
-            sum_squares_error = np.nansum((test_firing_rate - y_predicted) ** 2)
-            sum_squares_total = np.nansum((test_firing_rate - np.nanmean(test_firing_rate)) ** 2)
-            print(sum_squares_error, sum_squares_total)
-        self.fit_results['gauss_basis_kinematics']['R2'] = 1 - sum_squares_error/(sum_squares_total)
+        # print("STARTING R2 HERE !")
+        # if self.fit_results['gauss_basis_kinematics']['is_test_data']:
+        #     test_firing_rate = firing_rate[~select_fit_trials, :]
+        # else:
+        #     # If no test data are available, you need to just compute over all data
+        #     test_firing_rate = firing_rate[select_fit_trials, :]
+        # if fit_avg_data:
+        #     test_lag_data = self.get_gauss_basis_kinematics_predict_data_mean(
+        #                             self.blocks, self.trial_sets, test_data_only=test_data_only, verbose=False)
+        #     y_predicted = self.predict_gauss_basis_kinematics(test_lag_data)
+        #     test_mean_rate = np.nanmean(test_firing_rate, axis=0, keepdims=True)
+        #     sum_squares_error = np.nansum((test_mean_rate - y_predicted) ** 2)
+        #     sum_squares_total = np.nansum((test_mean_rate - np.nanmean(test_mean_rate)) ** 2)
+        # else:
+        #     y_predicted = self.predict_gauss_basis_kinematics_by_trial(
+        #                             self.blocks, self.trial_sets, test_data_only=test_data_only, verbose=False)
+        #     sum_squares_error = np.nansum((test_firing_rate - y_predicted) ** 2)
+        #     sum_squares_total = np.nansum((test_firing_rate - np.nanmean(test_firing_rate)) ** 2)
+        #     print(sum_squares_error, sum_squares_total)
+        # self.fit_results['gauss_basis_kinematics']['R2'] = 1 - sum_squares_error/(sum_squares_total)
 
         return
 
@@ -567,6 +567,10 @@ class FitNNModel(object):
             gauss_stds = pos_stds
         X_input = eye_input_to_PC_gauss_relu(X,
                                         gauss_means, gauss_stds)
+
+
+        if np.any(np.any(np.isnan(X_input))):
+            raise ValueError("NANS ARE IN THIS INPUT!")
         # y_hat = model.predict(X_input).squeeze()
         # y_hat = X_input @ self.fit_results['gauss_basis_kinematics']['coeffs']
         # y_hat += self.fit_results['gauss_basis_kinematics']['bias']
