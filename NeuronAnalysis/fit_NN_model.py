@@ -376,12 +376,9 @@ class FitNNModel(object):
             layers.Input(shape=(n_gaussians*4 + 8,)),
             layers.Dense(1, activation="relu", kernel_constraint=constraints.NonNeg()),
         ])
-        learning_rate = .2
         clip_value = None
         optimizer = SGD(learning_rate=learning_rate, clipvalue=clip_value)
         optimizer_str = "SGD"
-        epochs = 20
-        batch_size = 1200
 
         # Compile the model
         model.compile(optimizer=optimizer_str, loss='mean_squared_error')
