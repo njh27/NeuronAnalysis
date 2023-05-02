@@ -536,7 +536,7 @@ class FitNNModel(object):
                                     vel_stds])
         else:
             gauss_stds = pos_stds
-        print("PRE test shape". X.shape,gauss_means.shape, gauss_stds.shape)
+        print("PRE test shape", X.shape,gauss_means.shape, gauss_stds.shape)
         print(gauss_stds)
         X_input = eye_input_to_PC_gauss_relu(X,
                                         gauss_means, gauss_stds)
