@@ -552,11 +552,8 @@ class FitNNModel(object):
                                     vel_stds])
         else:
             gauss_stds = pos_stds
-        print("PRE test shape", X.shape, gauss_means.shape, gauss_stds)
-        print(gauss_stds)
         X_input = eye_input_to_PC_gauss_relu(X,
                                         gauss_means, gauss_stds)
-        print("PRE fit shape", X_input.shape,)
         # y_hat = model.predict(X_input).squeeze()
         # y_hat = X_input @ self.fit_results['gauss_basis_kinematics']['coeffs']
         # y_hat += self.fit_results['gauss_basis_kinematics']['bias']
