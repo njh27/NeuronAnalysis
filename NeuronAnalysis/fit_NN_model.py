@@ -361,8 +361,11 @@ class FitNNModel(object):
                                        vel_fixed_stds,
                                        vel_fixed_stds])
 
+        print("PRE train shape:", bin_eye_data_train.shape)
+        print(std_gaussians)
         eye_input_train = eye_input_to_PC_gauss_relu(bin_eye_data_train,
                                         gauss_means, std_gaussians)
+        print("Train input shape:", eye_input_train.shape)
         if is_test_data:
             eye_input_test = eye_input_to_PC_gauss_relu(bin_eye_data_test,
                                             gauss_means, std_gaussians)
@@ -424,18 +427,17 @@ class FitNNModel(object):
             test_firing_rate = firing_rate[~select_fit_trials, :]
         else:
             # If no test data are available, you need to just compute over all data
-            # so invert the selected trials
             test_firing_rate = firing_rate[select_fit_trials, :]
         if fit_avg_data:
             test_lag_data = self.get_gauss_basis_kinematics_predict_data_mean(
-                                    self.blocks, self.trial_sets, test_data_only=True, verbose=False)
+                                    self.blocks, self.trial_sets, test_data_only=test_data_only, verbose=False)
             y_predicted = self.predict_gauss_basis_kinematics(test_lag_data)
             test_mean_rate = np.nanmean(test_firing_rate, axis=0, keepdims=True)
             sum_squares_error = np.nansum((test_mean_rate - y_predicted) ** 2)
             sum_squares_total = np.nansum((test_mean_rate - np.nanmean(test_mean_rate)) ** 2)
         else:
             y_predicted = self.predict_gauss_basis_kinematics_by_trial(
-                                    self.blocks, self.trial_sets, test_data_only=True, verbose=False)
+                                    self.blocks, self.trial_sets, test_data_only=test_data_only, verbose=False)
             sum_squares_error = np.nansum((test_firing_rate - y_predicted) ** 2)
             sum_squares_total = np.nansum((test_firing_rate - np.nanmean(test_firing_rate)) ** 2)
             print(sum_squares_error, sum_squares_total)
@@ -534,12 +536,14 @@ class FitNNModel(object):
                                     vel_stds])
         else:
             gauss_stds = pos_stds
+        print("PRE test shape". X.shape,gauss_means.shape, gauss_stds.shape)
+        print(gauss_stds)
         X_input = eye_input_to_PC_gauss_relu(X,
                                         gauss_means, gauss_stds)
+        print("PRE fit shape". X_input.shape,)
         # y_hat = model.predict(X_input).squeeze()
         # y_hat = X_input @ self.fit_results['gauss_basis_kinematics']['coeffs']
         # y_hat += self.fit_results['gauss_basis_kinematics']['bias']
-        print("using 'model' to predict!!!")
         y_hat = self.fit_results['gauss_basis_kinematics']['model'].predict(X_input).squeeze()
         return y_hat
 
