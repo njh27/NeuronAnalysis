@@ -364,9 +364,9 @@ class FitNNModel(object):
 
         is_multi_STD = True
         pos_fixed_means = np.random.uniform(-pos_range, pos_range, n_gaussians)
-        pos_fixed_stds = np.random.uniform(1.1, 5, n_gaussians)
+        pos_fixed_stds = np.random.uniform(1., 5, n_gaussians)
         vel_fixed_means = np.random.uniform(-vel_range, vel_range, n_gaussians)
-        vel_fixed_stds = np.random.uniform(1.1, 5, n_gaussians)
+        vel_fixed_stds = np.random.uniform(1., 5, n_gaussians)
         # Reformat gaussins for input transform
         gauss_means = np.hstack([pos_fixed_means,
                                  pos_fixed_means,
@@ -396,7 +396,7 @@ class FitNNModel(object):
             layers.Input(shape=(n_gaussians*4 + 8,)),
             layers.Dense(1, activation=None, kernel_constraint=constraints.NonNeg()),
         ])
-        clip_value = None
+        clip_value = 1.0
         optimizer = SGD(learning_rate=learning_rate, clipvalue=clip_value)
         optimizer_str = "SGD"
 
