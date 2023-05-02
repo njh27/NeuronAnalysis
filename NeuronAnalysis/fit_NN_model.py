@@ -245,6 +245,19 @@ class FitNNModel(object):
                                                 bin_threshold=bin_threshold,
                                                 quick_lag_step=quick_lag_step)
 
+        if isinstance(std_gaussians, list) or isinstance(std_gaussians, np.ndarry):
+            if len(std_gaussians) > 1:
+                if len(std_gaussians) != len(n_gaussians):
+                    raise ValueError("If inputting more than 1 gaussian STD it must be same length as n_gaussians.")
+                std_gaussians_mean = np.mean(std_gaussians)
+                is_multi_STD = True
+            else:
+                std_gaussians_mean = std_gaussians
+                is_multi_STD = False
+        else:
+            std_gaussians_mean = std_gaussians
+            is_multi_STD = False
+
         # Setup all the indices for which trials we will be using and which
         # subset of trials will be used as training vs. test data
         firing_rate, all_t_inds = self.get_firing_traces(return_inds=True)
@@ -316,8 +329,8 @@ class FitNNModel(object):
             max_abs_eye = np.nanmax(np.abs(bin_eye_data_train), axis=0)
         max_abs_pos = max(np.amax(max_abs_eye[0:2]), np.amax(max_abs_eye[4:6]))
         max_abs_vel = max(np.amax(max_abs_eye[2:4]), np.amax(max_abs_eye[6:8]))
-        pos_range = np.ceil(max_abs_pos + std_gaussians/2)
-        vel_range = np.ceil(max_abs_vel + std_gaussians/2)
+        pos_range = np.ceil(max_abs_pos + std_gaussians_mean/2)
+        vel_range = np.ceil(max_abs_vel + std_gaussians_mean/2)
         print("Set pos_range to: ", pos_range, "and vel range to: ", vel_range)
 
         # Set up the basic values and fit function for basis set
@@ -330,19 +343,25 @@ class FitNNModel(object):
                                  pos_fixed_means,
                                  vel_fixed_means,
                                  vel_fixed_means])
-        gauss_stds = std_gaussians
+        if not is_multi_STD:
+            if len(pos_fixed_means) > 1:
+                std_gaussians = (pos_fixed_means[1] - pos_fixed_means[0])/2
+                print("Updating STDs to {0} so they pack tightly.".format(std_gaussians))
+
+
+
         eye_input_train = eye_input_to_PC_gauss_relu(bin_eye_data_train,
-                                        gauss_means, gauss_stds)
+                                        gauss_means, std_gaussians)
         if is_test_data:
             eye_input_test = eye_input_to_PC_gauss_relu(bin_eye_data_test,
-                                            gauss_means, gauss_stds)
+                                            gauss_means, std_gaussians)
             val_data = (eye_input_test, binned_FR_test)
         else:
             eye_input_test = []
             val_data = None
 
-        pos_fixed_std = gauss_stds
-        vel_fixed_std = gauss_stds
+        pos_fixed_std = std_gaussians
+        vel_fixed_std = std_gaussians
         return eye_input_train, eye_input_test, binned_FR_train, binned_FR_test, pos_fixed_means, vel_fixed_means, pos_fixed_std, vel_fixed_std, is_test_data
 
         # Store this for now so we can call predict_gauss_basis_kinematics
