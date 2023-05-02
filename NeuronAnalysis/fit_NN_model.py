@@ -406,7 +406,7 @@ class FitNNModel(object):
         # Create the neural network model
         model = models.Sequential([
             layers.Input(shape=(n_gaussians*4 + 8,)),
-            layers.Dense(1, activation=None, kernel_constraint=constraints.NonNeg(), kernel_initializer=tf.keras.initializers.Ones()),
+            layers.Dense(1, activation=None, kernel_constraint=constraints.NonNeg()),
         ])
         clip_value = 1e-8
         optimizer = SGD(learning_rate=learning_rate, clipvalue=clip_value)
