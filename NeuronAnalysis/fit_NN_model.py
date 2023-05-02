@@ -364,9 +364,9 @@ class FitNNModel(object):
 
         is_multi_STD = True
         pos_fixed_means = np.random.uniform(-pos_range, pos_range, n_gaussians)
-        pos_fixed_stds = np.random.uniform(.5, 5, n_gaussians)
+        pos_fixed_stds = np.random.uniform(1.1, 5, n_gaussians)
         vel_fixed_means = np.random.uniform(-vel_range, vel_range, n_gaussians)
-        vel_fixed_stds = np.random.uniform(.5, 5, n_gaussians)
+        vel_fixed_stds = np.random.uniform(1.1, 5, n_gaussians)
         # Reformat gaussins for input transform
         gauss_means = np.hstack([pos_fixed_means,
                                  pos_fixed_means,
