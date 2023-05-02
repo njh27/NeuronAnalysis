@@ -341,34 +341,42 @@ class FitNNModel(object):
         # Use inputs to set these variables and keep in scope for wrapper
         pos_fixed_means = np.linspace(-pos_range, pos_range, n_gaussians)
         vel_fixed_means = np.linspace(-vel_range, vel_range, n_gaussians)
-
-        pos_fixed_means = np.random.randint(-pos_range, pos_range, 1000)
-        pos_fixed_stds = np.random.randint(.5, 5, 1000)
-        vel_fixed_means = np.random.randint(-vel_range, vel_range, 1000)
-        vel_fixed_stds = np.random.randint(.5, 5, 1000)
-        # Reformat gaussins for input transform
         gauss_means = np.hstack([pos_fixed_means,
                                  pos_fixed_means,
                                  vel_fixed_means,
                                  vel_fixed_means])
-        std_gaussians = np.hstack([pos_fixed_stds,
-                                   pos_fixed_stds,
-                                   vel_fixed_stds,
-                                   vel_fixed_stds])
-        # if not is_multi_STD:
-        #     if len(pos_fixed_means) > 1:
-        #         max_mean_step = max((pos_fixed_means[1] - pos_fixed_means[0]), (vel_fixed_means[1] - vel_fixed_means[0]))
-        #         std_gaussians = max_mean_step
-        #         print("Updating STDs to {0} so they pack tightly.".format(std_gaussians))
-        #         pos_fixed_stds = std_gaussians
-        #         vel_fixed_stds = std_gaussians
-        # else:
-        #     pos_fixed_stds = std_gaussians
-        #     vel_fixed_stds = std_gaussians
-        #     std_gaussians = np.hstack([pos_fixed_stds,
-        #                                pos_fixed_stds,
-        #                                vel_fixed_stds,
-        #                                vel_fixed_stds])
+
+
+
+        # pos_fixed_means = np.random.randint(-pos_range, pos_range, 1000)
+        # pos_fixed_stds = np.random.randint(.5, 5, 1000)
+        # vel_fixed_means = np.random.randint(-vel_range, vel_range, 1000)
+        # vel_fixed_stds = np.random.randint(.5, 5, 1000)
+        # # Reformat gaussins for input transform
+        # gauss_means = np.hstack([pos_fixed_means,
+        #                          pos_fixed_means,
+        #                          vel_fixed_means,
+        #                          vel_fixed_means])
+        # std_gaussians = np.hstack([pos_fixed_stds,
+        #                            pos_fixed_stds,
+        #                            vel_fixed_stds,
+        #                            vel_fixed_stds])
+
+
+        if not is_multi_STD:
+            if len(pos_fixed_means) > 1:
+                max_mean_step = max((pos_fixed_means[1] - pos_fixed_means[0]), (vel_fixed_means[1] - vel_fixed_means[0]))
+                std_gaussians = max_mean_step
+                print("Updating STDs to {0} so they pack tightly.".format(std_gaussians))
+                pos_fixed_stds = std_gaussians
+                vel_fixed_stds = std_gaussians
+        else:
+            pos_fixed_stds = std_gaussians
+            vel_fixed_stds = std_gaussians
+            std_gaussians = np.hstack([pos_fixed_stds,
+                                       pos_fixed_stds,
+                                       vel_fixed_stds,
+                                       vel_fixed_stds])
 
 
         eye_input_train = eye_input_to_PC_gauss_relu(bin_eye_data_train,
