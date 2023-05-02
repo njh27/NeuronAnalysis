@@ -518,8 +518,6 @@ class FitNNModel(object):
         """
         if X.shape[1] != 8:
             raise ValueError("Gaussian basis kinematics model is fit for 8 data dimensions but input data dimension is {0}.".format(X.shape[1]))
-        scales = self.fit_results['gauss_basis_kinematics']['coeffs']
-        n_gaussians = self.fit_results['gauss_basis_kinematics']['n_gaussians']
 
         pos_means = self.fit_results['gauss_basis_kinematics']['pos_means']
         vel_means = self.fit_results['gauss_basis_kinematics']['vel_means']
@@ -541,6 +539,7 @@ class FitNNModel(object):
         # y_hat = model.predict(X_input).squeeze()
         # y_hat = X_input @ self.fit_results['gauss_basis_kinematics']['coeffs']
         # y_hat += self.fit_results['gauss_basis_kinematics']['bias']
+        print("using 'model' to predict!!!")
         y_hat = self.fit_results['gauss_basis_kinematics']['model'].predict(X_input).squeeze()
         return y_hat
 
