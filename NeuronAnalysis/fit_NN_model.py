@@ -463,8 +463,7 @@ class FitNNModel(object):
                             self.fit_results['gauss_basis_kinematics']['pf_lag'])
         eye_data_mli = self.get_eye_data_traces(blocks, trial_sets,
                             self.fit_results['gauss_basis_kinematics']['mli_lag'])
-        print("GOT EYE OF SHape", eye_data_pf.shape)
-        print("trial sets", trial_sets)
+
         if verbose: print("PF lag:", self.fit_results['gauss_basis_kinematics']['pf_lag'])
         if verbose: print("MLI lag:", self.fit_results['gauss_basis_kinematics']['mli_lag'])
         eye_data = np.concatenate((eye_data_pf, eye_data_mli), axis=2)
@@ -536,7 +535,7 @@ class FitNNModel(object):
                                     vel_stds])
         else:
             gauss_stds = pos_stds
-        print("PRE test shape", X.shape,gauss_means.shape, gauss_stds.shape)
+        print("PRE test shape", X.shape, gauss_means.shape, gauss_stds)
         print(gauss_stds)
         X_input = eye_input_to_PC_gauss_relu(X,
                                         gauss_means, gauss_stds)
