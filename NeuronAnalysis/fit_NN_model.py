@@ -132,6 +132,8 @@ def eye_input_to_PC_gauss_relu(eye_data, gauss_means,
         eye_transform[:, (first_relu_ind + (2 * k + 1))] = reflected_negative_relu(
                                                             eye_data[:, n_eye_dims + k],
                                                             c=0.0)
+    if np.any(np.any(np.isnan(eye_transform))):
+        print("THERE ARE F'ing NANS here!!!!")
     return eye_transform
 
 
