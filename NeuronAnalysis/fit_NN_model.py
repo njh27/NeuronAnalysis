@@ -408,7 +408,7 @@ class FitNNModel(object):
             layers.Input(shape=(n_gaussians*4 + 8,)),
             layers.Dense(1, activation=None, kernel_constraint=constraints.NonNeg()),
         ])
-        clip_value = 1.0
+        clip_value = .01
         optimizer = SGD(learning_rate=learning_rate, clipvalue=clip_value)
         optimizer_str = "SGD"
 
