@@ -342,8 +342,6 @@ class FitNNModel(object):
         pos_fixed_means = np.linspace(-pos_range, pos_range, n_gaussians)
         vel_fixed_means = np.linspace(-vel_range, vel_range, n_gaussians)
 
-        pos_fixed_stds = std_gaussians
-        vel_fixed_stds = std_gaussians
 
         # Reformat gaussins for input transform
         gauss_means = np.hstack([pos_fixed_means,
@@ -356,6 +354,8 @@ class FitNNModel(object):
                 std_gaussians = max_mean_step
                 print("Updating STDs to {0} so they pack tightly.".format(std_gaussians))
         else:
+            pos_fixed_stds = std_gaussians
+            vel_fixed_stds = std_gaussians
             std_gaussians = np.hstack([pos_fixed_stds,
                                        pos_fixed_stds,
                                        vel_fixed_stds,
@@ -539,7 +539,7 @@ class FitNNModel(object):
         print(gauss_stds)
         X_input = eye_input_to_PC_gauss_relu(X,
                                         gauss_means, gauss_stds)
-        print("PRE fit shape". X_input.shape,)
+        print("PRE fit shape", X_input.shape,)
         # y_hat = model.predict(X_input).squeeze()
         # y_hat = X_input @ self.fit_results['gauss_basis_kinematics']['coeffs']
         # y_hat += self.fit_results['gauss_basis_kinematics']['bias']
