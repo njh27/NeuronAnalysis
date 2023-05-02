@@ -131,12 +131,13 @@ def eye_input_to_PC_gauss_relu(eye_data, gauss_means,
                                                                         dim_means,
                                                                         dim_stds)
         # Then relu activation on second 4 eye dims
-        eye_transform[:, (first_relu_ind + 2 * k)] = negative_relu(
-                                                            eye_data[:, n_eye_dims + k],
-                                                            c=0.0)
-        eye_transform[:, (first_relu_ind + (2 * k + 1))] = reflected_negative_relu(
-                                                            eye_data[:, n_eye_dims + k],
-                                                            c=0.0)
+        print("SKIPPING THE RELUS LINE 134!")
+        # eye_transform[:, (first_relu_ind + 2 * k)] = negative_relu(
+        #                                                     eye_data[:, n_eye_dims + k],
+        #                                                     c=0.0)
+        # eye_transform[:, (first_relu_ind + (2 * k + 1))] = reflected_negative_relu(
+        #                                                     eye_data[:, n_eye_dims + k],
+        #                                                     c=0.0)
     if np.any(np.any(np.isnan(eye_transform))):
         print("THERE ARE F'ing NANS here!!!!")
     return eye_transform
@@ -408,7 +409,7 @@ class FitNNModel(object):
             layers.Input(shape=(n_gaussians*4 + 8,)),
             layers.Dense(1, activation=None, kernel_constraint=constraints.NonNeg()),
         ])
-        clip_value = .01
+        clip_value = None
         optimizer = SGD(learning_rate=learning_rate, clipvalue=clip_value)
         optimizer_str = "SGD"
 
