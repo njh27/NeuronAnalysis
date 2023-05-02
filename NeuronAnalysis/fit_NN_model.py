@@ -538,7 +538,7 @@ class FitNNModel(object):
                                     vel_stds])
         else:
             gauss_stds = pos_stds
-        X_input = na.fit_NN_model.eye_input_to_PC_gauss_relu(X,
+        X_input = eye_input_to_PC_gauss_relu(X,
                                         gauss_means, gauss_stds)
         # y_hat = model.predict(X_input).squeeze()
         y_hat = X_input @ self.fit_results['gauss_basis_kinematics']['coeffs']
