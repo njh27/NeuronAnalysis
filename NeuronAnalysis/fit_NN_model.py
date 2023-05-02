@@ -347,7 +347,7 @@ class FitNNModel(object):
         if not is_multi_STD:
             if len(pos_fixed_means) > 1:
                 max_mean_step = max((pos_fixed_means[1] - pos_fixed_means[0]), (vel_fixed_means[1] - vel_fixed_means[0]))
-                std_gaussians = (pos_fixed_means[1] - pos_fixed_means[0])/2
+                std_gaussians = max_mean_step/2
                 print("Updating STDs to {0} so they pack tightly.".format(std_gaussians))
 
 
