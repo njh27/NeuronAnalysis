@@ -364,6 +364,7 @@ class FitNNModel(object):
 
 
 
+        print("USING RANDOM MEANS AND STDS!")
         is_multi_STD = True
         pos_fixed_means = np.random.uniform(-pos_range, pos_range, n_gaussians)
         pos_fixed_stds = np.random.uniform(1., 5, n_gaussians)
