@@ -539,8 +539,11 @@ class FitNNModel(object):
                                         gauss_means, gauss_stds)
         # y_hat = X_input @ self.fit_results['gauss_basis_kinematics']['coeffs']
         # y_hat += self.fit_results['gauss_basis_kinematics']['bias']
+        W = self.fit_results['gauss_basis_kinematics']['coeffs']
+        b = self.fit_results['gauss_basis_kinematics']['bias']
+        y_hat = relu(np.dot(X_input, W) + b)
         y_hat_model = self.fit_results['gauss_basis_kinematics']['model'].predict(X_input).squeeze()
-        return y_hat_model
+        return y_hat_model, yhat
 
     def predict_gauss_basis_kinematics_by_trial(self, blocks, trial_sets,
                                             test_data_only=True, verbose=False):
