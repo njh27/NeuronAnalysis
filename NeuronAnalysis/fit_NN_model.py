@@ -54,12 +54,7 @@ def bin_data(data, bin_width, bin_threshold=0):
 
 # Define Gaussian function
 def gaussian(x, mu, sigma, scale):
-    if np.any(np.any(np.isnan(x))):
-        print("FOUDN SOME Nans in the X INPUT!!!")
-    value = scale * np.exp(-( ((x - mu) ** 2) / (2*(sigma**2))) )
-    if np.any(np.any(np.isnan(value))):
-        print("FOUDN SOME Nans with Sigma {0}, and mu {1}.".format(sigma, mu))
-    return value
+    return scale * np.exp(-( ((x - mu) ** 2) / (2*(sigma**2))) )
 
 def sigmoid(x, a=1, b=0, c=1, d=0):
     return c / (1 + np.exp(-(x-b)/a)) + d
@@ -87,6 +82,60 @@ def reflected_negative_relu(x, c=0.):
     """ Basic relu function but returns negative result, reflected about y axis. """
     return np.minimum(0., x-c)
 
+
+def gen_linspace_gaussians(max_min, n_gaussians, stds_gaussians):
+    """ Returns means and standard deviations for the number of gaussians input
+    in "n_gaussians" with centers linearly spaced over max_min. """
+    if isinstance(stds_gaussians, np.ndarray):
+        if len(stds_gaussians) == 1:
+            stds_gaussians = np.full((n_gaussians, ), stds_gaussians[0])
+        if len(stds_gaussians) != n_gaussians:
+            raise ValueError("Input standard deviations must be same size as means or 1")
+    elif isinstance(stds_gaussians, list):
+        if len(stds_gaussians) == 1:
+            stds_gaussians = np.full((n_gaussians, ), stds_gaussians[0])
+        if len(stds_gaussians) != n_gaussians:
+            raise ValueError("Input standard deviations must be same size as means or 1")
+    else:
+        # We suppose gauss stds is a single numeric value
+        stds_gaussians = np.full((n_gaussians, ), stds_gaussians)
+    try:
+        if len(max_min) > 2:
+            raise ValueError("max_min must be 1 or 2 elements specifing the max and min mean for the gaussians.")
+    except TypeError:
+        # Happens if max_min does not have "len" method, usually because it's a singe number
+        max_min = [-1 * max_min, max_min]
+    means_gaussians = np.linspace(max_min[0], max_min[1], n_gaussians)
+
+    return means_gaussians, stds_gaussians
+
+
+def gen_randuniform_gaussians(mean_max_min, std_max_min, n_gaussians):
+    """ Returns means and standard deviations for the number of gaussians input
+    in "n_gaussians" with centers chosen uniform randomly over mean_max_min and
+    standard deviations selected uniform randomly over std_max_min. """
+    try:
+        if len(mean_max_min) > 2:
+            raise ValueError("mean_max_min must be 1 or 2 elements specifing the max and min mean for the gaussian means.")
+    except TypeError:
+        # Happens if mean_max_min does not have "len" method, usually because it's a singe number
+        mean_max_min = np.abs(mean_max_min)
+        mean_max_min = [-1 * mean_max_min, mean_max_min]
+    try:
+        if len(std_max_min) > 2:
+            raise ValueError("std_max_min must be 1 or 2 elements specifing the max and min mean for the gaussian STDs.")
+    except TypeError:
+        # Happens if mean_max_min does not have "len" method, usually because it's a singe number
+        std_max_min = np.abs(std_max_min)
+        std_max_min = [0.01, std_max_min]
+    # STD must be > 0
+    std_max_min[0] = max(0.01, std_max_min[0])
+    means_gaussians = np.random.uniform(mean_max_min[0], mean_max_min[1], n_gaussians)
+    stds_gaussians = np.random.uniform(std_max_min[0], std_max_min[1], n_gaussians)
+
+    return means_gaussians, stds_gaussians
+
+
 def eye_input_to_PC_gauss_relu(eye_data, gauss_means,
                                 gauss_stds):
     """ Takes the total 8 dimensional eye data input (x,y position, and
@@ -100,22 +149,10 @@ def eye_input_to_PC_gauss_relu(eye_data, gauss_means,
     n_gaussians_per_dim = int(len(gauss_means) / n_eye_dims)
     if n_gaussians_per_dim < 1:
         raise ValueError("Not enough gaussian means input to cover {0} dimensions of eye data.".format(n_eye_dims))
+    if len(gauss_means) != len(gauss_stds):
+        raise ValueError("Must input the same number of means and standard deviations but got {0} means and {1} standard deviations.".format(len(gauss_means), len(gauss_stds)))
     n_features = len(gauss_means) + 8 # Total input featur to PC is gaussians + relus
     first_relu_ind = len(gauss_means)
-    if isinstance(gauss_stds, np.ndarray):
-        if len(gauss_stds) == 1:
-            gauss_stds = np.full(gauss_means.shape, gauss_stds[0])
-        if len(gauss_stds) != len(gauss_means):
-            raise ValueError("Input standard deviations must be same size as means or 1")
-    elif isinstance(gauss_stds, list):
-        if len(gauss_stds) == 1:
-            gauss_stds = np.full(gauss_means.shape, gauss_stds[0])
-        if len(gauss_stds) != len(gauss_means):
-            raise ValueError("Input standard deviations must be same size as means or 1")
-    else:
-        # We suppose gauss stds is a single numeric value
-        gauss_stds = int(gauss_stds)
-        gauss_stds = np.full(gauss_means.shape, gauss_stds)
 
     # Transform data into "input" n_gaussians dimensional format
     # This is effectively like taking our 4 input data features and passing
@@ -137,8 +174,6 @@ def eye_input_to_PC_gauss_relu(eye_data, gauss_means,
         eye_transform[:, (first_relu_ind + (2 * k + 1))] = reflected_negative_relu(
                                                             eye_data[:, n_eye_dims + k],
                                                             c=0.0)
-    if np.any(np.any(np.isnan(eye_transform))):
-        print("THERE ARE F'ing NANS here!!!!")
     return eye_transform
 
 
@@ -232,7 +267,7 @@ class FitNNModel(object):
         ind_stop = ind_start + self.fit_dur
         return eye_data[:, ind_start:ind_stop, :]
 
-    def fit_gauss_basis_kinematics(self, n_gaussians, std_gaussians,
+    def fit_gauss_basis_kinematics(self, pos_means, pos_stds, vel_means, vel_stds,
                                     bin_width=10, bin_threshold=5,
                                     fit_avg_data=False,
                                     quick_lag_step=10,
@@ -251,23 +286,12 @@ class FitNNModel(object):
         """
         if train_split > 1.0:
             raise ValueError("Proportion to fit 'train_split' must be a value less than 1!")
+        if ( (len(pos_means) != len(pos_stds)) or (len(vel_means) != len(vel_stds)) ):
+            raise ValueError("Input means and STDs must match in length!")
 
         pf_lag, mli_lag = self.get_lags_kinematic_fit(bin_width=bin_width,
                                                 bin_threshold=bin_threshold,
                                                 quick_lag_step=quick_lag_step)
-
-        if isinstance(std_gaussians, list) or isinstance(std_gaussians, np.ndarray):
-            if len(std_gaussians) > 1:
-                if len(std_gaussians) != len(n_gaussians):
-                    raise ValueError("If inputting more than 1 gaussian STD it must be same length as n_gaussians.")
-                std_gaussians_mean = np.mean(std_gaussians)
-                is_multi_STD = True
-            else:
-                std_gaussians_mean = std_gaussians
-                is_multi_STD = False
-        else:
-            std_gaussians_mean = std_gaussians
-            is_multi_STD = False
 
         # Setup all the indices for which trials we will be using and which
         # subset of trials will be used as training vs. test data
@@ -327,77 +351,28 @@ class FitNNModel(object):
         bin_eye_data_train = bin_eye_data_train[select_good_train, :]
         binned_FR_train = binned_FR_train[select_good_train]
 
-        if np.any(np.any(np.isnan(bin_eye_data_train))):
-            raise ValueError("THere are nans in the eye data!")
-
         select_good_test = np.logical_and(~np.any(np.isnan(bin_eye_data_test), axis=1), FR_select_test)
         bin_eye_data_test = bin_eye_data_test[select_good_test, :]
         binned_FR_test = binned_FR_test[select_good_test]
 
         """ Now data are setup and formated, we need to transform them into the
         input Gaussian space that spans position and velocity. """
-        # Find max position and velocity values so we can pick appropriate Gaussian centers
-        if is_test_data:
-            max_abs_eye = np.maximum(np.nanmax(np.abs(bin_eye_data_train), axis=0), np.nanmax(np.abs(bin_eye_data_test), axis=0))
-        else:
-            # bin_eye_data_test is empty so skip it
-            max_abs_eye = np.nanmax(np.abs(bin_eye_data_train), axis=0)
-        max_abs_pos = max(np.amax(max_abs_eye[0:2]), np.amax(max_abs_eye[4:6]))
-        max_abs_vel = max(np.amax(max_abs_eye[2:4]), np.amax(max_abs_eye[6:8]))
-        pos_range = np.ceil(max_abs_pos + std_gaussians_mean/2)
-        vel_range = np.ceil(max_abs_vel + std_gaussians_mean/2)
-        print("Set pos_range to: ", pos_range, "and vel range to: ", vel_range)
-
-        # Set up the basic values and fit function for basis set
-        # Use inputs to set these variables and keep in scope for wrapper
-        pos_fixed_means = np.linspace(-pos_range, pos_range, n_gaussians)
-        vel_fixed_means = np.linspace(-vel_range, vel_range, n_gaussians)
-        gauss_means = np.hstack([pos_fixed_means,
-                                 pos_fixed_means,
-                                 vel_fixed_means,
-                                 vel_fixed_means])
-        if not is_multi_STD:
-            if len(pos_fixed_means) > 1:
-                max_mean_step = max((pos_fixed_means[1] - pos_fixed_means[0]), (vel_fixed_means[1] - vel_fixed_means[0]))
-                std_gaussians = max(max_mean_step, 1)
-                print("Updating STDs to {0} so they pack tightly.".format(std_gaussians))
-                pos_fixed_stds = std_gaussians
-                vel_fixed_stds = std_gaussians
-        else:
-            pos_fixed_stds = std_gaussians
-            vel_fixed_stds = std_gaussians
-            std_gaussians = np.hstack([pos_fixed_stds,
-                                       pos_fixed_stds,
-                                       vel_fixed_stds,
-                                       vel_fixed_stds])
-
-
-
-        print("USING RANDOM MEANS AND STDS!")
-        is_multi_STD = True
-        pos_fixed_means = np.random.uniform(-pos_range, pos_range, n_gaussians)
-        pos_fixed_stds = np.random.uniform(1., 5, n_gaussians)
-        vel_fixed_means = np.random.uniform(-vel_range, vel_range, n_gaussians)
-        vel_fixed_stds = np.random.uniform(1., 5, n_gaussians)
-        # Reformat gaussins for input transform
-        gauss_means = np.hstack([pos_fixed_means,
-                                 pos_fixed_means,
-                                 vel_fixed_means,
-                                 vel_fixed_means])
-        std_gaussians = np.hstack([pos_fixed_stds,
-                                   pos_fixed_stds,
-                                   vel_fixed_stds,
-                                   vel_fixed_stds])
-
-
-
-
-
+        # First need to stack means and STDs for conversion function
+        gauss_means = np.hstack([pos_means,
+                                 pos_means,
+                                 vel_means,
+                                 vel_means])
+        gauss_stds = np.hstack([pos_stds,
+                                pos_stds,
+                                vel_stds,
+                                vel_stds])
+        n_gaussians = len(gauss_means)
+        # Now implement the input layer activation function
         eye_input_train = eye_input_to_PC_gauss_relu(bin_eye_data_train,
-                                        gauss_means, std_gaussians)
+                                        gauss_means, gauss_stds)
         if is_test_data:
             eye_input_test = eye_input_to_PC_gauss_relu(bin_eye_data_test,
-                                            gauss_means, std_gaussians)
+                                            gauss_means, gauss_stds)
             val_data = (eye_input_test, binned_FR_test)
         else:
             eye_input_test = []
@@ -405,10 +380,10 @@ class FitNNModel(object):
 
         # Create the neural network model
         model = models.Sequential([
-            layers.Input(shape=(n_gaussians*4 + 8,)),
-            layers.Dense(1, activation=None, kernel_constraint=constraints.NonNeg()),
+            layers.Input(shape=(n_gaussians + 8,)),
+            layers.Dense(1, activation="relu", kernel_constraint=constraints.NonNeg()),
         ])
-        clip_value = 1e-8
+        clip_value = None
         optimizer = SGD(learning_rate=learning_rate, clipvalue=clip_value)
         optimizer_str = "SGD"
 
@@ -438,11 +413,10 @@ class FitNNModel(object):
                                 'coeffs': model.layers[0].get_weights()[0],
                                 'bias': model.layers[0].get_weights()[1],
                                 'n_gaussians': n_gaussians,
-                                'pos_means': pos_fixed_means,
-                                'pos_stds': pos_fixed_stds,
-                                'vel_means': vel_fixed_means,
-                                'vel_stds': vel_fixed_stds,
-                                'is_multi_STD': is_multi_STD,
+                                'pos_means': pos_means,
+                                'pos_stds': pos_stds,
+                                'vel_means': vel_means,
+                                'vel_stds': vel_stds,
                                 'R2': None,
                                 'predict_fun': self.predict_gauss_basis_kinematics,
                                 'fit_trial_set': fit_trial_set,
@@ -452,26 +426,25 @@ class FitNNModel(object):
                                 'train_loss': train_loss,
                                 'model': model}
         # Compute R2
-        # print("STARTING R2 HERE !")
-        # if self.fit_results['gauss_basis_kinematics']['is_test_data']:
-        #     test_firing_rate = firing_rate[~select_fit_trials, :]
-        # else:
-        #     # If no test data are available, you need to just compute over all data
-        #     test_firing_rate = firing_rate[select_fit_trials, :]
-        # if fit_avg_data:
-        #     test_lag_data = self.get_gauss_basis_kinematics_predict_data_mean(
-        #                             self.blocks, self.trial_sets, test_data_only=test_data_only, verbose=False)
-        #     y_predicted = self.predict_gauss_basis_kinematics(test_lag_data)
-        #     test_mean_rate = np.nanmean(test_firing_rate, axis=0, keepdims=True)
-        #     sum_squares_error = np.nansum((test_mean_rate - y_predicted) ** 2)
-        #     sum_squares_total = np.nansum((test_mean_rate - np.nanmean(test_mean_rate)) ** 2)
-        # else:
-        #     y_predicted = self.predict_gauss_basis_kinematics_by_trial(
-        #                             self.blocks, self.trial_sets, test_data_only=test_data_only, verbose=False)
-        #     sum_squares_error = np.nansum((test_firing_rate - y_predicted) ** 2)
-        #     sum_squares_total = np.nansum((test_firing_rate - np.nanmean(test_firing_rate)) ** 2)
-        #     print(sum_squares_error, sum_squares_total)
-        # self.fit_results['gauss_basis_kinematics']['R2'] = 1 - sum_squares_error/(sum_squares_total)
+        if self.fit_results['gauss_basis_kinematics']['is_test_data']:
+            test_firing_rate = firing_rate[~select_fit_trials, :]
+        else:
+            # If no test data are available, you need to just compute over all data
+            test_firing_rate = firing_rate[select_fit_trials, :]
+        if fit_avg_data:
+            test_lag_data = self.get_gauss_basis_kinematics_predict_data_mean(
+                                    self.blocks, self.trial_sets, test_data_only=test_data_only, verbose=False)
+            y_predicted = self.predict_gauss_basis_kinematics(test_lag_data)
+            test_mean_rate = np.nanmean(test_firing_rate, axis=0, keepdims=True)
+            sum_squares_error = np.nansum((test_mean_rate - y_predicted) ** 2)
+            sum_squares_total = np.nansum((test_mean_rate - np.nanmean(test_mean_rate)) ** 2)
+        else:
+            y_predicted = self.predict_gauss_basis_kinematics_by_trial(
+                                    self.blocks, self.trial_sets, test_data_only=test_data_only, verbose=False)
+            sum_squares_error = np.nansum((test_firing_rate - y_predicted) ** 2)
+            sum_squares_total = np.nansum((test_firing_rate - np.nanmean(test_firing_rate)) ** 2)
+            print(sum_squares_error, sum_squares_total)
+        self.fit_results['gauss_basis_kinematics']['R2'] = 1 - sum_squares_error/(sum_squares_total)
 
         return
 
@@ -558,24 +531,16 @@ class FitNNModel(object):
                                  vel_means])
         pos_stds = self.fit_results['gauss_basis_kinematics']['pos_stds']
         vel_stds = self.fit_results['gauss_basis_kinematics']['vel_stds']
-        if self.fit_results['gauss_basis_kinematics']['is_multi_STD']:
-            gauss_stds = np.hstack([pos_stds,
-                                    pos_stds,
-                                    vel_stds,
-                                    vel_stds])
-        else:
-            gauss_stds = pos_stds
+        gauss_stds = np.hstack([pos_stds,
+                                pos_stds,
+                                vel_stds,
+                                vel_stds])
         X_input = eye_input_to_PC_gauss_relu(X,
                                         gauss_means, gauss_stds)
-
-
-        if np.any(np.any(np.isnan(X_input))):
-            raise ValueError("NANS ARE IN THIS INPUT!")
-        # y_hat = model.predict(X_input).squeeze()
         # y_hat = X_input @ self.fit_results['gauss_basis_kinematics']['coeffs']
         # y_hat += self.fit_results['gauss_basis_kinematics']['bias']
-        y_hat = self.fit_results['gauss_basis_kinematics']['model'].predict(X_input).squeeze()
-        return y_hat
+        y_hat_model = self.fit_results['gauss_basis_kinematics']['model'].predict(X_input).squeeze()
+        return y_hat_model
 
     def predict_gauss_basis_kinematics_by_trial(self, blocks, trial_sets,
                                             test_data_only=True, verbose=False):
