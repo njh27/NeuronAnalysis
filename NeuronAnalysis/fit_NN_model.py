@@ -541,7 +541,7 @@ class FitNNModel(object):
         # y_hat += self.fit_results['gauss_basis_kinematics']['bias']
         W = self.fit_results['gauss_basis_kinematics']['coeffs']
         b = self.fit_results['gauss_basis_kinematics']['bias']
-        y_hat = relu(np.dot(X_input, W) + b)
+        y_hat = np.maximum(0, np.dot(X_input, W) + b)
         y_hat_model = self.fit_results['gauss_basis_kinematics']['model'].predict(X_input).squeeze()
         return y_hat_model, yhat
 
