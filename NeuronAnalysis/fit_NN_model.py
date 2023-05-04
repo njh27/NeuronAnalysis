@@ -448,6 +448,103 @@ class FitNNModel(object):
 
         return
 
+    def fit_learning_rates(self, blocks, trial_sets, bin_width=10, bin_threshold=5):
+    """ Need the trials from blocks and trial_sets to be ORDERED! """
+
+        ftol=1e-8
+        xtol=1e-8
+        gtol=1e-8
+        max_nfev=200000
+        loss='linear'
+
+        """ Get all the binned eye data """
+        bin_eye_data =
+
+        # Need the means and stds for converting state to input
+        pos_means = self.fit_results['gauss_basis_kinematics']['pos_means']
+        vel_means = self.fit_results['gauss_basis_kinematics']['vel_means']
+        gauss_means = np.hstack([pos_means,
+                                 pos_means,
+                                 vel_means,
+                                 vel_means])
+        pos_stds = self.fit_results['gauss_basis_kinematics']['pos_stds']
+        vel_stds = self.fit_results['gauss_basis_kinematics']['vel_stds']
+        gauss_stds = np.hstack([pos_stds,
+                                pos_stds,
+                                vel_stds,
+                                vel_stds])
+
+        # Defining learning function within scope so we have access to "self"
+        # and specifically the weights. Get here to save space
+        W = np.zeros(self.fit_results['gauss_basis_kinematics']['coeffs'].shape)
+        W_0 = self.fit_results['gauss_basis_kinematics']['coeffs']
+        b = self.fit_results['gauss_basis_kinematics']['bias']
+        n_trials = 1# Total number of trials to fit
+        n_obs_pt = 1# Number of observations per trial
+        def learning_function(x, *params):
+            """ Defines the model we are fitting to the data """
+            # Separate behavior state from CS inputs
+            state = x[:, 0:-1]
+            CS = x[:, -1]
+            y_hat = np.zeros(x.shape[0])
+            # Reset weights to initial fit values
+            W[:] = self.fit_results['gauss_basis_kinematics']['coeffs']
+            alpha = params[0]
+            beta = params[1]
+            for trial in range(0, n_trials):
+                x_trial = x[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
+
+                # Convert state to input layer activations
+                X_input = eye_input_to_PC_gauss_relu(x_trial,
+                                                gauss_means, gauss_stds)
+                # Expected rate this trial given updated weights
+                # Use maximum here because of relu activation of output
+                y_hat_trial = np.maximum(0, np.dot(X_input, W) + b)
+                # Store prediction for current trial
+                y_hat[trial*n_obs_pt:(trial + 1)*n_obs_pt] = y_hat_trial
+                # Update weights for next trial based on activations in this trial
+                CS_trial = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt] # CS for this trial
+                CS_on_Inputs = np.dot(CS_trial, X_input) # Sum of CS over activation for each input unit
+                # W += ( alpha * W * X_input - beta * CS * X_input )
+                """ CS only learning with no LTP! """
+                W += ( alpha * (W - W_0) - beta * CS_on_Inputs )
+
+            return y_hat
+
+        gauss_max_weight = np.inf
+        # p0_V = np.abs(np.linspace(-gauss_max_weight, gauss_max_weight, n_gaussians))
+        if p0 is None:
+            # curve_fit seems unable to figure out how many parameters without setting this
+            p0 = np.ones(4*n_gaussians + 4*2 + 1)
+            # Initialize each gaussian basis set axis weights
+            for k_dim in range(0, 4):
+                p0_V = np.random.randn(n_gaussians) * 5 + 25
+                p0_V[p0_V < 0.] = 0.
+                p0[k_dim * n_gaussians:(k_dim + 1) * n_gaussians] = p0_V
+            p0[-1] = 75
+        # Set lower and upper bounds for each parameter
+        lower_bounds = np.zeros(p0.shape)
+        upper_bounds = np.inf * np.ones(p0.shape)
+        lower_bounds[0:4*n_gaussians] = 0.
+        upper_bounds[0:4*n_gaussians] = gauss_max_weight
+        lower_bounds[4*n_gaussians:4*n_gaussians + 4*2] = np.array([0, -np.inf, 0, -np.inf, 0, -np.inf, 0, -np.inf])
+        upper_bounds[4*n_gaussians:4*n_gaussians + 4*2] = np.array([1, np.inf, 1, np.inf, 1, np.inf, 1, np.inf])
+        lower_bounds[-1] = 0
+        upper_bounds[-1] = 200
+
+        """ INPUT NEEDS TO BE BIN EYE DATA WITH A LAST COLUMN OF CS APPENDED! """
+        # Fit the Gaussian basis set to the data
+        popt, pcov = curve_fit(pc_model_response_fun, bin_eye_data,
+                                binned_FR, p0=p0,
+                                bounds=(lower_bounds, upper_bounds),
+                                ftol=ftol,
+                                xtol=xtol,
+                                gtol=gtol,
+                                max_nfev=max_nfev,
+                                loss=loss)
+
+
+
     def get_gauss_basis_kinematics_predict_data_trial(self, blocks, trial_sets,
                                                       return_shape=False,
                                                       test_data_only=True,
