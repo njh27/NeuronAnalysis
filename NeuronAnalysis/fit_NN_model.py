@@ -952,9 +952,9 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
     # Get weights in a single matrix to pass through here
     W_trial = np.zeros((X_trial.shape[0], weights_by_trial[t_inds[0]].shape[0]))
     # Go through t_nums IN ORDER
-    for t in t_inds:
+    for t_i, t in enumerate(t_inds):
         try:
-            W_trial[t, :] = weights_by_trial[t].squeeze()
+            W_trial[t_i, :] = weights_by_trial[t].squeeze()
         except KeyError:
             raise ValueError("weights by trial does not contain weights for requested trial number {0}.".format(t))
     y_hat = comp_learning_response(NN_FIT, X_trial, W_trial)
