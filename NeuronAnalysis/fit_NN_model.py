@@ -930,7 +930,7 @@ def comp_learning_response(NN_FIT, X_trial, W_trial):
     y_hat = np.zeros((X_trial.shape[0], X_trial.shape[1]))
     W = np.copy(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'])
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
-    for t_ind in range(0, X.shape[0]):
+    for t_ind in range(0, X_trial.shape[0]):
         # Transform X_data for this trial into input space
         X_input = eye_input_to_PC_gauss_relu(X_trial[t_ind, :, :],
                                         gauss_means, gauss_stds)
