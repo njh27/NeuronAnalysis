@@ -128,7 +128,7 @@ def gen_randuniform_gaussians(mean_max_min, std_max_min, n_gaussians):
     except TypeError:
         # Happens if mean_max_min does not have "len" method, usually because it's a singe number
         std_max_min = np.abs(std_max_min)
-        std_max_min = [0.01, std_max_min]
+        std_max_min = [1, std_max_min]
     # STD must be > 0
     std_max_min[0] = max(0.01, std_max_min[0])
     means_gaussians = np.random.uniform(mean_max_min[0], mean_max_min[1], n_gaussians)
