@@ -1009,7 +1009,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
 
             LTP_trial = np.mod(CS_on_Inputs + 1, 2) # Opposite 1's and 0's as CS
             LTP_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
-            W += ( alpha * W * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None])
+            W += ( alpha * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None] )
 
             """ CS only learning with no LTP! """
             # W += ( (1 + 1/alpha) * (W - W_0) - (1 - 1/beta) * CS_on_Inputs[:, None] )
@@ -1132,7 +1132,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
 
         LTP_trial = np.mod(CS_on_Inputs + 1, 2) # Opposite 1's and 0's as CS
         LTP_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
-        W += ( alpha * W * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None])
+        W += ( alpha * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None] )
 
         """ CS only learning with no LTP! """
         # W += ( (1 + 1/alpha) * (W - W_0) - (1 - 1/beta) * CS_on_Inputs[:, None] )
