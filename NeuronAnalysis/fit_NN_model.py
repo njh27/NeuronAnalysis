@@ -1003,6 +1003,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                             bin_eye_data.shape[2], order='C')
     # Make an index of all nans that we can use in objective function to set
     # the unit activations to 0.0
+    print(bin_eye_data.shape, binned_FR.shape, binned_CS.shape)
     eye_is_nan = np.any(np.isnan(bin_eye_data), axis=1)
     # Firing rate data is only NaN where data for a trial does not cover NN_FIT.time_window
     # So we need to find this separate from saccades and can set to 0.0 to ignore
