@@ -457,8 +457,41 @@ class FitNNModel(object):
         max_nfev=200000
         loss='linear'
 
+        """ Get all the binned firing rate data """
+        firing_rate, all_t_inds = self.neuron.get_firing_traces(self.time_window,
+                                            blocks, trial_sets, return_inds=True)
+        CS_bin_evts = self.neuron.get_CS_dataseries_by_trial(self.time_window,
+                                    blocks, trial_sets, nan_sacc=False)
+
+        """ Here we have to do some work to get all the data in the correct format """
+        # First get all firing rate data, bin and format
+        binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
+        binned_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
+
+        # And for CSs
+        binned_CS = bin_data(CS_bin_evts, bin_width, bin_threshold)
+        # Convert to binary instead of binned average
+        binned_CS[binned_CS > 0.0] = 1.0
+        binned_CS = binned_CS.reshape(binned_CS.shape[0]*binned_CS.shape[1], order='C')
+
         """ Get all the binned eye data """
-        bin_eye_data =
+        eye_data, initial_shape = self.get_gauss_basis_kinematics_predict_data_trial(
+                                        self,
+                                        blocks, trial_sets,
+                                        return_shape=True, test_data_only=False)
+        eye_data = eye_data.reshape(initial_shape)
+        # Use bin smoothing on data before fitting
+        bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
+        # Observations defined after binning
+        n_trials = bin_eye_data[0] # Total number of trials to fit
+        n_obs_pt = bin_eye_data[1] # Number of observations per trial
+        # Reshape to 2D matrix
+        bin_eye_data = bin_eye_data.reshape(
+                                bin_eye_data.shape[0]*bin_eye_data.shape[1],
+                                bin_eye_data.shape[2], order='C')
+        # Make an index of all nans that we can use in objective function to set
+        # the unit activations to 0.0
+        eye_is_nan = np.any(np.isnan(bin_eye_data), axis=1)
 
         # Need the means and stds for converting state to input
         pos_means = self.fit_results['gauss_basis_kinematics']['pos_means']
@@ -479,8 +512,6 @@ class FitNNModel(object):
         W = np.zeros(self.fit_results['gauss_basis_kinematics']['coeffs'].shape)
         W_0 = self.fit_results['gauss_basis_kinematics']['coeffs']
         b = self.fit_results['gauss_basis_kinematics']['bias']
-        n_trials = 1# Total number of trials to fit
-        n_obs_pt = 1# Number of observations per trial
         def learning_function(x, *params):
             """ Defines the model we are fitting to the data """
             # Separate behavior state from CS inputs
@@ -493,10 +524,14 @@ class FitNNModel(object):
             beta = params[1]
             for trial in range(0, n_trials):
                 x_trial = x[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
+                eye_is_nan_trial = eye_is_nan[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Nan state points for this trial
 
                 # Convert state to input layer activations
                 X_input = eye_input_to_PC_gauss_relu(x_trial,
                                                 gauss_means, gauss_stds)
+                # Set inputs derived from nan points to 0.0 so that the weights
+                # for these states are not affected during nans
+                X_input[eye_is_nan_trial, :] = 0.0
                 # Expected rate this trial given updated weights
                 # Use maximum here because of relu activation of output
                 y_hat_trial = np.maximum(0, np.dot(X_input, W) + b)
@@ -507,34 +542,22 @@ class FitNNModel(object):
                 CS_on_Inputs = np.dot(CS_trial, X_input) # Sum of CS over activation for each input unit
                 # W += ( alpha * W * X_input - beta * CS * X_input )
                 """ CS only learning with no LTP! """
-                W += ( alpha * (W - W_0) - beta * CS_on_Inputs )
+                W += ( (1 + 1/alpha) * (W - W_0) - (1 - 1/beta) * CS_on_Inputs )
 
+            # Set nan y_hat values to be equal to observed so the error
+            # contribution is zero
+            y_hat[eye_is_nan] = binned_FR[eye_is_nan]
             return y_hat
 
-        gauss_max_weight = np.inf
-        # p0_V = np.abs(np.linspace(-gauss_max_weight, gauss_max_weight, n_gaussians))
-        if p0 is None:
-            # curve_fit seems unable to figure out how many parameters without setting this
-            p0 = np.ones(4*n_gaussians + 4*2 + 1)
-            # Initialize each gaussian basis set axis weights
-            for k_dim in range(0, 4):
-                p0_V = np.random.randn(n_gaussians) * 5 + 25
-                p0_V[p0_V < 0.] = 0.
-                p0[k_dim * n_gaussians:(k_dim + 1) * n_gaussians] = p0_V
-            p0[-1] = 75
+        p0 = np.array([100, 20])
         # Set lower and upper bounds for each parameter
-        lower_bounds = np.zeros(p0.shape)
-        upper_bounds = np.inf * np.ones(p0.shape)
+        lower_bounds = np.array([1, 1])
+        upper_bounds = np.array([np.inf, np.inf])
         lower_bounds[0:4*n_gaussians] = 0.
-        upper_bounds[0:4*n_gaussians] = gauss_max_weight
-        lower_bounds[4*n_gaussians:4*n_gaussians + 4*2] = np.array([0, -np.inf, 0, -np.inf, 0, -np.inf, 0, -np.inf])
-        upper_bounds[4*n_gaussians:4*n_gaussians + 4*2] = np.array([1, np.inf, 1, np.inf, 1, np.inf, 1, np.inf])
-        lower_bounds[-1] = 0
-        upper_bounds[-1] = 200
-
         """ INPUT NEEDS TO BE BIN EYE DATA WITH A LAST COLUMN OF CS APPENDED! """
+        fit_inputs = np.hstack([bin_eye_data, binned_CS])
         # Fit the Gaussian basis set to the data
-        popt, pcov = curve_fit(pc_model_response_fun, bin_eye_data,
+        popt, pcov = curve_fit(learning_function, fit_inputs,
                                 binned_FR, p0=p0,
                                 bounds=(lower_bounds, upper_bounds),
                                 ftol=ftol,
@@ -542,6 +565,8 @@ class FitNNModel(object):
                                 gtol=gtol,
                                 max_nfev=max_nfev,
                                 loss=loss)
+
+        return popt, pcov
 
 
 

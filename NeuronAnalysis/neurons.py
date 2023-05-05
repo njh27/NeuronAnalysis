@@ -363,6 +363,43 @@ class PurkinjeCell(Neuron):
             n_CS += len(t_cs)
         self.p_CS_per_ms = n_CS / (trial_duration * len(cs_by_trial))
 
+    def get_CS_dataseries_by_trial(self, time_window, blocks=None,
+                                        trial_sets=None, nan_sacc=False):
+        """ Returns a n trials by t time points numpy array of the CS events in
+        ._timeseries.dt width bins. The series is a 1 if a spike was in that bin
+        and 0 otherwise. """
+        # get_cs_by_trial calls self.append_valid_trial_set(trial_sets)
+        cs_by_trial, cs_t_inds = self.get_cs_by_trial(time_window, blocks=blocks,
+                                            trial_sets=trial_sets,
+                                            return_inds=True)
+        CS_dataseries_by_trial = np.zeros((len(cs_by_trial), time_window[1] - time_window[0]))
+        if nan_sacc:
+            pos_p, pos_l = self.session.get_xy_traces("eye position",
+                                    time_window, blocks, cs_t_inds,
+                                    return_inds=False)
+            is_pos_nan = np.isnan(pos_p)
+        else:
+            is_pos_nan = np.zeros(CS_by_trial.shape, dtype='bool')
+        # Just need to find data dt for one trial and all should be the same
+        for t_num in range(0, len(self.session)):
+            try:
+                dt_data = self.session['neurons'][t_num]._timeseries.dt
+                # Got a dt
+                break
+            except:
+                # set to default of 1 in case this doesn't work for some reason
+                dt_data = 1.0
+                # dt_data not found for whatever reason so keep trying
+                continue
+        # Go through all CS
+        for t_cs_ind, t_cs in enumerate(cs_by_trial):
+            if len(t_cs) == 0:
+                continue
+            # Bin CS into 1 ms bins
+            CS_dataseries_by_trial[t_cs_ind, np.int32(np.floor( (np.array(t_cs) / dt_data) - time_window[0]))] = 1.0
+            CS_dataseries_by_trial[t_cs_ind, is_pos_nan[t_cs_ind, :]] = 0.
+        return CS_dataseries_by_trial
+
     def get_gauss_convolved_CS_by_trial(self, time_window, blocks=None,
                                         trial_sets=None, sigma=50,
                                         cutoff_sigma=4,
