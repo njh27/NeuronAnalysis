@@ -707,7 +707,7 @@ class FitNNModel(object):
         eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
         if return_shape and return_t_inds:
             return eye_data, initial_shape, t_inds
-        elif: return_shape and not return_t_inds:
+        elif return_shape and not return_t_inds:
             return eye_data, initial_shape
         elif not return_shape and return_t_inds:
             return eye_data, t_inds
