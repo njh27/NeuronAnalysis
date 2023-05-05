@@ -551,10 +551,12 @@ class FitNNModel(object):
                 state_input = state_input[:, 0:n_gaussians]
                 CS_trial = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt] # CS for this trial
                 CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
-                # W += ( alpha * W * X_input - beta * CS * X_input )
+
+
+                W += ( alpha * W * X_input - beta * CS_on_Inputs[:, None])
                 """ CS only learning with no LTP! """
                 # W += ( (1 + 1/alpha) * (W - W_0) - (1 - 1/beta) * CS_on_Inputs[:, None] )
-                W += ( alpha * (W_0 - W) - beta * CS_on_Inputs[:, None] )
+                # W += ( alpha * (W_0 - W) - beta * CS_on_Inputs[:, None] )
                 W_full[0:n_gaussians] = W
             missing_y_hat = np.isnan(y_hat)
             residuals = (y[~missing_y_hat] - y_hat[~missing_y_hat]) ** 2
@@ -563,7 +565,7 @@ class FitNNModel(object):
         p0 = np.array([0.001, 0.005])
         # Set lower and upper bounds for each parameter
         lower_bounds = np.array([0, 0])
-        upper_bounds = np.array([np.inf, np.inf])
+        upper_bounds = np.array([1, 1])
         """ INPUT NEEDS TO BE BIN EYE DATA WITH A LAST COLUMN OF CS APPENDED! """
 
         # return bin_eye_data, binned_CS, binned_FR, p0, lower_bounds, upper_bounds, n_trials, n_obs_pt, eye_is_nan, gauss_means, gauss_stds
@@ -670,10 +672,10 @@ class FitNNModel(object):
             # Update weights for next trial based on activations in this trial
             CS_trial = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # CS for this trial
             CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
-            # W += ( alpha * W * X_input - beta * CS * X_input )
+            W += ( alpha * W * X_input - beta * CS_on_Inputs[:, None] )
             """ CS only learning with no LTP! """
             # W += ( (1 + 1/alpha) * (W - W_0) - (1 - 1/beta) * CS_on_Inputs[:, None] )
-            W += ( alpha * (W_0 - W) - beta * CS_on_Inputs[:, None] )
+            # W += ( alpha * (W_0 - W) - beta * CS_on_Inputs[:, None] )
 
         return weights_by_trial
 
