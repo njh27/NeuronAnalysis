@@ -1175,7 +1175,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
     W[:] = W_0 # Initialize storage to start values
     # return state, CS, alpha, beta, W, W_0, eye_is_nan, gauss_means, gauss_stds, n_trials, n_obs_pt
     for trial_ind, trial_num in zip(range(0, n_trials), all_t_inds):
-        weights_by_trial[trial_num][:] = W # Copy W for this trial, befoe updating at end of loop
+        weights_by_trial[trial_num][:] = W.squeeze() # Copy W for this trial, befoe updating at end of loop
         state_trial = state[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt, :] # State for this trial
         eye_is_nan_trial = eye_is_nan[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Nan state points for this trial
         # Convert state to input layer activations
