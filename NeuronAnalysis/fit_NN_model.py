@@ -948,7 +948,7 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
                             verbose=verbose)
 
     # Get weights in a single matrix to pass through here
-    W_trial = np.zeros(X.shape[0], weights_by_trial[t_inds[0]].shape[0])
+    W_trial = np.zeros((X.shape[0], weights_by_trial[t_inds[0]].shape[0]))
     # Go through t_nums IN ORDER
     for t in t_inds:
         try:
