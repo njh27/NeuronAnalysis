@@ -936,7 +936,7 @@ def comp_learning_response(NN_FIT, X_trial, W_trial):
                                         gauss_means, gauss_stds)
         # Each trial update the Gaussian weights for W, but not MLI weights
         W[0:n_guassians, 0] = W_trial[t_ind, :]
-        y_hat[t_ind, :] = np.maximum(0., np.dot(X_input, W) + b)
+        y_hat[t_ind, :] = np.maximum(0., np.dot(X_input, W) + b).squeeze()
     return y_hat
 
 
