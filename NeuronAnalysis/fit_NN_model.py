@@ -682,6 +682,7 @@ class FitNNModel(object):
     def get_gauss_basis_kinematics_predict_data_trial(self, blocks, trial_sets,
                                                       return_shape=False,
                                                       test_data_only=True,
+                                                      return_inds=False,
                                                       verbose=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
         way that it can be used to predict firing rate according to the linear
@@ -693,8 +694,9 @@ class FitNNModel(object):
                 trial_sets = trial_sets + [self.fit_results['gauss_basis_kinematics']['test_trial_set']]
             else:
                 print("No test trials are available. Returning everything.")
-        eye_data_pf = self.get_eye_data_traces(blocks, trial_sets,
-                            self.fit_results['gauss_basis_kinematics']['pf_lag'])
+        eye_data_pf, t_inds = self.get_eye_data_traces(blocks, trial_sets,
+                            self.fit_results['gauss_basis_kinematics']['pf_lag'],
+                            return_inds=True)
         eye_data_mli = self.get_eye_data_traces(blocks, trial_sets,
                             self.fit_results['gauss_basis_kinematics']['mli_lag'])
 
@@ -703,8 +705,12 @@ class FitNNModel(object):
         eye_data = np.concatenate((eye_data_pf, eye_data_mli), axis=2)
         initial_shape = eye_data.shape
         eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
-        if return_shape:
+        if return_shape and return_t_inds:
+            return eye_data, initial_shape, t_inds
+        elif: return_shape and not return_t_inds:
             return eye_data, initial_shape
+        elif not return_shape and return_t_inds:
+            return eye_data, t_inds
         else:
             return eye_data
 
@@ -899,6 +905,59 @@ class FitNNModel(object):
         return vel_vals, fr_hat_mat
 
 
+
+
+def comp_learning_response(NN_FIT, X, W_trial):
+    """
+    """
+    if X.shape[1] != 8:
+        raise ValueError("Gaussian basis kinematics model is fit for 8 data dimensions but input data dimension is {0}.".format(X.shape[1]))
+
+    pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
+    vel_means = NN_FIT.fit_results['gauss_basis_kinematics']['vel_means']
+    gauss_means = np.hstack([pos_means,
+                             pos_means,
+                             vel_means,
+                             vel_means])
+    pos_stds = NN_FIT.fit_results['gauss_basis_kinematics']['pos_stds']
+    vel_stds = NN_FIT.fit_results['gauss_basis_kinematics']['vel_stds']
+    gauss_stds = np.hstack([pos_stds,
+                            pos_stds,
+                            vel_stds,
+                            vel_stds])
+    X_input = eye_input_to_PC_gauss_relu(X,
+                                    gauss_means, gauss_stds)
+    n_guassians = len(gauss_means)
+    y_hat = np.zeros(X.shape[0])
+    W = np.copy(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'])
+    b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
+    for t_ind in range(0, X.shape[0]):
+        # Each trial update the Gaussian weights for W, but not MLI weights
+        W[0:n_guassians] = W_trial[t_ind, :]
+        y_hat[t_ind, :] = np.maximum(0., np.dot(X_input[t_ind, :], W) + b)
+    return y_hat
+
+
+def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_trial,
+                                        test_data_only=True, verbose=False):
+    """
+    """
+    X, init_shape, t_inds = NN_FIT.get_gauss_basis_kinematics_predict_data_trial(
+                            blocks, trial_sets, return_shape=True,
+                            test_data_only=test_data_only, return_inds=True,
+                            verbose=verbose)
+
+    # Get weights in a single matrix to pass through here
+    W_trial = np.zeros(X.shape[0], weights_by_trial[t_inds[0]].shape[0])
+    # Go through t_nums IN ORDER
+    for t in t_inds:
+        try:
+            W_trial[t, :] = weights_by_trial[t]
+        except KeyError:
+            raise ValueError("weights by trial does not contain weights for requested trial number {0}.".format(t))
+    y_hat = comp_learning_response(NN_FIT, X, W_trial)
+
+    return y_hat
 
 
 def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5):
