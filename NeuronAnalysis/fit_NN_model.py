@@ -1010,7 +1010,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             LTP_trial = np.mod(CS_on_Inputs + 1, 2) # Opposite 1's and 0's as CS
             LTP_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
             W += ( alpha * W * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None])
-            
+
             """ CS only learning with no LTP! """
             # W += ( (1 + 1/alpha) * (W - W_0) - (1 - 1/beta) * CS_on_Inputs[:, None] )
             # W += ( alpha * (W_0 - W) - beta * CS_on_Inputs[:, None] )
@@ -1114,7 +1114,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
     beta = NN_FIT.fit_results['gauss_basis_kinematics']['beta']
     W = np.zeros(W_0.shape) # Place to store updating result and copy to output
     W[:] = W_0 # Initialize storage to start values
-    return state, CS, alpha, beta, W, W_0, eye_is_nan, gauss_means, gauss_stds, n_trials, n_obs_pt
+    # return state, CS, alpha, beta, W, W_0, eye_is_nan, gauss_means, gauss_stds, n_trials, n_obs_pt
     for trial_ind, trial_num in zip(range(0, n_trials), all_t_inds):
         weights_by_trial[trial_num][:] = W # Copy W for this trial, befoe updating at end of loop
         state_trial = state[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt, :] # State for this trial
