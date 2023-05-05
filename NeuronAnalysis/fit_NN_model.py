@@ -705,11 +705,11 @@ class FitNNModel(object):
         eye_data = np.concatenate((eye_data_pf, eye_data_mli), axis=2)
         initial_shape = eye_data.shape
         eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
-        if return_shape and return_t_inds:
+        if return_shape and return_inds:
             return eye_data, initial_shape, t_inds
-        elif return_shape and not return_t_inds:
+        elif return_shape and not return_inds:
             return eye_data, initial_shape
-        elif not return_shape and return_t_inds:
+        elif not return_shape and return_inds:
             return eye_data, t_inds
         else:
             return eye_data
@@ -939,7 +939,7 @@ def comp_learning_response(NN_FIT, X, W_trial):
 
 
 def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_trial,
-                                        test_data_only=True, verbose=False):
+                                        test_data_only=False, verbose=False):
     """
     """
     X, init_shape, t_inds = NN_FIT.get_gauss_basis_kinematics_predict_data_trial(
