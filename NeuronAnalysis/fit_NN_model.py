@@ -933,7 +933,7 @@ def comp_learning_response(NN_FIT, X, W_trial):
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
     for t_ind in range(0, X.shape[0]):
         # Each trial update the Gaussian weights for W, but not MLI weights
-        W[0:n_guassians] = W_trial[t_ind, :]
+        W[0:n_guassians, 0] = W_trial[t_ind, :]
         y_hat[t_ind, :] = np.maximum(0., np.dot(X_input[t_ind, :], W) + b)
     return y_hat
 
