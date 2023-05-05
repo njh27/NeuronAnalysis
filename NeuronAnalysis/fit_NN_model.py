@@ -1180,7 +1180,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
     for trial_ind, trial_num in zip(range(0, n_trials), all_t_inds):
         weights_by_trial[trial_num][:] = W # Copy W for this trial, befoe updating at end of loop
         state_trial = state[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt, :] # State for this trial
-        y_obs_trial = binned_FR[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Observed FR for this trial
+        y_obs_trial = binned_FR[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Observed FR for this trial
         eye_is_nan_trial = eye_is_nan[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Nan state points for this trial
         # Convert state to input layer activations
         state_input = eye_input_to_PC_gauss_relu(state_trial,
