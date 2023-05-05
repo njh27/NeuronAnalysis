@@ -379,7 +379,7 @@ class PurkinjeCell(Neuron):
                                     return_inds=False)
             is_pos_nan = np.isnan(pos_p)
         else:
-            is_pos_nan = np.zeros(CS_by_trial.shape, dtype='bool')
+            is_pos_nan = np.zeros(CS_dataseries_by_trial.shape, dtype='bool')
         # Just need to find data dt for one trial and all should be the same
         for t_num in range(0, len(self.session)):
             try:
