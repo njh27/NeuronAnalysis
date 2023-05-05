@@ -910,7 +910,7 @@ class FitNNModel(object):
 def comp_learning_response(NN_FIT, X_trial, W_trial):
     """
     """
-    if X.shape[2] != 8:
+    if X_trial.shape[2] != 8:
         raise ValueError("Gaussian basis kinematics model is fit for 8 data dimensions but input data dimension is {0}.".format(X.shape[1]))
 
     pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
