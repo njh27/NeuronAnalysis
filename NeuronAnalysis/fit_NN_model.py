@@ -907,10 +907,10 @@ class FitNNModel(object):
 
 
 
-def comp_learning_response(NN_FIT, X, W_trial):
+def comp_learning_response(NN_FIT, X_trial, W_trial):
     """
     """
-    if X.shape[1] != 8:
+    if X.shape[2] != 8:
         raise ValueError("Gaussian basis kinematics model is fit for 8 data dimensions but input data dimension is {0}.".format(X.shape[1]))
 
     pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
@@ -925,16 +925,18 @@ def comp_learning_response(NN_FIT, X, W_trial):
                             pos_stds,
                             vel_stds,
                             vel_stds])
-    X_input = eye_input_to_PC_gauss_relu(X,
-                                    gauss_means, gauss_stds)
+
     n_guassians = len(gauss_means)
-    y_hat = np.zeros(X.shape[0])
+    y_hat = np.zeros((X_trial.shape[0], X_trial.shape[1]))
     W = np.copy(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'])
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
     for t_ind in range(0, X.shape[0]):
+        # Transform X_data for this trial into input space
+        X_input = eye_input_to_PC_gauss_relu(X_trial[t_ind, :, :],
+                                        gauss_means, gauss_stds)
         # Each trial update the Gaussian weights for W, but not MLI weights
         W[0:n_guassians, 0] = W_trial[t_ind, :]
-        y_hat[t_ind, :] = np.maximum(0., np.dot(X_input[t_ind, :], W) + b)
+        y_hat[t_ind, :] = np.maximum(0., np.dot(X_input, W) + b)
     return y_hat
 
 
@@ -946,16 +948,16 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
                             blocks, trial_sets, return_shape=True,
                             test_data_only=test_data_only, return_inds=True,
                             verbose=verbose)
-
+    X_trial = X.reshape(init_shape)
     # Get weights in a single matrix to pass through here
-    W_trial = np.zeros((X.shape[0], weights_by_trial[t_inds[0]].shape[0]))
+    W_trial = np.zeros((X_trial.shape[0], weights_by_trial[t_inds[0]].shape[0]))
     # Go through t_nums IN ORDER
     for t in t_inds:
         try:
             W_trial[t, :] = weights_by_trial[t].squeeze()
         except KeyError:
             raise ValueError("weights by trial does not contain weights for requested trial number {0}.".format(t))
-    y_hat = comp_learning_response(NN_FIT, X, W_trial)
+    y_hat = comp_learning_response(NN_FIT, X_trial, W_trial)
 
     return y_hat
 
