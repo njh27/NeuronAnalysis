@@ -1073,7 +1073,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             # LTP_trial = LTP_trial * y_obs_trial
             LTP_on_Inputs = np.dot(LTP_trial, state_input) # Sum of CS over activation for each input unit
             LTP_bound = (W_max - W).squeeze()
-            LTP_bound[LTP_bound < 1e5] = 1e5
+            LTP_bound[LTP_bound < 1e-5] = 1e-5
             LTP_on_Inputs = LTP_on_Inputs * LTP_bound
             # W += ( alpha * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None] )
             W += ( alpha * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None] )
@@ -1208,7 +1208,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
         # LTP_trial = LTP_trial * y_obs_trial
         LTP_on_Inputs = np.dot(LTP_trial, state_input) # Sum of CS over activation for each input unit
         LTP_bound = (W_max - W).squeeze()
-        LTP_bound[LTP_bound < 1e5] = 1e5
+        LTP_bound[LTP_bound < 1e-5] = 1e-5
         LTP_on_Inputs = LTP_on_Inputs * LTP_bound
         # W += ( alpha * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None] )
         W += ( alpha * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None] )
