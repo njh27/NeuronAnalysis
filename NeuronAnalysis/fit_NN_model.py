@@ -1044,7 +1044,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         W_full[0:n_gaussians] = W_0
         alpha = params[0]
         beta = params[1]
-        W_max = params[2]
+        W_max = np.full(W.shape, params[2])
         for trial in range(0, n_trials):
             state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
             y_obs_trial = y[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Observed FR for this trial
@@ -1181,6 +1181,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
     W_max = NN_FIT.fit_results['gauss_basis_kinematics']['W_max']
     W = np.zeros(W_0.shape) # Place to store updating result and copy to output
     W[:] = W_0 # Initialize storage to start values
+    W_max = np.full(W.shape, W_max)
     # return state, CS, alpha, beta, W, W_0, eye_is_nan, gauss_means, gauss_stds, n_trials, n_obs_pt
     for trial_ind, trial_num in zip(range(0, n_trials), all_t_inds):
         weights_by_trial[trial_num][:] = W # Copy W for this trial, befoe updating at end of loop
