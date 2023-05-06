@@ -171,12 +171,13 @@ def gauss_convolve(data, sigma, cutoff_sigma=4, pad_data=True):
 
 
 def postsynaptic_decay_FR(spike_train, tau_rise=1., tau_decay=2.5,
-                            kernel_area=1.0, min_val=0.0):
+                            kernel_area=1.0, min_val=0.0, reverse=False):
     """Convolves binned spike train values using the postsynaptic exponential
         rise and decay method with a CAUSAL kernel.
         Can be scaled to have have larger integral under kernel by
         "kernel_area" or to add a constant value of minimal decay using
         "min_val". """
+
     # Build kernel over 'xvals'
     xvals = np.arange(0, len(spike_train))
     kernel = np.exp(- 1 * xvals / tau_decay) - np.exp(- 1 * xvals / tau_rise)
@@ -184,7 +185,11 @@ def postsynaptic_decay_FR(spike_train, tau_rise=1., tau_decay=2.5,
 
     # Pad the input data with zeros
     pad_size = len(kernel) - 1
-    padded_x = np.pad(spike_train, (pad_size, 0), mode='constant')
+    if reverse:
+        kernel = kernel[-1::-1]
+        padded_x = np.pad(spike_train, (0, pad_size), mode='constant')
+    else:
+        padded_x = np.pad(spike_train, (pad_size, 0), mode='constant')
 
     psp_decay_FR = np.convolve(padded_x, kernel, mode='valid') + min_val
 

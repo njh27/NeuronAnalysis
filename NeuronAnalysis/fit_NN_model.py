@@ -1037,6 +1037,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     # tau_rise = 10.0 / bin_width
     # tau_decay = 30.0 / bin_width
     # kernel_area = 200.0 / bin_width
+    tau_rise_CS = 0.10 / bin_width
+    tau_decay_CS = 5.0 / bin_width
+    kernel_area_CS = 200.0 / bin_width
 
     def learning_function(params, x, y):
         """ Defines the model we are fitting to the data """
@@ -1074,6 +1077,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             state_input = state_input[:, 0:n_gaussians]
 
             CS_trial = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt] # CS for this trial
+            CS_trial = postsynaptic_decay_FR(CS_trial, tau_rise=tau_rise_CS,
+                                tau_decay=tau_decay_CS, kernel_area=kernel_area_CS,
+                                min_val=0.0, reverse=True)
             # CS_trial = CS_trial * y_obs_trial
             CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
             CS_on_Inputs = CS_on_Inputs * W.squeeze()
@@ -1201,6 +1207,11 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
     tau_rise = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise'] / bin_width
     tau_decay = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay'] / bin_width
     kernel_area = NN_FIT.fit_results['gauss_basis_kinematics']['kernel_area'] / bin_width
+
+    tau_rise_CS = 0.10 / bin_width
+    tau_decay_CS = 5.0 / bin_width
+    kernel_area_CS = 200.0 / bin_width
+
     W = np.zeros(W_0.shape) # Place to store updating result and copy to output
     W[:] = W_0 # Initialize storage to start values
     W_max = np.full(W.shape, W_max)
@@ -1221,6 +1232,9 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
 
         # Update weights for next trial based on activations in this trial
         CS_trial = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # CS for this trial
+        CS_trial = postsynaptic_decay_FR(CS_trial, tau_rise=tau_rise_CS,
+                            tau_decay=tau_decay_CS, kernel_area=kernel_area_CS,
+                            min_val=0.0, reverse=True)
         # CS_trial = CS_trial * y_obs_trial
         CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
         CS_on_Inputs = CS_on_Inputs * W.squeeze()
