@@ -1046,6 +1046,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         alpha = params[0]
         beta = params[1]
         W_max = np.full(W.shape, params[2])
+        tau_rise = 5.0 / bin_width
+        tau_decay = 15.0 / bin_width
+        kernel_area = 100.0 / bin_width
         for trial in range(0, n_trials):
             state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
             y_obs_trial = y[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Observed FR for this trial
@@ -1071,8 +1074,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             CS_on_Inputs = CS_on_Inputs * W.squeeze()
 
             # LTP_trial = np.mod(CS[trial*n_obs_pt:(trial + 1)*n_obs_pt] + 1, 2) # Opposite 1's and 0's as CS
-            LTP_trial = postsynaptic_decay_FR(CS_trial, tau_rise=5.0, tau_decay=15.0,
-                                                kernel_area=100.0, min_val=1.0)
+            LTP_trial = postsynaptic_decay_FR(CS_trial, tau_rise=tau_rise,
+                                tau_decay=tau_decay, kernel_area=kernel_area,
+                                min_val=1.0)
             # LTP_trial = LTP_trial * y_obs_trial
             LTP_on_Inputs = np.dot(LTP_trial, state_input) # Sum of LTP over activation for each input unit
             LTP_bound = (W_max - W).squeeze()
@@ -1186,6 +1190,9 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
     alpha = NN_FIT.fit_results['gauss_basis_kinematics']['alpha']
     beta = NN_FIT.fit_results['gauss_basis_kinematics']['beta']
     W_max = NN_FIT.fit_results['gauss_basis_kinematics']['W_max']
+    tau_rise = 5.0 / bin_width
+    tau_decay = 15.0 / bin_width
+    kernel_area = 100.0 / bin_width
     W = np.zeros(W_0.shape) # Place to store updating result and copy to output
     W[:] = W_0 # Initialize storage to start values
     W_max = np.full(W.shape, W_max)
@@ -1211,8 +1218,9 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
         CS_on_Inputs = CS_on_Inputs * W.squeeze()
 
         # LTP_trial = np.mod(CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] + 1, 2) # Opposite 1's and 0's as CS
-        LTP_trial = postsynaptic_decay_FR(CS_trial, tau_rise=5.0, tau_decay=15.0,
-                                            kernel_area=100.0, min_val=1.0)
+        LTP_trial = postsynaptic_decay_FR(CS_trial, tau_rise=tau_rise,
+                            tau_decay=tau_decay, kernel_area=kernel_area,
+                            min_val=1.0)
         # LTP_trial = LTP_trial * y_obs_trial
         LTP_on_Inputs = np.dot(LTP_trial, state_input) # Sum of LTP over activation for each input unit
         LTP_bound = (W_max - W).squeeze()
