@@ -1037,9 +1037,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     # tau_rise = 10.0 / bin_width
     # tau_decay = 30.0 / bin_width
     # kernel_area = 200.0 / bin_width
-    tau_rise_CS = 0.10 / bin_width
-    tau_decay_CS = 5.0 / bin_width
-    kernel_area_CS = 200.0 / bin_width
+    # tau_rise_CS = 0.10 / bin_width
+    # tau_decay_CS = 5.0 / bin_width
+    # kernel_area_CS = 200.0 / bin_width
 
     def learning_function(params, x, y):
         """ Defines the model we are fitting to the data """
@@ -1057,6 +1057,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         tau_rise = params[3] / bin_width
         tau_decay = params[4] / bin_width
         kernel_area = params[5] / bin_width
+        tau_rise_CS = params[6] / bin_width
+        tau_decay_CS = params[7] / bin_width
+        kernel_area_CS = params[8] / bin_width
         for trial in range(0, n_trials):
             state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
             y_obs_trial = y[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Observed FR for this trial
@@ -1106,10 +1109,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         residuals = (y[~missing_y_hat] - y_hat[~missing_y_hat]) ** 2
         return residuals
 
-    p0 = np.array([0.001, 0.005, 2 * np.amax(W_0), 10.0, 30.0, 200.0])
+    p0 = np.array([0.001, 0.005, 2 * np.amax(W_0), 10.0, 30.0, 200.0, 0.10, 5.0, 400])
     # Set lower and upper bounds for each parameter
-    lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1])
-    upper_bounds = np.array([1, 1, np.inf, np.inf, np.inf, np.inf])
+    lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 0.001, 1, 1])
+    upper_bounds = np.array([1, 1, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf])
     """ INPUT NEEDS TO BE BIN EYE DATA WITH A LAST COLUMN OF CS APPENDED! """
 
     # return bin_eye_data, binned_CS, binned_FR, p0, lower_bounds, upper_bounds, n_trials, n_obs_pt, eye_is_nan, gauss_means, gauss_stds
@@ -1129,6 +1132,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise'] = result.x[3]
     NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay'] = result.x[4]
     NN_FIT.fit_results['gauss_basis_kinematics']['kernel_area'] = result.x[5]
+    NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS'] = result.x[6]
+    NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS'] = result.x[7]
+    NN_FIT.fit_results['gauss_basis_kinematics']['kernel_area_CS'] = result.x[8]
 
     return result
 
@@ -1207,10 +1213,9 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
     tau_rise = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise'] / bin_width
     tau_decay = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay'] / bin_width
     kernel_area = NN_FIT.fit_results['gauss_basis_kinematics']['kernel_area'] / bin_width
-
-    tau_rise_CS = 0.10 / bin_width
-    tau_decay_CS = 5.0 / bin_width
-    kernel_area_CS = 200.0 / bin_width
+    tau_rise_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS'] / bin_width
+    tau_decay_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS'] / bin_width
+    kernel_area_CS = NN_FIT.fit_results['gauss_basis_kinematics']['kernel_area_CS'] / bin_width
 
     W = np.zeros(W_0.shape) # Place to store updating result and copy to output
     W[:] = W_0 # Initialize storage to start values
