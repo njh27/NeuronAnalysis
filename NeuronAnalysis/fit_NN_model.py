@@ -5,7 +5,7 @@ from tensorflow.keras import layers, models, constraints, initializers
 from tensorflow.keras.optimizers import SGD
 import warnings
 from NeuronAnalysis.fit_neuron_to_eye import FitNeuronToEye
-from NeuronAnalysis.general import postsynaptic_decay_FR
+from NeuronAnalysis.general import postsynaptic_decay_FR, assymetric_CS_LTD
 
 
 
@@ -1080,9 +1080,12 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             state_input = state_input[:, 0:n_gaussians]
 
             CS_trial = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt] # CS for this trial
-            CS_trial = postsynaptic_decay_FR(CS_trial, tau_rise=tau_rise_CS,
-                                tau_decay=tau_decay_CS, kernel_area=kernel_area_CS,
-                                min_val=0.0, reverse=True)
+            CS_trial = assymetric_CS_LTD(CS_trial, tau_rise_CS, tau_decay_CS,
+                                            kernel_area=kernel_area_CS, min_val=0.0)
+
+            # CS_trial = postsynaptic_decay_FR(CS_trial, tau_rise=tau_rise_CS,
+            #                     tau_decay=tau_decay_CS, kernel_area=kernel_area_CS,
+            #                     min_val=0.0, reverse=True)
             # CS_trial = CS_trial * y_obs_trial
             CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
             CS_on_Inputs = CS_on_Inputs * W.squeeze()
@@ -1109,9 +1112,11 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         residuals = (y[~missing_y_hat] - y_hat[~missing_y_hat]) ** 2
         return residuals
 
-    p0 = np.array([0.001, 0.005, 2 * np.amax(W_0), 10.0, 30.0, 200.0, 0.10, 5.0, 400])
+    # p0 = np.array([0.001, 0.005, 2 * np.amax(W_0), 10.0, 30.0, 200.0, 0.10, 5.0, 400])
+    p0 = np.array([0.001, 0.005, 2 * np.amax(W_0), 10.0, 30.0, 200.0, 30.0, 6.0, 400])
     # Set lower and upper bounds for each parameter
-    lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 0.001, 1, 1])
+    # lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 0.001, 1, 1])
+    lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 1, 0.001, 1])
     upper_bounds = np.array([1, 1, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf])
     """ INPUT NEEDS TO BE BIN EYE DATA WITH A LAST COLUMN OF CS APPENDED! """
 
@@ -1237,9 +1242,11 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
 
         # Update weights for next trial based on activations in this trial
         CS_trial = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # CS for this trial
-        CS_trial = postsynaptic_decay_FR(CS_trial, tau_rise=tau_rise_CS,
-                            tau_decay=tau_decay_CS, kernel_area=kernel_area_CS,
-                            min_val=0.0, reverse=True)
+        CS_trial = assymetric_CS_LTD(CS_trial, tau_rise_CS, tau_decay_CS,
+                                        kernel_area=kernel_area_CS, min_val=0.0)
+        # CS_trial = postsynaptic_decay_FR(CS_trial, tau_rise=tau_rise_CS,
+        #                     tau_decay=tau_decay_CS, kernel_area=kernel_area_CS,
+        #                     min_val=0.0, reverse=True)
         # CS_trial = CS_trial * y_obs_trial
         CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
         CS_on_Inputs = CS_on_Inputs * W.squeeze()

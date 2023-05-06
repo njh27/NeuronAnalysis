@@ -196,6 +196,37 @@ def postsynaptic_decay_FR(spike_train, tau_rise=1., tau_decay=2.5,
     return psp_decay_FR
 
 
+def gaussian(x, mu, sigma):
+    return (1 / (np.sqrt(2 * np.pi * sigma ** 2))) * np.exp(-0.5 * ((x - mu) / sigma) ** 2)
+
+def assymetric_CS_LTD(spike_train, sigma_rise, sigma_decay, kernel_area=1.0, min_val=0.0):
+   # Parameters for the asymmetric Gaussian-like kernel
+    peak_position = len(spike_train) // 2
+
+    # Generate x-values
+    xvals_left = np.arange(0, peak_position)
+    xvals_right = np.arange(peak_position, len(spike_train))
+
+    # Calculate the Gaussian functions for each side of the peak
+    gaussian_left = gaussian(xvals_left, peak_position, sigma_rise)
+    gaussian_right = gaussian(xvals_right, peak_position, sigma_decay)
+
+    # Normalize the gaussians to be the same at peak_position
+    gaussian_left /= gaussian_left[-1]
+    gaussian_right /= gaussian_right[0]
+
+    # Combine the left and right Gaussian functions into a single asymmetric kernel
+    kernel = np.concatenate((gaussian_left[:-1], gaussian_right))
+
+    # Normalize the kernel
+    kernel = kernel_area * kernel / np.sum(kernel)
+
+    # Convolve the asymmetric kernel with the input data
+    filtered_x = np.convolve(spike_train, kernel, mode='same') + min_val
+
+    return filtered_x
+
+
 def cart2pol(x, y):
     theta = np.arctan2(y, x)
     rho = np.sqrt(x**2 + y**2)
