@@ -1033,6 +1033,11 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     W_full = np.copy(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'])
     W_0 = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][0:n_gaussians]
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
+
+    tau_rise = 10.0 / bin_width
+    tau_decay = 30.0 / bin_width
+    kernel_area = 200.0 / bin_width
+
     def learning_function(params, x, y):
         """ Defines the model we are fitting to the data """
         nonlocal W
@@ -1046,9 +1051,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         alpha = params[0]
         beta = params[1]
         W_max = np.full(W.shape, params[2])
-        tau_rise = 10.0 / bin_width
-        tau_decay = 30.0 / bin_width
-        kernel_area = 200.0 / bin_width
+        # tau_rise = 10.0 / bin_width
+        # tau_decay = 30.0 / bin_width
+        # kernel_area = 200.0 / bin_width
         for trial in range(0, n_trials):
             state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
             y_obs_trial = y[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Observed FR for this trial
