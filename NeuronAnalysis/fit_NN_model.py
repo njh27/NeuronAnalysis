@@ -1046,9 +1046,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         alpha = params[0]
         beta = params[1]
         W_max = np.full(W.shape, params[2])
-        tau_rise = 5.0 / bin_width
-        tau_decay = 15.0 / bin_width
-        kernel_area = 100.0 / bin_width
+        tau_rise = 10.0 / bin_width
+        tau_decay = 30.0 / bin_width
+        kernel_area = 200.0 / bin_width
         for trial in range(0, n_trials):
             state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
             y_obs_trial = y[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Observed FR for this trial
@@ -1115,6 +1115,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     NN_FIT.fit_results['gauss_basis_kinematics']['alpha'] = result.x[0]
     NN_FIT.fit_results['gauss_basis_kinematics']['beta'] = result.x[1]
     NN_FIT.fit_results['gauss_basis_kinematics']['W_max'] = result.x[2]
+    NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise'] = tau_rise
+    NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay'] = tau_decay
+    NN_FIT.fit_results['gauss_basis_kinematics']['kernel_area'] = kernel_area
 
     return result
 
@@ -1190,9 +1193,9 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
     alpha = NN_FIT.fit_results['gauss_basis_kinematics']['alpha']
     beta = NN_FIT.fit_results['gauss_basis_kinematics']['beta']
     W_max = NN_FIT.fit_results['gauss_basis_kinematics']['W_max']
-    tau_rise = 5.0 / bin_width
-    tau_decay = 15.0 / bin_width
-    kernel_area = 100.0 / bin_width
+    tau_rise = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise']
+    tau_decay = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay']
+    kernel_area = NN_FIT.fit_results['gauss_basis_kinematics']['kernel_area']
     W = np.zeros(W_0.shape) # Place to store updating result and copy to output
     W[:] = W_0 # Initialize storage to start values
     W_max = np.full(W.shape, W_max)
