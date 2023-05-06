@@ -176,7 +176,7 @@ def postsynaptic_decay_FR(spike_train, tau_rise=1., tau_decay=2.5,
         rise and decay method with a CAUSAL kernel.
         Can be scaled to have have larger integral under kernel by
         "kernel_area" or to add a constant value of minimal decay using
-        "min_val". """"
+        "min_val". """
     # Build kernel over 'xvals'
     xvals = np.arange(0, len(spike_train))
     kernel = np.exp(- 1 * xvals / tau_decay) - np.exp(- 1 * xvals / tau_rise)
