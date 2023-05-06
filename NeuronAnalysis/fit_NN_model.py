@@ -1064,12 +1064,12 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             state_input = state_input[:, 0:n_gaussians]
 
             CS_trial = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt] # CS for this trial
-            # CS_trial = CS_trial * y_obs_trial
+            CS_trial = CS_trial * y_obs_trial
             CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
 
 
             LTP_trial = np.mod(CS[trial*n_obs_pt:(trial + 1)*n_obs_pt] + 1, 2) # Opposite 1's and 0's as CS
-            LTP_trial = LTP_trial * y_obs_trial
+            # LTP_trial = LTP_trial * y_obs_trial
             LTP_on_Inputs = np.dot(LTP_trial, state_input) # Sum of CS over activation for each input unit
             # W += ( alpha * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None] )
             W += ( alpha * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None] )
@@ -1193,11 +1193,11 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
         # state_input = state_input * y_obs_trial[:, None]
         # Update weights for next trial based on activations in this trial
         CS_trial = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # CS for this trial
-        # CS_trial = CS_trial * y_obs_trial
+        CS_trial = CS_trial * y_obs_trial
         CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
 
         LTP_trial = np.mod(CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] + 1, 2) # Opposite 1's and 0's as CS
-        LTP_trial = LTP_trial * y_obs_trial
+        # LTP_trial = LTP_trial * y_obs_trial
         LTP_on_Inputs = np.dot(LTP_trial, state_input) # Sum of CS over activation for each input unit
         # W += ( alpha * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None] )
         W += ( alpha * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None] )
