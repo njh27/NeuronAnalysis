@@ -982,7 +982,6 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     be updated from one trial to the next as if they are ordered and will
     not check if the numbers are correct because it could fail for various
     reasons like aborted trials. """
-    global CS_pair_interval
     ftol=1e-8
     xtol=1e-8
     gtol=1e-8
@@ -1058,8 +1057,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     # tau_rise_CS = 0.10 / bin_width
     # tau_decay_CS = 5.0 / bin_width
     # kernel_area_CS = 200.0 / bin_width
-    CS_pair_interval = int(np.around(CS_pair_interval / bin_width))
-    print("LTD delay rounded to {0} due to binning in width of {1}.".format(CS_pair_interval * bin_width, bin_width))
+    use_CS_pair_interval = int(np.around(CS_pair_interval / bin_width))
+    print("LTD delay rounded to {0} due to binning in width of {1}.".format(use_CS_pair_interval * bin_width, bin_width))
 
     def learning_function(params, x, y):
         """ Defines the model we are fitting to the data """
@@ -1111,8 +1110,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             else:
                 CS_trial = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
             if delay_LTD:
-                CS_trial[0:-CS_pair_interval] = CS_trial[CS_pair_interval:]
-                CS_trial[-CS_pair_interval:] = 0.0
+                CS_trial[0:-use_CS_pair_interval] = CS_trial[use_CS_pair_interval:]
+                CS_trial[-use_CS_pair_interval:] = 0.0
             if CS_rates:
                 CS_trial *= y_obs_trial
             CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
@@ -1266,7 +1265,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
     tau_rise_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS'] / bin_width
     tau_decay_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS'] / bin_width
     kernel_area_CS = NN_FIT.fit_results['gauss_basis_kinematics']['kernel_area_CS'] / bin_width
-    print("using an adjusted delay of {0} which should be from {1} originally".format(CS_pair_interval, CS_pair_interval * bin_width))
+    use_CS_pair_interval = int(np.around(CS_pair_interval / bin_width))
+    print("LTD delay rounded to {0} due to binning in width of {1}.".format(use_CS_pair_interval * bin_width, bin_width))
 
     W = np.zeros(W_0.shape) # Place to store updating result and copy to output
     W[:] = W_0 # Initialize storage to start values
@@ -1298,8 +1298,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
         else:
             CS_trial = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
         if delay_LTD:
-            CS_trial[0:-CS_pair_interval] = CS_trial[CS_pair_interval:]
-                CS_trial[-CS_pair_interval:] = 0.0
+            CS_trial[0:-use_CS_pair_interval] = CS_trial[use_CS_pair_interval:]
+                CS_trial[-use_CS_pair_interval:] = 0.0
         if CS_rates:
             CS_trial *= y_obs_trial
         CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
