@@ -961,10 +961,10 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
 
 CS_gauss_kernel = False
 CS_decay_kernel = False
-CS_rates = False
+CS_rates = True
 CS_weights = True
 
-LTP_decay_kernel = True
+LTP_decay_kernel = False
 LTP_rates = True
 LTP_weights = True
 
