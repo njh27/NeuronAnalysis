@@ -1115,10 +1115,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         return residuals
 
     # For psp decay CS
-    # p0 = np.array([0.001, 0.005, 2000 * np.amax(W_0), 10.0, 30.0, 200.0, 0.10, 5.0, 400])
+    # p0 = np.array([0.001, 0.005, np.amax(W_0), 10.0, 30.0, 200.0, 0.10, 5.0, 400])
     # lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 0.001, 1, 1])
     # For assymetric Gausian CS
-    p0 = np.array([0.001, 0.005, 2000 * np.amax(W_0), 10.0, 30.0, 200.0, 100.0, 1.0, 400])
+    p0 = np.array([0.001, 0.005, np.amax(W_0), 10.0, 30.0, 200.0, 100.0, 1.0, 400])
     lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 1, 0.001, 1])
 
     upper_bounds = np.array([1, 1, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf])
