@@ -960,7 +960,7 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
 
 
 
-CS_pair_interval = 100
+CS_pair_interval = 0
 if CS_pair_interval != 0:
     print("USING LTD delay of: ", CS_pair_interval)
     delay_LTD = True
@@ -1156,7 +1156,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         lower_bounds = np.array([0,     0,     np.amax(W_0), 1,   1,   1,      0.001, 0.001, 1])
         upper_bounds = np.array([1,     1,     np.inf,       300, 300, np.inf, 300,   300,   np.inf])
     else:
-        p0 = np.array([0.001, 0.005, np.amax(W_0), 1.0, 3.0, 100.0, 100.0, 10.0, 400])
+        p0 =           np.array([0.001, 0.005, 2*np.amax(W_0), 2*bin_width, 5*bin_width, 1.0,    5*bin_width,   5*bin_width,   4.0])
         lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 1, 0.001, 1])
         upper_bounds = np.array([1, 1, np.inf, 300, 300, np.inf, 300, 300, np.inf])
 
