@@ -982,7 +982,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     be updated from one trial to the next as if they are ordered and will
     not check if the numbers are correct because it could fail for various
     reasons like aborted trials. """
-
+    global CS_pair_interval
     ftol=1e-8
     xtol=1e-8
     gtol=1e-8
@@ -1192,6 +1192,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
                                     bin_width=10, bin_threshold=5):
     """ Need the trials from blocks and trial_sets to be ORDERED! """
     """ Get all the binned firing rate data """
+    global CS_pair_interval
     firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(NN_FIT.time_window,
                                         blocks, trial_sets, return_inds=True)
     CS_bin_evts = NN_FIT.neuron.get_CS_dataseries_by_trial(NN_FIT.time_window,
