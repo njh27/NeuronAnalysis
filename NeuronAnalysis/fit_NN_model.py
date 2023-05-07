@@ -960,7 +960,7 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
 
 
 
-CS_pair_interval = 0
+CS_pair_interval =100
 if CS_pair_interval != 0:
     print("USING LTD delay")
     delay_LTD = True
@@ -1146,12 +1146,13 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
 
     # For psp decay CS
     if CS_decay_kernel:
+        raise ValueError("init conds not set right!")
         p0 = np.array([0.001, 0.005, np.amax(W_0), 10.0, 30.0, 200.0, 0.10, 5.0, 400])
         lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 0.001, 1, 1])
         upper_bounds = np.array([1, 1, np.inf, 300, 300, np.inf, 300, 300, np.inf])
     # For assymetric Gausian CS
     elif CS_gauss_kernel:
-        p0 =           np.array([0.001, 0.005, 2*np.amax(W_0), 2*bin_width, 4*bin_width, 1.0,    bin_width,   bin_width,   4.0])
+        p0 =           np.array([0.001, 0.005, 2*np.amax(W_0), 2*bin_width, 5*bin_width, 1.0,    5*bin_width,   5*bin_width,   4.0])
         lower_bounds = np.array([0,     0,     np.amax(W_0), 1,   1,   1,      0.001, 0.001, 1])
         upper_bounds = np.array([1,     1,     np.inf,       300, 300, np.inf, 300,   300,   np.inf])
     else:
