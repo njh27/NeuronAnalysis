@@ -156,10 +156,11 @@ class Neuron(object):
         is returned. """
         if trial_sets is None:
             trial_sets = [self.name]
-        elif trial_sets == self.name:
-            # trial_sets is already this valid neuron set
-            trial_sets = [trial_sets]
-        elif not isinstance(trial_sets, list):
+        elif isinstance(trial_sets, str):
+            if trial_sets == self.name:
+                # trial_sets is already this valid neuron set
+                trial_sets = [trial_sets]
+        if not isinstance(trial_sets, list):
             trial_sets = [trial_sets]
             trial_sets.append(self.name)
         else:
