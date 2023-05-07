@@ -959,13 +959,13 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
     return y_hat
 
 
-CS_gauss_kernel = True
+CS_gauss_kernel = False
 CS_decay_kernel = False
-CS_rates = False
+CS_rates = True
 CS_weights = True
 
 LTP_decay_kernel = False
-LTP_rates = False
+LTP_rates = True
 LTP_weights = True
 
 def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5):
