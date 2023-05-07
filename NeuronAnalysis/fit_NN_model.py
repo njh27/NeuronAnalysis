@@ -1192,7 +1192,6 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
                                     bin_width=10, bin_threshold=5):
     """ Need the trials from blocks and trial_sets to be ORDERED! """
     """ Get all the binned firing rate data """
-    global CS_pair_interval
     firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(NN_FIT.time_window,
                                         blocks, trial_sets, return_inds=True)
     CS_bin_evts = NN_FIT.neuron.get_CS_dataseries_by_trial(NN_FIT.time_window,
@@ -1267,8 +1266,6 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
     tau_rise_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS'] / bin_width
     tau_decay_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS'] / bin_width
     kernel_area_CS = NN_FIT.fit_results['gauss_basis_kinematics']['kernel_area_CS'] / bin_width
-    CS_pair_interval = int(np.around(CS_pair_interval / bin_width))
-    print("LTD delay rounded to {0} due to binning in width of {1}.".format(CS_pair_interval * bin_width, bin_width))
 
     W = np.zeros(W_0.shape) # Place to store updating result and copy to output
     W[:] = W_0 # Initialize storage to start values
@@ -1301,11 +1298,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
             CS_trial = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
         if delay_LTD:
             CS_trial[0:-CS_pair_interval] = CS_trial[CS_pair_interval:]
-            try:
                 CS_trial[-CS_pair_interval:] = 0.0
-            except:
-                print(trial_ind, CS_trial.shape, CS_pair_interval)
-                raise
         if CS_rates:
             CS_trial *= y_obs_trial
         CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
