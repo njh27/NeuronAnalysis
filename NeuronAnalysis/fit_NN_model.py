@@ -1119,7 +1119,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     p0 = np.array([0.001, 0.005, 100*np.amax(W_0), 10.0, 30.0, 200.0, 100.0, 10.0, 400])
     lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 1, 0.001, 1])
 
-    upper_bounds = np.array([1, 1, np.inf, np.inf, np.inf, np.inf, np.inf, 300, np.inf])
+    upper_bounds = np.array([1, 1, np.inf, np.inf, np.inf, np.inf, 300, 300, np.inf])
     """ INPUT NEEDS TO BE BIN EYE DATA WITH A LAST COLUMN OF CS APPENDED! """
 
     # return bin_eye_data, binned_CS, binned_FR, p0, lower_bounds, upper_bounds, n_trials, n_obs_pt, eye_is_nan, gauss_means, gauss_stds
