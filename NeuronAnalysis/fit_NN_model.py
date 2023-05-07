@@ -968,13 +968,13 @@ else:
     print("NO LTD delay. Using ", CS_pair_interval)
     delay_LTD = False
 
-CS_gauss_kernel = False
+CS_gauss_kernel = True
 CS_decay_kernel = False
 CS_rates = False
 CS_weights = True
 
-LTP_decay_kernel = False
-LTP_rates = False
+LTP_decay_kernel = True
+LTP_rates = True
 LTP_weights = True
 
 def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5):
