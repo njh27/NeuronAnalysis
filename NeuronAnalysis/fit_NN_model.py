@@ -959,14 +959,14 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
     return y_hat
 
 
-CS_gauss_kernel = False
+CS_gauss_kernel = True
 CS_decay_kernel = False
 CS_rates = False
-CS_weights = True
+CS_weights = False
 
-LTP_decay_kernel = False
+LTP_decay_kernel = True
 LTP_rates = False
-LTP_weights = True
+LTP_weights = False
 
 def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5):
     """ Need the trials from blocks and trial_sets to be ORDERED! Weights will
