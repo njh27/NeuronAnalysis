@@ -1262,7 +1262,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
         y_obs_trial = y_obs_trial / np.nanmax(y_obs_trial)
 
         # Update weights for next trial based on activations in this trial
-        CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Binary CS for this trial
+        CS_trial_bin = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Binary CS for this trial
         if CS_gauss_kernel:
             CS_trial = assymetric_CS_LTD(CS_trial_bin, tau_rise_CS, tau_decay_CS,
                                             kernel_area=kernel_area_CS, min_val=0.0)
