@@ -1266,6 +1266,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
     tau_rise_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS'] / bin_width
     tau_decay_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS'] / bin_width
     kernel_area_CS = NN_FIT.fit_results['gauss_basis_kinematics']['kernel_area_CS'] / bin_width
+    print("using an adjusted delay of {0} which should be from {1} originally".format(CS_pair_interval, CS_pair_interval * bin_width))
 
     W = np.zeros(W_0.shape) # Place to store updating result and copy to output
     W[:] = W_0 # Initialize storage to start values
