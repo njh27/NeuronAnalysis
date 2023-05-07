@@ -1058,6 +1058,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     # tau_rise_CS = 0.10 / bin_width
     # tau_decay_CS = 5.0 / bin_width
     # kernel_area_CS = 200.0 / bin_width
+    CS_pair_interval = int(np.around(CS_pair_interval / bin_width))
+    print("LTD delay rounded to {0} due to binning in width of {1}.".format(CS_pair_interval * bin_width, bin_width))
 
     def learning_function(params, x, y):
         """ Defines the model we are fitting to the data """
@@ -1264,6 +1266,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
     tau_rise_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS'] / bin_width
     tau_decay_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS'] / bin_width
     kernel_area_CS = NN_FIT.fit_results['gauss_basis_kinematics']['kernel_area_CS'] / bin_width
+    CS_pair_interval = int(np.around(CS_pair_interval / bin_width))
+    print("LTD delay rounded to {0} due to binning in width of {1}.".format(CS_pair_interval * bin_width, bin_width))
 
     W = np.zeros(W_0.shape) # Place to store updating result and copy to output
     W[:] = W_0 # Initialize storage to start values
