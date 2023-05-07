@@ -1086,7 +1086,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             # CS_trial = postsynaptic_decay_FR(CS_trial, tau_rise=tau_rise_CS,
             #                     tau_decay=tau_decay_CS, kernel_area=kernel_area_CS,
             #                     min_val=0.0, reverse=True)
-            CS_trial = CS_trial * y_obs_trial
+            # CS_trial = CS_trial * y_obs_trial
             CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
             CS_on_Inputs = CS_on_Inputs * W.squeeze()
             # CS_on_Inputs = CS_on_Inputs / np.nanmax(CS_on_Inputs)
@@ -1115,10 +1115,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         return residuals
 
     # For psp decay CS
-    # p0 = np.array([0.001, 0.005, 2 * np.amax(W_0), 10.0, 30.0, 200.0, 0.10, 5.0, 400])
+    # p0 = np.array([0.001, 0.005, 2000 * np.amax(W_0), 10.0, 30.0, 200.0, 0.10, 5.0, 400])
     # lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 0.001, 1, 1])
     # For assymetric Gausian CS
-    p0 = np.array([0.001, 0.005, 2 * np.amax(W_0), 10.0, 30.0, 200.0, 100.0, 1.0, 400])
+    p0 = np.array([0.001, 0.005, 2000 * np.amax(W_0), 10.0, 30.0, 200.0, 100.0, 1.0, 400])
     lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 1, 0.001, 1])
 
     upper_bounds = np.array([1, 1, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf])
@@ -1251,7 +1251,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
         # CS_trial = postsynaptic_decay_FR(CS_trial, tau_rise=tau_rise_CS,
         #                     tau_decay=tau_decay_CS, kernel_area=kernel_area_CS,
         #                     min_val=0.0, reverse=True)
-        CS_trial = CS_trial * y_obs_trial
+        # CS_trial = CS_trial * y_obs_trial
         CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
         CS_on_Inputs = CS_on_Inputs * W.squeeze()
         # CS_on_Inputs = CS_on_Inputs / np.nanmax(CS_on_Inputs)
