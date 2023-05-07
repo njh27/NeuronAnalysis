@@ -1138,7 +1138,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         upper_bounds = np.array([1, 1, np.inf, 300, 300, np.inf, 300, 300, np.inf])
     # For assymetric Gausian CS
     elif CS_gauss_kernel:
-        p0 =           np.array([0.001, 0.005, np.amax(W_0), bin_width, bin_width, 1.0,    bin_width,   bin_width,   4.0])
+        p0 =           np.array([0.001, 0.005, np.amax(W_0), 2*bin_width, 4*bin_width, 1.0,    bin_width,   bin_width,   4.0])
         lower_bounds = np.array([0,     0,     np.amax(W_0), 1,   1,   1,      0.001, 0.001, 1])
         upper_bounds = np.array([1,     1,     np.inf,       300, 300, np.inf, 300,   300,   np.inf])
     else:
