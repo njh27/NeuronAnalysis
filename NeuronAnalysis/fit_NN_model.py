@@ -1081,24 +1081,24 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             y_obs_trial = y_obs_trial / np.nanmax(y_obs_trial)
 
             CS_trial = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt] # CS for this trial
-            # CS_trial = assymetric_CS_LTD(CS_trial, tau_rise_CS, tau_decay_CS,
-            #                                 kernel_area=kernel_area_CS, min_val=0.0)
+            CS_trial = assymetric_CS_LTD(CS_trial, tau_rise_CS, tau_decay_CS,
+                                            kernel_area=kernel_area_CS, min_val=0.0)
             # CS_trial = postsynaptic_decay_FR(CS_trial, tau_rise=tau_rise_CS,
             #                     tau_decay=tau_decay_CS, kernel_area=kernel_area_CS,
             #                     min_val=0.0, reverse=True)
             # CS_trial = CS_trial * y_obs_trial
             CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
-            CS_on_Inputs = CS_on_Inputs * W.squeeze()
+            # CS_on_Inputs = CS_on_Inputs * W.squeeze()
 
-            LTP_trial = np.mod(CS[trial*n_obs_pt:(trial + 1)*n_obs_pt] + 1, 2) # Opposite 1's and 0's as CS
-            # LTP_trial = postsynaptic_decay_FR(CS_trial, tau_rise=tau_rise,
-            #                     tau_decay=tau_decay, kernel_area=kernel_area,
-            #                     min_val=1.0, reverse=False)
+            # LTP_trial = np.mod(CS[trial*n_obs_pt:(trial + 1)*n_obs_pt] + 1, 2) # Opposite 1's and 0's as CS
+            LTP_trial = postsynaptic_decay_FR(CS_trial, tau_rise=tau_rise,
+                                tau_decay=tau_decay, kernel_area=kernel_area,
+                                min_val=1.0, reverse=False)
             # LTP_trial = LTP_trial * y_obs_trial
             LTP_on_Inputs = np.dot(LTP_trial, state_input) # Sum of LTP over activation for each input unit
-            LTP_bound = (W_max - W).squeeze()
-            LTP_bound[LTP_bound < 1e-5] = 1e-5
-            LTP_on_Inputs = LTP_on_Inputs * LTP_bound
+            # LTP_bound = (W_max - W).squeeze()
+            # LTP_bound[LTP_bound < 1e-5] = 1e-5
+            # LTP_on_Inputs = LTP_on_Inputs * LTP_bound
 
             W += ( alpha * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None] )
 
@@ -1244,24 +1244,24 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
 
         # Update weights for next trial based on activations in this trial
         CS_trial = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # CS for this trial
-        # CS_trial = assymetric_CS_LTD(CS_trial, tau_rise_CS, tau_decay_CS,
-        #                                 kernel_area=kernel_area_CS, min_val=0.0)
+        CS_trial = assymetric_CS_LTD(CS_trial, tau_rise_CS, tau_decay_CS,
+                                        kernel_area=kernel_area_CS, min_val=0.0)
         # CS_trial = postsynaptic_decay_FR(CS_trial, tau_rise=tau_rise_CS,
         #                     tau_decay=tau_decay_CS, kernel_area=kernel_area_CS,
         #                     min_val=0.0, reverse=True)
         # CS_trial = CS_trial * y_obs_trial
         CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
-        CS_on_Inputs = CS_on_Inputs * W.squeeze()
+        # CS_on_Inputs = CS_on_Inputs * W.squeeze()
 
         LTP_trial = np.mod(CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] + 1, 2) # Opposite 1's and 0's as CS
-        # LTP_trial = postsynaptic_decay_FR(CS_trial, tau_rise=tau_rise,
-        #                     tau_decay=tau_decay, kernel_area=kernel_area,
-        #                     min_val=1.0, reverse=False)
+        LTP_trial = postsynaptic_decay_FR(CS_trial, tau_rise=tau_rise,
+                            tau_decay=tau_decay, kernel_area=kernel_area,
+                            min_val=1.0, reverse=False)
         # LTP_trial = LTP_trial * y_obs_trial
         LTP_on_Inputs = np.dot(LTP_trial, state_input) # Sum of LTP over activation for each input unit
-        LTP_bound = (W_max - W).squeeze()
-        LTP_bound[LTP_bound < 1e-5] = 1e-5
-        LTP_on_Inputs = LTP_on_Inputs * LTP_bound
+        # LTP_bound = (W_max - W).squeeze()
+        # LTP_bound[LTP_bound < 1e-5] = 1e-5
+        # LTP_on_Inputs = LTP_on_Inputs * LTP_bound
 
         W += ( alpha * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None] )
 
