@@ -964,7 +964,7 @@ CS_decay_kernel = False
 CS_rates = False
 CS_weights = False
 
-LTP_decay_kernel = True
+LTP_decay_kernel = False
 LTP_rates = False
 LTP_weights = False
 
