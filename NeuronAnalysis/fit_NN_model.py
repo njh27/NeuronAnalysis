@@ -966,7 +966,7 @@ if CS_pair_interval != 0.0:
 else:
     delay_LTD = False
 
-CS_gauss_kernel = False
+CS_gauss_kernel = True
 CS_decay_kernel = False
 CS_rates = False
 CS_weights = True
