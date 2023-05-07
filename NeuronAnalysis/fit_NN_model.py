@@ -1135,15 +1135,17 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     if CS_decay_kernel:
         p0 = np.array([0.001, 0.005, np.amax(W_0), 10.0, 30.0, 200.0, 0.10, 5.0, 400])
         lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 0.001, 1, 1])
+        upper_bounds = np.array([1, 1, np.inf, 300, 300, np.inf, 300, 300, np.inf])
     # For assymetric Gausian CS
     elif CS_gauss_kernel:
-        p0 = np.array([0.001, 0.005, np.amax(W_0), 1.0, 3.0, 100.0, 100.0, 10.0, 400])
-        lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 1, 0.001, 1])
+        p0 =           np.array([0.001, 0.005, np.amax(W_0), 100, 100, 1.0,    1.0,   1.0,   400])
+        lower_bounds = np.array([0,     0,     np.amax(W_0), 1,   1,   1,      0.001, 0.001, 1])
+        upper_bounds = np.array([1,     1,     np.inf,       300, 300, np.inf, 300,   300,   np.inf])
     else:
         p0 = np.array([0.001, 0.005, np.amax(W_0), 1.0, 3.0, 100.0, 100.0, 10.0, 400])
         lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 1, 0.001, 1])
+        upper_bounds = np.array([1, 1, np.inf, 300, 300, np.inf, 300, 300, np.inf])
 
-    upper_bounds = np.array([1, 1, np.inf, 300, 300, np.inf, 300, 300, np.inf])
     """ INPUT NEEDS TO BE BIN EYE DATA WITH A LAST COLUMN OF CS APPENDED! """
 
     # return bin_eye_data, binned_CS, binned_FR, p0, lower_bounds, upper_bounds, n_trials, n_obs_pt, eye_is_nan, gauss_means, gauss_stds
