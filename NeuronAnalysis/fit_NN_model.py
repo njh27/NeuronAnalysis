@@ -965,6 +965,7 @@ if CS_pair_interval != 0:
     print("USING LTD delay of: ", CS_pair_interval)
     delay_LTD = True
 else:
+    print("NO LTD delay. Using ", CS_pair_interval)
     delay_LTD = False
 
 CS_gauss_kernel = False
