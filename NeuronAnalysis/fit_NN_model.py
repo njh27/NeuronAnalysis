@@ -959,8 +959,8 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
     return y_hat
 
 
-CS_gauss_kernel = True
-CS_decay_kernel = False
+CS_gauss_kernel = False
+CS_decay_kernel = True
 CS_rates = False
 CS_weights = True
 
