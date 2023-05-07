@@ -1100,6 +1100,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             y_obs_trial = y_obs_trial / np.nanmax(y_obs_trial)
 
             CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Binary CS for this trial
+            if delay_LTD:
+                CS_trial_bin[0:-use_CS_pair_interval] = CS_trial_bin[use_CS_pair_interval:]
+                CS_trial_bin[-use_CS_pair_interval:] = 0.0
             if CS_gauss_kernel:
                 CS_trial = assymetric_CS_LTD(CS_trial_bin, tau_rise_CS, tau_decay_CS,
                                                 kernel_area=kernel_area_CS, min_val=0.0)
@@ -1109,9 +1112,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                                     min_val=0.0, reverse=True)
             else:
                 CS_trial = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
-            if delay_LTD:
-                CS_trial[0:-use_CS_pair_interval] = CS_trial[use_CS_pair_interval:]
-                CS_trial[-use_CS_pair_interval:] = 0.0
+            # if delay_LTD:
+            #     CS_trial[0:-use_CS_pair_interval] = CS_trial[use_CS_pair_interval:]
+            #     CS_trial[-use_CS_pair_interval:] = 0.0
             if CS_rates:
                 CS_trial *= y_obs_trial
             CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
@@ -1288,6 +1291,9 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
 
         # Update weights for next trial based on activations in this trial
         CS_trial_bin = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Binary CS for this trial
+        if delay_LTD:
+            CS_trial_bin[0:-use_CS_pair_interval] = CS_trial_bin[use_CS_pair_interval:]
+            CS_trial_bin[-use_CS_pair_interval:] = 0.0
         if CS_gauss_kernel:
             CS_trial = assymetric_CS_LTD(CS_trial_bin, tau_rise_CS, tau_decay_CS,
                                             kernel_area=kernel_area_CS, min_val=0.0)
@@ -1297,9 +1303,9 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
                                 min_val=0.0, reverse=True)
         else:
             CS_trial = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
-        if delay_LTD:
-            CS_trial[0:-use_CS_pair_interval] = CS_trial[use_CS_pair_interval:]
-            CS_trial[-use_CS_pair_interval:] = 0.0
+        # if delay_LTD:
+        #     CS_trial[0:-use_CS_pair_interval] = CS_trial[use_CS_pair_interval:]
+        #     CS_trial[-use_CS_pair_interval:] = 0.0
         if CS_rates:
             CS_trial *= y_obs_trial
         CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
