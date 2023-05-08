@@ -781,11 +781,11 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             LTP_trial = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
             # LTP_trial = np.ones(CS_trial_bin.shape)
             if LTP_decay_kernel:
-                LTP_trial = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
-                                    tau_decay=tau_decay, kernel_max=kernel_max,
-                                    min_val=1.0, reverse=False)
-                # LTP_trial = assymetric_CS_LTD(CS_trial_bin, tau_rise, tau_decay,
-                #                                 kernel_max=kernel_max, min_val=1.0)
+                # LTP_trial = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
+                #                     tau_decay=tau_decay, kernel_max=kernel_max,
+                #                     min_val=1.0, reverse=False)
+                LTP_trial = assymetric_CS_LTD(CS_trial_bin, tau_rise, tau_decay,
+                                                kernel_max=kernel_max, min_val=1.0)
             if LTP_rates:
                 LTP_trial *= y_obs_trial
             LTP_on_Inputs = np.dot(LTP_trial, state_input) # Sum of LTP over activation for each input unit
@@ -968,11 +968,11 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
         LTP_trial = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
         # LTP_trial = np.ones(CS_trial_bin.shape)
         if LTP_decay_kernel:
-            LTP_trial = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
-                                tau_decay=tau_decay, kernel_max=kernel_max,
-                                min_val=1.0, reverse=False)
-            # LTP_trial = assymetric_CS_LTD(CS_trial_bin, tau_rise, tau_decay,
-            #                                 kernel_max=kernel_max, min_val=1.0)
+            # LTP_trial = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
+            #                     tau_decay=tau_decay, kernel_max=kernel_max,
+            #                     min_val=1.0, reverse=False)
+            LTP_trial = assymetric_CS_LTD(CS_trial_bin, tau_rise, tau_decay,
+                                            kernel_max=kernel_max, min_val=1.0)
         if LTP_rates:
             LTP_trial *= y_obs_trial
         LTP_on_Inputs = np.dot(LTP_trial, state_input) # Sum of LTP over activation for each input unit
