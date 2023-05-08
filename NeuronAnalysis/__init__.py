@@ -3,3 +3,4 @@ import NeuronAnalysis.neurons
 import NeuronAnalysis.fit_neuron_to_eye
 import NeuronAnalysis.fit_CS_learning_fun
 import NeuronAnalysis.fit_NN_model
+import NeuronAnalysis.activation_functions
