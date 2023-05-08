@@ -245,11 +245,11 @@ class FitNNModel(object):
                                 vel_stds])
         n_gaussians = len(gauss_means)
         # Now implement the input layer activation function
-        eye_input_train = af.af.eye_input_to_PC_gauss_relu(bin_eye_data_train,
+        eye_input_train = af.eye_input_to_PC_gauss_relu(bin_eye_data_train,
                                         gauss_means, gauss_stds,
                                         n_gaussians_per_dim=n_gaussians_per_dim)
         if is_test_data:
-            eye_input_test = af.af.eye_input_to_PC_gauss_relu(bin_eye_data_test,
+            eye_input_test = af.eye_input_to_PC_gauss_relu(bin_eye_data_test,
                                             gauss_means, gauss_stds,
                                             n_gaussians_per_dim=n_gaussians_per_dim)
             val_data = (eye_input_test, binned_FR_test)
