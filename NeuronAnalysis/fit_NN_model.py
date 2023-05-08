@@ -6,6 +6,7 @@ from tensorflow.keras.optimizers import SGD
 import warnings
 from NeuronAnalysis.fit_neuron_to_eye import FitNeuronToEye
 from NeuronAnalysis.general import postsynaptic_decay_FR, assymetric_CS_LTD
+import NeuronAnalysis.activation_functions as af
 
 
 
@@ -244,11 +245,11 @@ class FitNNModel(object):
                                 vel_stds])
         n_gaussians = len(gauss_means)
         # Now implement the input layer activation function
-        eye_input_train = eye_input_to_PC_gauss_relu(bin_eye_data_train,
+        eye_input_train = af.af.eye_input_to_PC_gauss_relu(bin_eye_data_train,
                                         gauss_means, gauss_stds,
                                         n_gaussians_per_dim=n_gaussians_per_dim)
         if is_test_data:
-            eye_input_test = eye_input_to_PC_gauss_relu(bin_eye_data_test,
+            eye_input_test = af.af.eye_input_to_PC_gauss_relu(bin_eye_data_test,
                                             gauss_means, gauss_stds,
                                             n_gaussians_per_dim=n_gaussians_per_dim)
             val_data = (eye_input_test, binned_FR_test)
@@ -421,7 +422,7 @@ class FitNNModel(object):
                                 pos_stds,
                                 vel_stds,
                                 vel_stds])
-        X_input = eye_input_to_PC_gauss_relu(X,
+        X_input = af.eye_input_to_PC_gauss_relu(X,
                                         gauss_means, gauss_stds,
                                         n_gaussians_per_dim=n_gaussians_per_dim)
         # y_hat = X_input @ self.fit_results['gauss_basis_kinematics']['coeffs']
@@ -584,7 +585,7 @@ def comp_learning_response(NN_FIT, X_trial, W_trial):
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
     for t_ind in range(0, X_trial.shape[0]):
         # Transform X_data for this trial into input space
-        X_input = eye_input_to_PC_gauss_relu(X_trial[t_ind, :, :],
+        X_input = af.eye_input_to_PC_gauss_relu(X_trial[t_ind, :, :],
                                         gauss_means, gauss_stds,
                                         n_gaussians_per_dim=n_gaussians_per_dim)
         # Each trial update the Gaussian weights for W, but not MLI weights
@@ -743,7 +744,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             eye_is_nan_trial = eye_is_nan[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Nan state points for this trial
 
             # Convert state to input layer activations
-            state_input = eye_input_to_PC_gauss_relu(state_trial,
+            state_input = af.eye_input_to_PC_gauss_relu(state_trial,
                                             gauss_means, gauss_stds,
                                             n_gaussians_per_dim=n_gaussians_per_dim)
             # Set inputs derived from nan points to 0.0 so that the weights
@@ -935,7 +936,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
         y_obs_trial = binned_FR[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Observed FR for this trial
         eye_is_nan_trial = eye_is_nan[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Nan state points for this trial
         # Convert state to input layer activations
-        state_input = eye_input_to_PC_gauss_relu(state_trial,
+        state_input = af.eye_input_to_PC_gauss_relu(state_trial,
                                         gauss_means, gauss_stds,
                                         n_gaussians_per_dim=n_gaussians_per_dim)
         # Set inputs derived from nan points to 0.0 so that the weights
