@@ -181,6 +181,8 @@ def postsynaptic_decay_FR(spike_train, tau_rise=1., tau_decay=2.5,
     # Build kernel over 'xvals'
     xvals = np.arange(0, len(spike_train))
     kernel = np.exp(- 1 * xvals / tau_decay) - np.exp(- 1 * xvals / tau_rise)
+    if np.any(kernel < 0.0):
+        raise ValueError("Kernel is negative. I think tau_rise must be smaller than decay?")
     # Normalize the kernel peak to kernel_max
     kernel = kernel_max * kernel / np.amax(kernel)
 
