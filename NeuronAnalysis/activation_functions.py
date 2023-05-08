@@ -67,8 +67,6 @@ def gen_randuniform_cosines(max_min_freq, n_cos, fixed_phase=False):
         max_min_freq = [0.25, max_min_freq]
     # Frequencey must be > 0
     max_min_freq[0] = max(0.25, max_min_freq[0])
-    # slope must be > 0
-    slope_max_min[0] = max(0.1, slope_max_min[0])
     freq_cos = np.random.uniform(max_min_freq[0], max_min_freq[1], n_cos)
     phase_cos = np.random.uniform(0, np.pi, n_cos)
 
