@@ -334,6 +334,10 @@ def eye_input_to_PC_gauss_relu(eye_data, gauss_means, gauss_stds,
     # print("USING {0} SIGMOIDS!".format(len(gauss_means)))
     # return eye_input_to_PC_sigmoid_relu(eye_data, gauss_means, gauss_stds,
     #                                     n_sigmoids_per_dim=n_gaussians_per_dim)
+    print("USING {0} COSINES!".format(len(gauss_means)))
+    return eye_input_to_PC_cosine_relu(eye_data, gauss_means, gauss_stds,
+                                        n_cosines_per_dim=n_gaussians_per_dim)
+
     # Currently hard coded but could change in future
     n_eye_dims = 4
     n_eye_lags = 2
