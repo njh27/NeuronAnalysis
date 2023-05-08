@@ -171,17 +171,18 @@ def gauss_convolve(data, sigma, cutoff_sigma=4, pad_data=True):
 
 
 def postsynaptic_decay_FR(spike_train, tau_rise=1., tau_decay=2.5,
-                            kernel_area=1.0, min_val=0.0, reverse=False):
+                            kernel_max=1.0, min_val=0.0, reverse=False):
     """Convolves binned spike train values using the postsynaptic exponential
         rise and decay method with a CAUSAL kernel.
         Can be scaled to have have larger integral under kernel by
-        "kernel_area" or to add a constant value of minimal decay using
+        "kernel_max" or to add a constant value of minimal decay using
         "min_val". """
 
     # Build kernel over 'xvals'
     xvals = np.arange(0, len(spike_train))
     kernel = np.exp(- 1 * xvals / tau_decay) - np.exp(- 1 * xvals / tau_rise)
-    kernel = kernel_area * kernel / np.sum(kernel)
+    # Normalize the kernel peak to kernel_max
+    kernel = kernel_max * kernel / np.amax(kernel)
 
     # Pad the input data with zeros
     pad_size = len(kernel) - 1
@@ -199,7 +200,7 @@ def postsynaptic_decay_FR(spike_train, tau_rise=1., tau_decay=2.5,
 def gaussian(x, mu, sigma):
     return (1 / (np.sqrt(2 * np.pi * sigma ** 2))) * np.exp(-0.5 * ((x - mu) / sigma) ** 2)
 
-def assymetric_CS_LTD(spike_train, sigma_rise, sigma_decay, kernel_area=1.0, min_val=0.0):
+def assymetric_CS_LTD(spike_train, sigma_rise, sigma_decay, kernel_max=1.0, min_val=0.0):
    # Parameters for the asymmetric Gaussian-like kernel
     peak_position = len(spike_train) // 2
 
@@ -218,8 +219,8 @@ def assymetric_CS_LTD(spike_train, sigma_rise, sigma_decay, kernel_area=1.0, min
     # Combine the left and right Gaussian functions into a single asymmetric kernel
     kernel = np.concatenate((gaussian_left[:-1], gaussian_right))
 
-    # Normalize the kernel
-    kernel = kernel_area * kernel / np.sum(kernel)
+    # Normalize the kernel peak to kernel_max
+    kernel = kernel_max * kernel / np.amax(kernel)
 
     # Convolve the asymmetric kernel with the input data
     filtered_x = np.convolve(spike_train, kernel, mode='same') + min_val

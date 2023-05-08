@@ -54,28 +54,7 @@ def bin_data(data, bin_width, bin_threshold=0):
     return binned_data
 
 
-# Define Gaussian function
-def gaussian(x, mu, sigma, scale):
-    return scale * np.exp(-( ((x - mu) ** 2) / (2*(sigma**2))) )
-
-def sigmoid(x, a=1, b=0, c=1, d=0):
-    return c / (1 + np.exp(-(x-b)/a)) + d
-
-def sigmoid_activation(x, fixed_scale, fixed_centers, fixed_asymptote=1, fixed_bias=0.0):
-    num_sigmoids = len(fixed_centers)
-    x_transform = np.zeros((x.size, num_sigmoids))
-    for k in range(num_sigmoids):
-        x_transform[:, k] = sigmoid(x, fixed_scale, fixed_centers[k], fixed_asymptote, fixed_bias)
-    return x_transform
-
-# Define the model function as a linear combination of Gaussian functions
-def gaussian_activation(x, fixed_means, fixed_sigmas):
-    num_gaussians = len(fixed_means)
-    x_transform = np.zeros((x.size, num_gaussians))
-    for k in range(num_gaussians):
-        x_transform[:, k] = gaussian(x, fixed_means[k], fixed_sigmas[k], scale=1.0)
-    return x_transform
-
+# Start defining our custom activation functions
 def negative_relu(x, c=0.):
     """ Basic relu function but returns negative result. """
     return -1*np.maximum(0., x-c)
@@ -84,6 +63,152 @@ def reflected_negative_relu(x, c=0.):
     """ Basic relu function but returns negative result, reflected about y axis. """
     return np.minimum(0., x-c)
 
+
+# Define sigmoid functions
+def sigmoid(x, a=1, b=0, c=1, d=0):
+    return c / (1 + np.exp(-(x-b)/a)) + d
+
+def sigmoid_activation(x, fixed_slopes, fixed_centers, fixed_asymptote=1, fixed_bias=0.0):
+    num_sigmoids = len(fixed_centers)
+    x_transform = np.zeros((x.size, num_sigmoids))
+    for k in range(num_sigmoids):
+        x_transform[:, k] = sigmoid(x, fixed_slopes[k], fixed_centers[k], fixed_asymptote, fixed_bias)
+    return x_transform
+
+def gen_linspace_sigmoids(max_min, n_sigmoids, slope_sigmoids):
+    """ Returns means and slopes for the DOUBLE the number of sigmoids input
+    in "n_sigmoids" with centers linearly spaced over max_min. Number of output
+    sigmoids is doubled such that the first half uses "slope_sigmoids" and
+    the second half contains the same means but negative slopes
+    "-1*slope_sigmoids." """
+    if isinstance(slope_sigmoids, np.ndarray):
+        if len(slope_sigmoids) == 1:
+            slope_sigmoids = np.full((n_sigmoids, ), slope_sigmoids[0])
+        if len(slope_sigmoids) != n_sigmoids:
+            raise ValueError("Input slopes must be same size as number of sigmoids or 1")
+    elif isinstance(slope_sigmoids, list):
+        if len(slope_sigmoids) == 1:
+            slope_sigmoids = np.full((n_sigmoids, ), slope_sigmoids[0])
+        if len(slope_sigmoids) != n_sigmoids:
+            raise ValueError("Input slopes must be same size as number of sigmoids or 1")
+    else:
+        # We suppose slope_sigmoids is a single numeric value
+        slope_sigmoids = np.full((n_sigmoids, ), slope_sigmoids)
+    try:
+        if len(max_min) > 2:
+            raise ValueError("max_min must be 1 or 2 elements specifing the max and min mean for the sigmoids.")
+    except TypeError:
+        # Happens if max_min does not have "len" method, usually because it's a singe number
+        max_min = [-1 * max_min, max_min]
+    means_sigmoids = np.linspace(max_min[0], max_min[1], n_sigmoids)
+    means_sigmoids = np.hstack((means_sigmoids, means_sigmoids))
+    slope_sigmoids = np.hstack((slope_sigmoids, -1*slope_sigmoids))
+
+    return means_sigmoids, slope_sigmoids
+
+def gen_randuniform_sigmoids(mean_max_min, slope_max_min, n_sigmoids,
+                                symmetric_output=False):
+    """ Returns means and slopes for DOUBLE the number of sigmoids input
+    in "n_sigmoids" with centers chosen uniform randomly over mean_max_min and
+    slopes selected uniform randomly over slope_max_min. Number of output
+    sigmoids is doubled such that the first half uses "slope_sigmoids" and
+    the second half contains the same means but negative slopes
+    "-1*slope_sigmoids." The 'symmetric_output' flag will output half of the
+    sigmoids with exactly the same mean as the other half and with the same
+    slope magnitude but of negative value. If this flag is false, half the
+    outputs will have positive slope, and half negative, but the means and
+    slope magnitudes of all the sigmoids will be chosen randomly. """
+    try:
+        if len(mean_max_min) > 2:
+            raise ValueError("mean_max_min must be 1 or 2 elements specifing the max and min mean for the sigmoid means.")
+    except TypeError:
+        # Happens if mean_max_min does not have "len" method, usually because it's a singe number
+        mean_max_min = np.abs(mean_max_min)
+        mean_max_min = [-1 * mean_max_min, mean_max_min]
+    try:
+        if len(slope_max_min) > 2:
+            raise ValueError("slope_max_min must be 1 or 2 elements specifing the max and min slope for the sigmoids.")
+    except TypeError:
+        # Happens if mean_max_min does not have "len" method, usually because it's a singe number
+        slope_max_min = np.abs(slope_max_min)
+        slope_max_min = [0.5, slope_max_min]
+    # slope must be > 0
+    slope_max_min[0] = max(0.1, slope_max_min[0])
+    means_sigmoids = np.random.uniform(mean_max_min[0], mean_max_min[1], n_sigmoids)
+    slope_sigmoids = np.random.uniform(slope_max_min[0], slope_max_min[1], n_sigmoids)
+    if symmetric_output:
+        means_sigmoids = np.hstack((means_sigmoids, means_sigmoids))
+        slope_sigmoids = np.hstack((slope_sigmoids, -1*slope_sigmoids))
+    else:
+        means_sigmoids = np.hstack((means_sigmoids, np.random.uniform(mean_max_min[0], mean_max_min[1], n_sigmoids)))
+        slope_sigmoids = np.hstack((slope_sigmoids, -1*np.random.uniform(slope_max_min[0], slope_max_min[1], n_sigmoids)))
+
+    return means_sigmoids, slope_sigmoids
+
+def eye_input_to_PC_sigmoid_relu(eye_data, means_sigmoids, slope_sigmoids,
+                                    n_sigmoids_per_dim=None):
+    """ Takes the total 8 dimensional eye data input (x,y position, and
+    velocity times 2 lags) and converts it into the n_sigmoids by 4 + 8 relu
+    function input model of PC input. Done point by point for n x 4
+    input "eye_data". """
+    # Currently hard coded but could change in future
+    n_eye_dims = 4
+    n_eye_lags = 2
+    n_total_eye_dims = n_eye_dims * n_eye_lags
+    if n_sigmoids_per_dim is None:
+        n_sigmoids_per_dim = int(len(means_sigmoids) / n_eye_dims)
+        if n_sigmoids_per_dim < 1:
+            raise ValueError("Not enough sigmoid means input to cover {0} dimensions of eye data.".format(n_eye_dims))
+        n_sigmoids_per_dim = np.full((n_eye_dims, ), n_sigmoids_per_dim)
+    else:
+        if len(n_sigmoids_per_dim) != n_eye_dims:
+            raise ValueError("Must specify the number of sigmoids representing dimensions for each of {0} eye dimensions.".format(n_eye_dims))
+        for nd in n_sigmoids_per_dim:
+            if nd < 1:
+                raise ValueError("Not enough sigmoid means input to cover {0} dimensions of eye data.".format(n_eye_dims))
+
+    if len(means_sigmoids) != len(slope_sigmoids):
+        raise ValueError("Must input the same number of means and slopes but got {0} means and {1} slopes.".format(len(means_sigmoids), len(slope_sigmoids)))
+    n_features = len(means_sigmoids) + 8 # Total input feature to PC is sigmoids + relus
+    first_relu_ind = len(means_sigmoids)
+
+    # Transform data into "input" n_sigmoids dimensional format
+    # This is effectively like taking our 4 input data features and passing
+    # them through n_guassians number of hidden layer units using a
+    # sigmoidal activation function and fixed weights plus some relu units
+    eye_transform = np.zeros((eye_data.shape[0], n_features))
+    dim_start = 0
+    dim_stop = 0
+    for k in range(0, n_eye_dims):
+        dim_stop += n_sigmoids_per_dim[k]
+        # First do Gaussian activation on first 4 eye dims
+        dim_means = means_sigmoids[dim_start:dim_stop]
+        dim_slopes = slope_sigmoids[dim_start:dim_stop]
+        eye_transform[:, dim_start:dim_stop] = sigmoid_activation(eye_data[:, k],
+                                                                    dim_slopes,
+                                                                    dim_means)
+        dim_start = dim_stop
+        # Then relu activation on second 4 eye dims
+        eye_transform[:, (first_relu_ind + 2 * k)] = negative_relu(
+                                                            eye_data[:, n_eye_dims + k],
+                                                            c=0.0)
+        eye_transform[:, (first_relu_ind + (2 * k + 1))] = reflected_negative_relu(
+                                                            eye_data[:, n_eye_dims + k],
+                                                            c=0.0)
+    return eye_transform
+
+
+# Define Gaussian function
+def gaussian(x, mu, sigma, scale):
+    return scale * np.exp(-( ((x - mu) ** 2) / (2*(sigma**2))) )
+
+# Define the model function as a linear combination of Gaussian functions
+def gaussian_activation(x, fixed_means, fixed_sigmas):
+    num_gaussians = len(fixed_means)
+    x_transform = np.zeros((x.size, num_gaussians))
+    for k in range(num_gaussians):
+        x_transform[:, k] = gaussian(x, fixed_means[k], fixed_sigmas[k], scale=1.0)
+    return x_transform
 
 def gen_linspace_gaussians(max_min, n_gaussians, stds_gaussians):
     """ Returns means and standard deviations for the number of gaussians input
@@ -111,7 +236,6 @@ def gen_linspace_gaussians(max_min, n_gaussians, stds_gaussians):
 
     return means_gaussians, stds_gaussians
 
-
 def gen_randuniform_gaussians(mean_max_min, std_max_min, n_gaussians):
     """ Returns means and standard deviations for the number of gaussians input
     in "n_gaussians" with centers chosen uniform randomly over mean_max_min and
@@ -137,20 +261,34 @@ def gen_randuniform_gaussians(mean_max_min, std_max_min, n_gaussians):
 
     return means_gaussians, stds_gaussians
 
-
-def eye_input_to_PC_gauss_relu(eye_data, gauss_means,
-                                gauss_stds):
+def eye_input_to_PC_gauss_relu(eye_data, gauss_means, gauss_stds,
+                                n_gaussians_per_dim=None):
     """ Takes the total 8 dimensional eye data input (x,y position, and
     velocity times 2 lags) and converts it into the n_gaussians by 4 + 8 relu
     function input model of PC input. Done point by point for n x 4
-    input "eye_data". """
+    input "eye_data". n_gaussians_per_dim is a list/array of how many
+    gaussians are used to represent each dim so it must either match dims
+    or be equal to 1 in which case the same number of gaussians is assumed
+    for each dimension. """
+    # print("USING {0} SIGMOIDS!".format(len(gauss_means)))
+    # return eye_input_to_PC_sigmoid_relu(eye_data, gauss_means, gauss_stds,
+    #                                     n_sigmoids_per_dim=n_gaussians_per_dim)
     # Currently hard coded but could change in future
     n_eye_dims = 4
     n_eye_lags = 2
     n_total_eye_dims = n_eye_dims * n_eye_lags
-    n_gaussians_per_dim = int(len(gauss_means) / n_eye_dims)
-    if n_gaussians_per_dim < 1:
-        raise ValueError("Not enough gaussian means input to cover {0} dimensions of eye data.".format(n_eye_dims))
+    if n_gaussians_per_dim is None:
+        n_gaussians_per_dim = int(len(gauss_means) / n_eye_dims)
+        if n_gaussians_per_dim < 1:
+            raise ValueError("Not enough gaussian means input to cover {0} dimensions of eye data.".format(n_eye_dims))
+        n_gaussians_per_dim = np.full((n_eye_dims, ), n_gaussians_per_dim)
+    else:
+        if len(n_gaussians_per_dim) != n_eye_dims:
+            raise ValueError("Must specify the number of gaussians representing dimensions for each of {0} eye dimensions.".format(n_eye_dims))
+        for nd in n_gaussians_per_dim:
+            if nd < 1:
+                raise ValueError("Not enough gaussian means input to cover {0} dimensions of eye data.".format(n_eye_dims))
+
     if len(gauss_means) != len(gauss_stds):
         raise ValueError("Must input the same number of means and standard deviations but got {0} means and {1} standard deviations.".format(len(gauss_means), len(gauss_stds)))
     n_features = len(gauss_means) + 8 # Total input featur to PC is gaussians + relus
@@ -161,14 +299,18 @@ def eye_input_to_PC_gauss_relu(eye_data, gauss_means,
     # them through n_guassians number of hidden layer units using a
     # Gaussian activation function and fixed weights plus some relu units
     eye_transform = np.zeros((eye_data.shape[0], n_features))
+    dim_start = 0
+    dim_stop = 0
     for k in range(0, n_eye_dims):
+        dim_stop += n_gaussians_per_dim[k]
         # First do Gaussian activation on first 4 eye dims
-        dim_means = gauss_means[k * n_gaussians_per_dim:(k + 1) * n_gaussians_per_dim]
-        dim_stds = gauss_stds[k * n_gaussians_per_dim:(k + 1) * n_gaussians_per_dim]
-        eye_transform[:, k * n_gaussians_per_dim:(k + 1) * n_gaussians_per_dim] = gaussian_activation(
-                                                                        eye_data[:, k],
-                                                                        dim_means,
-                                                                        dim_stds)
+        dim_means = gauss_means[dim_start:dim_stop]
+        dim_stds = gauss_stds[dim_start:dim_stop]
+        eye_transform[:, dim_start:dim_stop] = gaussian_activation(
+                                                                    eye_data[:, k],
+                                                                    dim_means,
+                                                                    dim_stds)
+        dim_start = dim_stop
         # Then relu activation on second 4 eye dims
         eye_transform[:, (first_relu_ind + 2 * k)] = negative_relu(
                                                             eye_data[:, n_eye_dims + k],
@@ -357,6 +499,8 @@ class FitNNModel(object):
 
         """ Now data are setup and formated, we need to transform them into the
         input Gaussian space that spans position and velocity. """
+        n_gaussians_per_dim = [len(pos_means), len(pos_means),
+                               len(vel_means), len(vel_means)]
         # First need to stack means and STDs for conversion function
         gauss_means = np.hstack([pos_means,
                                  pos_means,
@@ -369,10 +513,12 @@ class FitNNModel(object):
         n_gaussians = len(gauss_means)
         # Now implement the input layer activation function
         eye_input_train = eye_input_to_PC_gauss_relu(bin_eye_data_train,
-                                        gauss_means, gauss_stds)
+                                        gauss_means, gauss_stds,
+                                        n_gaussians_per_dim=n_gaussians_per_dim)
         if is_test_data:
             eye_input_test = eye_input_to_PC_gauss_relu(bin_eye_data_test,
-                                            gauss_means, gauss_stds)
+                                            gauss_means, gauss_stds,
+                                            n_gaussians_per_dim=n_gaussians_per_dim)
             val_data = (eye_input_test, binned_FR_test)
         else:
             eye_input_test = []
@@ -447,238 +593,6 @@ class FitNNModel(object):
         self.fit_results['gauss_basis_kinematics']['R2'] = 1 - sum_squares_error/(sum_squares_total)
 
         return
-
-    # def fit_learning_rates(self, blocks, trial_sets, bin_width=10, bin_threshold=5):
-    #     """ Need the trials from blocks and trial_sets to be ORDERED! Weights will
-    #     be updated from one trial to the next as if they are ordered and will
-    #     not check if the numbers are correct because it could fail for various
-    #     reasons like aborted trials. """
-    #
-    #     ftol=1e-8
-    #     xtol=1e-8
-    #     gtol=1e-8
-    #     max_nfev=200000
-    #     loss='linear'
-    #
-    #     """ Get all the binned firing rate data """
-    #     firing_rate, all_t_inds = self.neuron.get_firing_traces(self.time_window,
-    #                                         blocks, trial_sets, return_inds=True)
-    #     CS_bin_evts = self.neuron.get_CS_dataseries_by_trial(self.time_window,
-    #                                 blocks, trial_sets, nan_sacc=False)
-    #
-    #     """ Here we have to do some work to get all the data in the correct format """
-    #     # First get all firing rate data, bin and format
-    #     binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
-    #     binned_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-    #
-    #     # And for CSs
-    #     binned_CS = bin_data(CS_bin_evts, bin_width, bin_threshold)
-    #     # Convert to binary instead of binned average
-    #     binned_CS[binned_CS > 0.0] = 1.0
-    #     binned_CS = binned_CS.reshape(binned_CS.shape[0]*binned_CS.shape[1], order='C')
-    #
-    #     """ Get all the binned eye data """
-    #     eye_data, initial_shape = self.get_gauss_basis_kinematics_predict_data_trial(
-    #                                     blocks, trial_sets,
-    #                                     return_shape=True, test_data_only=False)
-    #     eye_data = eye_data.reshape(initial_shape)
-    #     # Use bin smoothing on data before fitting
-    #     bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-    #     # Observations defined after binning
-    #     n_trials = bin_eye_data.shape[0] # Total number of trials to fit
-    #     n_obs_pt = bin_eye_data.shape[1] # Number of observations per trial
-    #     # Reshape to 2D matrix
-    #     bin_eye_data = bin_eye_data.reshape(
-    #                             bin_eye_data.shape[0]*bin_eye_data.shape[1],
-    #                             bin_eye_data.shape[2], order='C')
-    #     # Make an index of all nans that we can use in objective function to set
-    #     # the unit activations to 0.0
-    #     eye_is_nan = np.any(np.isnan(bin_eye_data), axis=1)
-    #     # Firing rate data is only NaN where data for a trial does not cover self.time_window
-    #     # So we need to find this separate from saccades and can set to 0.0 to ignore
-    #     # We will AND this with where eye is NaN because both should be if data are truly missing
-    #     is_missing_data = np.isnan(binned_FR) & eye_is_nan
-    #     binned_FR[is_missing_data] = 0.0
-    #
-    #     # Need the means and stds for converting state to input
-    #     pos_means = self.fit_results['gauss_basis_kinematics']['pos_means']
-    #     vel_means = self.fit_results['gauss_basis_kinematics']['vel_means']
-    #     gauss_means = np.hstack([pos_means,
-    #                              pos_means,
-    #                              vel_means,
-    #                              vel_means])
-    #     pos_stds = self.fit_results['gauss_basis_kinematics']['pos_stds']
-    #     vel_stds = self.fit_results['gauss_basis_kinematics']['vel_stds']
-    #     gauss_stds = np.hstack([pos_stds,
-    #                             pos_stds,
-    #                             vel_stds,
-    #                             vel_stds])
-    #     n_gaussians = len(gauss_means)
-    #
-    #     # Defining learning function within scope so we have access to "self"
-    #     # and specifically the weights. Get here to save space
-    #     W = np.zeros((n_gaussians, 1))
-    #     W_full = np.copy(self.fit_results['gauss_basis_kinematics']['coeffs'])
-    #     W_0 = self.fit_results['gauss_basis_kinematics']['coeffs'][0:n_gaussians]
-    #     b = self.fit_results['gauss_basis_kinematics']['bias']
-    #     def learning_function(params, x, y):
-    #         """ Defines the model we are fitting to the data """
-    #         nonlocal W
-    #         # Separate behavior state from CS inputs
-    #         state = x[:, 0:-1]
-    #         CS = x[:, -1]
-    #         y_hat = np.zeros(x.shape[0])
-    #         # Reset weights to initial fit values
-    #         W[:] = W_0
-    #         W_full[0:n_gaussians] = W_0
-    #         alpha = params[0]
-    #         beta = params[1]
-    #         for trial in range(0, n_trials):
-    #             state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
-    #             eye_is_nan_trial = eye_is_nan[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Nan state points for this trial
-    #
-    #             # Convert state to input layer activations
-    #             state_input = eye_input_to_PC_gauss_relu(state_trial,
-    #                                             gauss_means, gauss_stds)
-    #             # Set inputs derived from nan points to 0.0 so that the weights
-    #             # for these states are not affected during nans
-    #             state_input[eye_is_nan_trial, :] = 0.0
-    #             # Expected rate this trial given updated weights
-    #             # Use maximum here because of relu activation of output
-    #             y_hat_trial = np.maximum(0, np.dot(state_input, W_full) + b).squeeze()
-    #             # Store prediction for current trial
-    #             y_hat[trial*n_obs_pt:(trial + 1)*n_obs_pt] = y_hat_trial
-    #             # Update weights for next trial based on activations in this trial
-    #             state_input = state_input[:, 0:n_gaussians]
-    #             CS_trial = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt] # CS for this trial
-    #             CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
-    #
-    #
-    #             W += ( alpha * W * X_input - beta * CS_on_Inputs[:, None])
-    #             """ CS only learning with no LTP! """
-    #             # W += ( (1 + 1/alpha) * (W - W_0) - (1 - 1/beta) * CS_on_Inputs[:, None] )
-    #             # W += ( alpha * (W_0 - W) - beta * CS_on_Inputs[:, None] )
-    #             W_full[0:n_gaussians] = W
-    #         missing_y_hat = np.isnan(y_hat)
-    #         residuals = (y[~missing_y_hat] - y_hat[~missing_y_hat]) ** 2
-    #         return residuals
-    #
-    #     p0 = np.array([0.001, 0.005])
-    #     # Set lower and upper bounds for each parameter
-    #     lower_bounds = np.array([0, 0])
-    #     upper_bounds = np.array([1, 1])
-    #     """ INPUT NEEDS TO BE BIN EYE DATA WITH A LAST COLUMN OF CS APPENDED! """
-    #
-    #     # return bin_eye_data, binned_CS, binned_FR, p0, lower_bounds, upper_bounds, n_trials, n_obs_pt, eye_is_nan, gauss_means, gauss_stds
-    #
-    #     fit_inputs = np.hstack([bin_eye_data, binned_CS[:, None]])
-    #     # Fit the learning rates to the data
-    #     result = least_squares(learning_function, p0, args=(fit_inputs, binned_FR),
-    #                             bounds=(lower_bounds, upper_bounds),
-    #                             ftol=ftol,
-    #                             xtol=xtol,
-    #                             gtol=gtol,
-    #                             max_nfev=max_nfev,
-    #                             loss=loss)
-    #     self.fit_results['gauss_basis_kinematics']['alpha'] = result.x[0]
-    #     self.fit_results['gauss_basis_kinematics']['beta'] = result.x[1]
-    #
-    #     return result
-    #
-    # def get_learning_weights_by_trial(self, blocks, trial_sets, W_0=None,
-    #                                     bin_width=10, bin_threshold=5):
-    #     """ Need the trials from blocks and trial_sets to be ORDERED! """
-    #     """ Get all the binned firing rate data """
-    #     firing_rate, all_t_inds = self.neuron.get_firing_traces(self.time_window,
-    #                                         blocks, trial_sets, return_inds=True)
-    #     CS_bin_evts = self.neuron.get_CS_dataseries_by_trial(self.time_window,
-    #                                 blocks, trial_sets, nan_sacc=False)
-    #
-    #     """ Here we have to do some work to get all the data in the correct format """
-    #     # First get all firing rate data, bin and format
-    #     binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
-    #     binned_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-    #
-    #     # And for CSs
-    #     binned_CS = bin_data(CS_bin_evts, bin_width, bin_threshold)
-    #     # Convert to binary instead of binned average
-    #     binned_CS[binned_CS > 0.0] = 1.0
-    #     binned_CS = binned_CS.reshape(binned_CS.shape[0]*binned_CS.shape[1], order='C')
-    #
-    #     """ Get all the binned eye data """
-    #     eye_data, initial_shape = self.get_gauss_basis_kinematics_predict_data_trial(
-    #                                     blocks, trial_sets,
-    #                                     return_shape=True, test_data_only=False)
-    #     eye_data = eye_data.reshape(initial_shape)
-    #     # Use bin smoothing on data before fitting
-    #     bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-    #     # Observations defined after binning
-    #     n_trials = bin_eye_data.shape[0] # Total number of trials to fit
-    #     n_obs_pt = bin_eye_data.shape[1] # Number of observations per trial
-    #     # Reshape to 2D matrix
-    #     bin_eye_data = bin_eye_data.reshape(
-    #                             bin_eye_data.shape[0]*bin_eye_data.shape[1],
-    #                             bin_eye_data.shape[2], order='C')
-    #     fit_inputs = np.hstack([bin_eye_data, binned_CS[:, None]])
-    #     # Make an index of all nans that we can use in objective function to set
-    #     # the unit activations to 0.0
-    #     eye_is_nan = np.any(np.isnan(bin_eye_data), axis=1)
-    #     # Firing rate data is only NaN where data for a trial does not cover self.time_window
-    #     # So we need to find this separate from saccades and can set to 0.0 to ignore
-    #     # We will AND this with where eye is NaN because both should be if data are truly missing
-    #     is_missing_data = np.isnan(binned_FR) & eye_is_nan
-    #     binned_FR[is_missing_data] = 0.0
-    #
-    #     # Need the means and stds for converting state to input
-    #     pos_means = self.fit_results['gauss_basis_kinematics']['pos_means']
-    #     vel_means = self.fit_results['gauss_basis_kinematics']['vel_means']
-    #     gauss_means = np.hstack([pos_means,
-    #                              pos_means,
-    #                              vel_means,
-    #                              vel_means])
-    #     pos_stds = self.fit_results['gauss_basis_kinematics']['pos_stds']
-    #     vel_stds = self.fit_results['gauss_basis_kinematics']['vel_stds']
-    #     gauss_stds = np.hstack([pos_stds,
-    #                             pos_stds,
-    #                             vel_stds,
-    #                             vel_stds])
-    #     n_gaussians = len(gauss_means)
-    #
-    #     if W_0 is None:
-    #         W_0 = self.fit_results['gauss_basis_kinematics']['coeffs'][0:n_gaussians]
-    #     if W_0.shape[0] != n_gaussians:
-    #         raise ValueError("Input W_0 must have match the fit coefficients shape of {0}.".format(n_gaussians))
-    #     weights_by_trial = {t_num: np.zeros(W_0.shape) for t_num in all_t_inds}
-    #     b = self.fit_results['gauss_basis_kinematics']['bias']
-    #
-    #     # Separate behavior state from CS inputs
-    #     state = fit_inputs[:, 0:-1]
-    #     CS = fit_inputs[:, -1]
-    #     alpha = self.fit_results['gauss_basis_kinematics']['alpha']
-    #     beta = self.fit_results['gauss_basis_kinematics']['beta']
-    #     W = np.zeros(W_0.shape) # Place to store updating result and copy to output
-    #     W[:] = W_0 # Initialize storage to start values
-    #     return state, CS, alpha, beta, W, W_0, eye_is_nan, gauss_means, gauss_stds, n_trials, n_obs_pt
-    #     for trial_ind, trial_num in zip(range(0, n_trials), all_t_inds):
-    #         weights_by_trial[trial_num][:] = W # Copy W for this trial, befoe updating at end of loop
-    #         state_trial = state[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt, :] # State for this trial
-    #         eye_is_nan_trial = eye_is_nan[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Nan state points for this trial
-    #         # Convert state to input layer activations
-    #         state_input = eye_input_to_PC_gauss_relu(state_trial,
-    #                                         gauss_means, gauss_stds)
-    #         # Set inputs derived from nan points to 0.0 so that the weights
-    #         # for these states are not affected during nans
-    #         state_input[eye_is_nan_trial, :] = 0.0
-    #         state_input = state_input[:, 0:n_gaussians]
-    #         # Update weights for next trial based on activations in this trial
-    #         CS_trial = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # CS for this trial
-    #         CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
-    #         W += ( alpha * W * X_input - beta * CS_on_Inputs[:, None] )
-    #         """ CS only learning with no LTP! """
-    #         # W += ( (1 + 1/alpha) * (W - W_0) - (1 - 1/beta) * CS_on_Inputs[:, None] )
-    #         # W += ( alpha * (W_0 - W) - beta * CS_on_Inputs[:, None] )
-    #
-    #     return weights_by_trial
 
     def get_gauss_basis_kinematics_predict_data_trial(self, blocks, trial_sets,
                                                       return_shape=False,
@@ -755,7 +669,7 @@ class FitNNModel(object):
                                                 trial_sets=trial_sets)
         return X
 
-    def predict_gauss_basis_kinematics(self, X):
+    def predict_gauss_basis_kinematics(self, X, return_model=False):
         """
         """
         if X.shape[1] != 8:
@@ -763,6 +677,8 @@ class FitNNModel(object):
 
         pos_means = self.fit_results['gauss_basis_kinematics']['pos_means']
         vel_means = self.fit_results['gauss_basis_kinematics']['vel_means']
+        n_gaussians_per_dim = [len(pos_means), len(pos_means),
+                               len(vel_means), len(vel_means)]
         gauss_means = np.hstack([pos_means,
                                  pos_means,
                                  vel_means,
@@ -774,13 +690,18 @@ class FitNNModel(object):
                                 vel_stds,
                                 vel_stds])
         X_input = eye_input_to_PC_gauss_relu(X,
-                                        gauss_means, gauss_stds)
+                                        gauss_means, gauss_stds,
+                                        n_gaussians_per_dim=n_gaussians_per_dim)
         # y_hat = X_input @ self.fit_results['gauss_basis_kinematics']['coeffs']
         # y_hat += self.fit_results['gauss_basis_kinematics']['bias']
         W = self.fit_results['gauss_basis_kinematics']['coeffs']
         b = self.fit_results['gauss_basis_kinematics']['bias']
         y_hat = np.maximum(0, np.dot(X_input, W) + b)
-        return y_hat
+        if return_model:
+            y_hat_model = self.fit_results['gauss_basis_kinematics']['model'].predict(X_input).squeeze()
+            return y_hat, y_hat_model
+        else:
+            return y_hat
 
     def predict_gauss_basis_kinematics_by_trial(self, blocks, trial_sets,
                                             test_data_only=True, verbose=False):
@@ -912,6 +833,8 @@ def comp_learning_response(NN_FIT, X_trial, W_trial):
 
     pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
     vel_means = NN_FIT.fit_results['gauss_basis_kinematics']['vel_means']
+    n_gaussians_per_dim = [len(pos_means), len(pos_means),
+                           len(vel_means), len(vel_means)]
     gauss_means = np.hstack([pos_means,
                              pos_means,
                              vel_means,
@@ -930,7 +853,8 @@ def comp_learning_response(NN_FIT, X_trial, W_trial):
     for t_ind in range(0, X_trial.shape[0]):
         # Transform X_data for this trial into input space
         X_input = eye_input_to_PC_gauss_relu(X_trial[t_ind, :, :],
-                                        gauss_means, gauss_stds)
+                                        gauss_means, gauss_stds,
+                                        n_gaussians_per_dim=n_gaussians_per_dim)
         # Each trial update the Gaussian weights for W, but not MLI weights
         W[0:n_guassians, 0] = W_trial[t_ind, :]
         y_hat[t_ind, :] = np.maximum(0., np.dot(X_input, W) + b).squeeze()
@@ -1032,6 +956,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     # Need the means and stds for converting state to input
     pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
     vel_means = NN_FIT.fit_results['gauss_basis_kinematics']['vel_means']
+    n_gaussians_per_dim = [len(pos_means), len(pos_means),
+                           len(vel_means), len(vel_means)]
     gauss_means = np.hstack([pos_means,
                              pos_means,
                              vel_means,
@@ -1053,10 +979,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
 
     # tau_rise = 10.0 / bin_width
     # tau_decay = 30.0 / bin_width
-    # kernel_area = 200.0 / bin_width
+    # kernel_max = 200.0 / bin_width
     # tau_rise_CS = 0.10 / bin_width
     # tau_decay_CS = 5.0 / bin_width
-    # kernel_area_CS = 200.0 / bin_width
+    # kernel_max_CS = 200.0 / bin_width
     use_CS_pair_interval = int(np.around(CS_pair_interval / bin_width))
     print("LTD delay rounded to {0} due to binning in width of {1}.".format(use_CS_pair_interval * bin_width, bin_width))
 
@@ -1070,15 +996,15 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         # Reset weights to initial fit values
         W[:] = W_0
         W_full[0:n_gaussians] = W_0
-        alpha = params[0]
-        beta = params[1]
+        alpha = params[0] / 1e4
+        beta = params[1] / 1e4
         W_max = np.full(W.shape, params[2])
         tau_rise = params[3] / bin_width
         tau_decay = params[4] / bin_width
-        kernel_area = params[5] / bin_width
+        kernel_max = params[5] / bin_width
         tau_rise_CS = params[6] / bin_width
         tau_decay_CS = params[7] / bin_width
-        kernel_area_CS = params[8] / bin_width
+        kernel_max_CS = params[8] / bin_width
         for trial in range(0, n_trials):
             state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
             y_obs_trial = y[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Observed FR for this trial
@@ -1086,7 +1012,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
 
             # Convert state to input layer activations
             state_input = eye_input_to_PC_gauss_relu(state_trial,
-                                            gauss_means, gauss_stds)
+                                            gauss_means, gauss_stds,
+                                            n_gaussians_per_dim=n_gaussians_per_dim)
             # Set inputs derived from nan points to 0.0 so that the weights
             # for these states are not affected during nans
             state_input[eye_is_nan_trial, :] = 0.0
@@ -1102,10 +1029,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Binary CS for this trial
             if CS_gauss_kernel:
                 CS_trial = assymetric_CS_LTD(CS_trial_bin, tau_rise_CS, tau_decay_CS,
-                                                kernel_area=kernel_area_CS, min_val=0.0)
+                                                kernel_max=kernel_max_CS, min_val=0.0)
             elif CS_decay_kernel:
                 CS_trial = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise_CS,
-                                    tau_decay=tau_decay_CS, kernel_area=kernel_area_CS,
+                                    tau_decay=tau_decay_CS, kernel_max=kernel_max_CS,
                                     min_val=0.0, reverse=True)
             else:
                 CS_trial = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
@@ -1118,14 +1045,14 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             if CS_weights:
                 CS_on_Inputs *= W.squeeze()
 
-            # LTP_trial = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
-            LTP_trial = np.ones(CS_trial_bin.shape)
+            LTP_trial = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
+            # LTP_trial = np.ones(CS_trial_bin.shape)
             if LTP_decay_kernel:
                 LTP_trial = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
-                                    tau_decay=tau_decay, kernel_area=kernel_area,
+                                    tau_decay=tau_decay, kernel_max=kernel_max,
                                     min_val=1.0, reverse=False)
                 # LTP_trial = assymetric_CS_LTD(CS_trial_bin, tau_rise, tau_decay,
-                #                                 kernel_area=kernel_area, min_val=1.0)
+                #                                 kernel_max=kernel_max, min_val=1.0)
             if LTP_rates:
                 LTP_trial *= y_obs_trial
             LTP_on_Inputs = np.dot(LTP_trial, state_input) # Sum of LTP over activation for each input unit
@@ -1136,10 +1063,6 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
 
             W += ( alpha * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None] )
 
-            """ CS only learning with no LTP! """
-            # W += ( (1 + 1/alpha) * (W - W_0) - (1 - 1/beta) * CS_on_Inputs[:, None] )
-            # W += ( alpha * (W_0 - W) - beta * CS_on_Inputs[:, None] )
-
             W_full[0:n_gaussians] = W
 
         missing_y_hat = np.isnan(y_hat)
@@ -1149,18 +1072,18 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     # For psp decay CS
     if CS_decay_kernel:
         raise ValueError("init conds not set right!")
-        p0 = np.array([0.001, 0.005, np.amax(W_0), 10.0, 30.0, 200.0, 0.10, 5.0, 400])
+        p0 = np.array([10, 50, np.amax(W_0), 10.0, 30.0, 200.0, 0.10, 5.0, 400])
         lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 0.001, 1, 1])
-        upper_bounds = np.array([1, 1, np.inf, 300, 300, np.inf, 300, 300, np.inf])
+        upper_bounds = np.array([1e4, 1e4, np.inf, 300, 300, np.inf, 300, 300, np.inf])
     # For assymetric Gausian CS
     elif CS_gauss_kernel:
-        p0 =           np.array([0.001, 0.005, 2*np.amax(W_0), 2*bin_width, 5*bin_width, 1.0,    5*bin_width,   5*bin_width,   4.0])
+        p0 =           np.array([10, 50, 2*np.amax(W_0), 2*bin_width, 5*bin_width, 1.0,    5*bin_width,   5*bin_width,   4.0])
         lower_bounds = np.array([0,     0,     np.amax(W_0), 1,   1,   1,      0.001, 0.001, 1])
-        upper_bounds = np.array([1,     1,     np.inf,       300, 300, np.inf, 300,   300,   np.inf])
+        upper_bounds = np.array([1e4,     1e4,     np.inf,       300, 300, np.inf, 300,   300,   np.inf])
     else:
-        p0 =           np.array([0.001, 0.005, 2*np.amax(W_0), 2*bin_width, 5*bin_width, 1.0,    5*bin_width,   5*bin_width,   4.0])
+        p0 =           np.array([10, 50, 2*np.amax(W_0), 2*bin_width, 5*bin_width, 1.0,    5*bin_width,   5*bin_width,   4.0])
         lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 1, 0.001, 1])
-        upper_bounds = np.array([1, 1, np.inf, 300, 300, np.inf, 300, 300, np.inf])
+        upper_bounds = np.array([1e4, 1e4, np.inf, 300, 300, np.inf, 300, 300, np.inf])
 
     """ INPUT NEEDS TO BE BIN EYE DATA WITH A LAST COLUMN OF CS APPENDED! """
 
@@ -1175,15 +1098,15 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                             gtol=gtol,
                             max_nfev=max_nfev,
                             loss=loss)
-    NN_FIT.fit_results['gauss_basis_kinematics']['alpha'] = result.x[0]
-    NN_FIT.fit_results['gauss_basis_kinematics']['beta'] = result.x[1]
+    NN_FIT.fit_results['gauss_basis_kinematics']['alpha'] = result.x[0] / 1e4
+    NN_FIT.fit_results['gauss_basis_kinematics']['beta'] = result.x[1] / 1e4
     NN_FIT.fit_results['gauss_basis_kinematics']['W_max'] = result.x[2]
     NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise'] = result.x[3]
     NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay'] = result.x[4]
-    NN_FIT.fit_results['gauss_basis_kinematics']['kernel_area'] = result.x[5]
+    NN_FIT.fit_results['gauss_basis_kinematics']['kernel_max'] = result.x[5]
     NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS'] = result.x[6]
     NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS'] = result.x[7]
-    NN_FIT.fit_results['gauss_basis_kinematics']['kernel_area_CS'] = result.x[8]
+    NN_FIT.fit_results['gauss_basis_kinematics']['kernel_max_CS'] = result.x[8]
 
     return result
 
@@ -1234,6 +1157,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
     # Need the means and stds for converting state to input
     pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
     vel_means = NN_FIT.fit_results['gauss_basis_kinematics']['vel_means']
+    n_gaussians_per_dim = [len(pos_means), len(pos_means),
+                           len(vel_means), len(vel_means)]
     gauss_means = np.hstack([pos_means,
                              pos_means,
                              vel_means,
@@ -1261,10 +1186,10 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
     W_max = NN_FIT.fit_results['gauss_basis_kinematics']['W_max']
     tau_rise = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise'] / bin_width
     tau_decay = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay'] / bin_width
-    kernel_area = NN_FIT.fit_results['gauss_basis_kinematics']['kernel_area'] / bin_width
+    kernel_max = NN_FIT.fit_results['gauss_basis_kinematics']['kernel_max'] / bin_width
     tau_rise_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS'] / bin_width
     tau_decay_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS'] / bin_width
-    kernel_area_CS = NN_FIT.fit_results['gauss_basis_kinematics']['kernel_area_CS'] / bin_width
+    kernel_max_CS = NN_FIT.fit_results['gauss_basis_kinematics']['kernel_max_CS'] / bin_width
     use_CS_pair_interval = int(np.around(CS_pair_interval / bin_width))
     print("LTD delay rounded to {0} due to binning in width of {1}.".format(use_CS_pair_interval * bin_width, bin_width))
 
@@ -1279,7 +1204,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
         eye_is_nan_trial = eye_is_nan[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Nan state points for this trial
         # Convert state to input layer activations
         state_input = eye_input_to_PC_gauss_relu(state_trial,
-                                        gauss_means, gauss_stds)
+                                        gauss_means, gauss_stds,
+                                        n_gaussians_per_dim=n_gaussians_per_dim)
         # Set inputs derived from nan points to 0.0 so that the weights
         # for these states are not affected during nans
         state_input[eye_is_nan_trial, :] = 0.0
@@ -1290,10 +1216,10 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
         CS_trial_bin = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Binary CS for this trial
         if CS_gauss_kernel:
             CS_trial = assymetric_CS_LTD(CS_trial_bin, tau_rise_CS, tau_decay_CS,
-                                            kernel_area=kernel_area_CS, min_val=0.0)
+                                            kernel_max=kernel_max_CS, min_val=0.0)
         elif CS_decay_kernel:
             CS_trial = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise_CS,
-                                tau_decay=tau_decay_CS, kernel_area=kernel_area_CS,
+                                tau_decay=tau_decay_CS, kernel_max=kernel_max_CS,
                                 min_val=0.0, reverse=True)
         else:
             CS_trial = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
@@ -1306,14 +1232,14 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
         if CS_weights:
             CS_on_Inputs *= W.squeeze()
 
-        # LTP_trial = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
-        LTP_trial = np.ones(CS_trial_bin.shape)
+        LTP_trial = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
+        # LTP_trial = np.ones(CS_trial_bin.shape)
         if LTP_decay_kernel:
             LTP_trial = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
-                                tau_decay=tau_decay, kernel_area=kernel_area,
+                                tau_decay=tau_decay, kernel_max=kernel_max,
                                 min_val=1.0, reverse=False)
             # LTP_trial = assymetric_CS_LTD(CS_trial_bin, tau_rise, tau_decay,
-            #                                 kernel_area=kernel_area, min_val=1.0)
+            #                                 kernel_max=kernel_max, min_val=1.0)
         if LTP_rates:
             LTP_trial *= y_obs_trial
         LTP_on_Inputs = np.dot(LTP_trial, state_input) # Sum of LTP over activation for each input unit
