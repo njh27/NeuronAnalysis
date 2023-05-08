@@ -33,15 +33,15 @@ def gen_linspace_cos(max_min_freq, n_cos, fixed_phase=True):
     cosine parameters returned is n_cos^2."""
     try:
         if len(max_min_freq) > 2:
-            raise ValueError("max_min must be 1 or 2 elements specifing the max and min frequency for the cosines.")
+            raise ValueError("max_min_freq must be 1 or 2 elements specifing the max and min frequency for the cosines.")
     except TypeError:
-        # Happens if max_min does not have "len" method, usually because it's a singe number
-        max_min = [-1 * max_min, max_min]
+        # Happens if max_min_freq does not have "len" method, usually because it's a singe number
+        max_min_freq = [-1 * max_min_freq, max_min_freq]
     if fixed_phase:
         phase_cos = np.full(freq_cos.shape, 0.0)
-        freq_cos = np.linspace(max_min[0], max_min[1], n_cos)
+        freq_cos = np.linspace(max_min_freq[0], max_min_freq[1], n_cos)
     else:
-        freq_steps = np.linspace(max_min[0], max_min[1], n_cos)
+        freq_steps = np.linspace(max_min_freq[0], max_min_freq[1], n_cos)
         phase_steps = np.linspace(0, np.pi, n_cos)
         freq_cos = np.zeros(n_cos ** 2)
         phase_cos = np.zeros(n_cos **2)
@@ -59,10 +59,10 @@ def gen_randuniform_cosines(max_min_freq, n_cos, fixed_phase=False):
     max_min_freq and phases uniform random over [0, pi) if fixed_phase=False."""
     try:
         if len(max_min_freq) > 2:
-            raise ValueError("max_min must be 1 or 2 elements specifing the max and min frequency for the cosines.")
+            raise ValueError("max_min_freq must be 1 or 2 elements specifing the max and min frequency for the cosines.")
     except TypeError:
-        # Happens if max_min does not have "len" method, usually because it's a singe number
-        max_min = [-1 * max_min, max_min]
+        # Happens if max_min_freq does not have "len" method, usually because it's a singe number
+        max_min_freq = [-1 * max_min_freq, max_min_freq]
     # slope must be > 0
     slope_max_min[0] = max(0.1, slope_max_min[0])
     freq_cos = np.random.uniform(max_min_freq[0], max_min_freq[1], n_cos)
