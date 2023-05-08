@@ -617,7 +617,7 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
 
 
 
-CS_pair_interval = 150
+CS_pair_interval = -150
 if CS_pair_interval != 0:
     print("USING LTD delay of: ", CS_pair_interval)
     delay_LTD = True
@@ -770,8 +770,12 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             else:
                 CS_trial = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
             if delay_LTD:
-                CS_trial[0:-use_CS_pair_interval] = CS_trial[use_CS_pair_interval:]
-                CS_trial[-use_CS_pair_interval:] = 0.0
+                if use_CS_pair_interval <= 0:
+                    CS_trial[-use_CS_pair_interval:] = CS_trial[0:use_CS_pair_interval]
+                    CS_trial[0:-use_CS_pair_interval] = 0.0
+                else:
+                    CS_trial[0:-use_CS_pair_interval] = CS_trial[use_CS_pair_interval:]
+                    CS_trial[-use_CS_pair_interval:] = 0.0
             if CS_rates:
                 CS_trial *= y_obs_trial
             CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
@@ -957,8 +961,12 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
         else:
             CS_trial = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
         if delay_LTD:
-            CS_trial[0:-use_CS_pair_interval] = CS_trial[use_CS_pair_interval:]
-            CS_trial[-use_CS_pair_interval:] = 0.0
+            if use_CS_pair_interval <= 0:
+                CS_trial[-use_CS_pair_interval:] = CS_trial[0:use_CS_pair_interval]
+                CS_trial[0:-use_CS_pair_interval] = 0.0
+            else:
+                CS_trial[0:-use_CS_pair_interval] = CS_trial[use_CS_pair_interval:]
+                CS_trial[-use_CS_pair_interval:] = 0.0
         if CS_rates:
             CS_trial *= y_obs_trial
         CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
