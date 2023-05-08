@@ -38,8 +38,8 @@ def gen_linspace_cos(max_min_freq, n_cos, fixed_phase=True):
         # Happens if max_min_freq does not have "len" method, usually because it's a singe number
         max_min_freq = [-1 * max_min_freq, max_min_freq]
     if fixed_phase:
-        phase_cos = np.full(freq_cos.shape, 0.0)
         freq_cos = np.linspace(max_min_freq[0], max_min_freq[1], n_cos)
+        phase_cos = np.full(freq_cos.shape, 0.0)
     else:
         freq_steps = np.linspace(max_min_freq[0], max_min_freq[1], n_cos)
         phase_steps = np.linspace(0, np.pi, n_cos)
