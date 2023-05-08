@@ -983,9 +983,9 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
 
         W += ( alpha * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None] )
 
-        """ CS only learning with no LTP! """
-        # W += ( (1 + 1/alpha) * (W - W_0) - (1 - 1/beta) * CS_on_Inputs[:, None] )
-        # W += ( alpha * (W_0 - W) - beta * CS_on_Inputs[:, None] )
+        if np.all(np.isnan(W)):
+            print(alpha, beta)
+            return LTP_on_inputs, CS_on_Inputs, y_obs_trial, state_input
 
     return weights_by_trial
 
