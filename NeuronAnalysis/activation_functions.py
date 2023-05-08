@@ -17,7 +17,7 @@ def reflected_negative_relu(x, c=0.):
 
 # Define cosine functions
 def cosine(x, freq, phase, amp=1.0, offset=0.0):
-    return amp * np.cos(freq * x + phase) + offset
+    return amp * np.cos(freq * (x - phase)) + offset
 
 def cosine_activation(x, fixed_freqs, fixed_phases):
     num_cos = len(fixed_freqs)
