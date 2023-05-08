@@ -23,7 +23,7 @@ def cosine_activation(x, fixed_freqs, fixed_phases):
     num_cos = len(fixed_freqs)
     x_transform = np.zeros((x.size, num_cos))
     for k in range(num_cos):
-        x_transform[:, k] = cosine(x, fixed_freqs[k], fixed_phases[k], fixed_amp=1.0, fixed_offset=1.0)
+        x_transform[:, k] = cosine(x, fixed_freqs[k], fixed_phases[k], amp=1.0, offset=1.0)
     return x_transform
 
 def gen_linspace_cos(max_min_freq, n_cos, fixed_phase=True):
