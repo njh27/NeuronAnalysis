@@ -617,7 +617,7 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
 
 
 
-CS_pair_interval = -50
+CS_pair_interval = 50
 if CS_pair_interval != 0:
     print("USING LTD delay of: ", CS_pair_interval)
     delay_LTD = True
