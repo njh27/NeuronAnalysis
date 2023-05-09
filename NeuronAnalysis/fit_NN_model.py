@@ -624,10 +624,10 @@ if CS_pair_interval != 0:
 else:
     print("NO LTD delay. Using ", CS_pair_interval)
     delay_LTD = False
+CS_decay_kernel = False
 
 CS_gauss_kernel = True
-CS_decay_kernel = False
-CS_rates = False
+CS_rates = True
 CS_weights = True
 
 LTP_decay_kernel = True
