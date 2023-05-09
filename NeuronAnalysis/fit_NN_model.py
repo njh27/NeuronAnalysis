@@ -802,14 +802,14 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                 # Add a term with firing rate times weight of constant LTP
                 f_LTP_fixed = y_obs_trial * LTP_const
                 # Sum of LTP over activation for each input unit
-                LTP_on_Inputs = np.dot(f_LTP, state_input) + np.dot(f_LTP_fixed, state_input)
+                LTP_Inputs = np.dot(f_LTP, state_input) + np.dot(f_LTP_fixed, state_input)
             else:
-                LTP_on_Inputs = np.dot(f_LTP, state_input)
+                LTP_Inputs = np.dot(f_LTP, state_input)
             if LTP_weights:
                 LTP_bound = (W_max - W).squeeze()
                 LTP_bound[LTP_bound < 1e-5] = 1e-5
-                LTP_on_Inputs *= LTP_bound
-            W += ( alpha * LTP_on_Inputs[:, None] + beta * CS_on_Inputs[:, None] )
+                LTP_Inputs *= LTP_bound
+            W += ( alpha * LTP_Inputs[:, None] + beta * LTD_Inputs[:, None] )
 
             W_full[0:n_gaussians] = W
 
@@ -1004,18 +1004,18 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
             # Add a term with firing rate times weight of constant LTP
             f_LTP_fixed = y_obs_trial * LTP_const
             # Sum of LTP over activation for each input unit
-            LTP_on_Inputs = np.dot(f_LTP, state_input) + np.dot(f_LTP_fixed, state_input)
+            LTP_Inputs = np.dot(f_LTP, state_input) + np.dot(f_LTP_fixed, state_input)
         else:
-            LTP_on_Inputs = np.dot(f_LTP, state_input)
+            LTP_Inputs = np.dot(f_LTP, state_input)
         if LTP_weights:
             LTP_bound = (W_max - W).squeeze()
             LTP_bound[LTP_bound < 1e-5] = 1e-5
-            LTP_on_Inputs *= LTP_bound
-        W += ( alpha * LTP_on_Inputs[:, None] + beta * CS_on_Inputs[:, None] )
+            LTP_Inputs *= LTP_bound
+        W += ( alpha * LTP_Inputs[:, None] + beta * LTD_Inputs[:, None] )
 
         if np.all(np.isnan(W)):
             print(alpha, beta)
-            return LTP_on_Inputs, LTP_trial, CS_trial_bin, tau_rise, tau_decay, kernel_max
+            return LTP_Inputs, LTP_trial, CS_trial_bin, tau_rise, tau_decay, kernel_max
 
     return weights_by_trial
 
