@@ -738,6 +738,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         tau_rise_CS = params[6] / bin_width
         tau_decay_CS = params[7] / bin_width
         kernel_max_CS = params[8] / bin_width
+        LTP_const = params[9]
         for trial in range(0, n_trials):
             state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
             y_obs_trial = y[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Observed FR for this trial
@@ -759,52 +760,56 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             state_input = state_input[:, 0:n_gaussians]
             y_obs_trial = y_obs_trial / np.nanmax(y_obs_trial)
 
-            CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Binary CS for this trial
-            # Create the envelope of CS activation for LTD
+            # Binary CS for this trial
+            CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt]
+            # Create the LTD function
             if CS_gauss_kernel:
-                CS_trial = assymetric_CS_LTD(CS_trial_bin, tau_rise_CS, tau_decay_CS,
+                f_LTD = assymetric_CS_LTD(CS_trial_bin, tau_rise_CS, tau_decay_CS,
                                                 kernel_max=kernel_max_CS, min_val=0.0)
             elif CS_decay_kernel:
-                CS_trial = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise_CS,
+                f_LTD = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise_CS,
                                     tau_decay=tau_decay_CS, kernel_max=kernel_max_CS,
                                     min_val=0.0, reverse=True)
             else:
-                CS_trial = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
-            # CS_trial_bin = np.copy(CS_trial)
-            # Shift LTD envelope according to delay_LTD
+                f_LTD = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
+            # Shift f_LTD LTD envelope according to delay_LTD
             if delay_LTD:
                 if use_CS_pair_interval <= 0:
-                    CS_trial[-use_CS_pair_interval:] = CS_trial[0:use_CS_pair_interval]
-                    CS_trial[0:-use_CS_pair_interval] = 0.0
+                    f_LTD[-use_CS_pair_interval:] = f_LTD[0:use_CS_pair_interval]
+                    f_LTD[0:-use_CS_pair_interval] = 0.0
                 else:
-                    CS_trial[0:-use_CS_pair_interval] = CS_trial[use_CS_pair_interval:]
-                    CS_trial[-use_CS_pair_interval:] = 0.0
+                    f_LTD[0:-use_CS_pair_interval] = f_LTD[use_CS_pair_interval:]
+                    f_LTD[-use_CS_pair_interval:] = 0.0
             # Scale by PC firing rate
             if CS_rates:
-                CS_trial *= y_obs_trial
-            # Convolve CS envelope for this trial with state activation
-            CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
+                f_LTD *= y_obs_trial
+            # Convolve LTD function for this trial with state activation
+            LTD_Inputs = np.dot(f_LTD, state_input) # Sum of f_LTD over activation for each input unit
             # Set state modification availability according to current weight
             if CS_weights:
-                CS_on_Inputs *= W.squeeze()
+                LTD_Inputs *= -1 * W.squeeze()
 
-            LTP_trial = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
-            # LTP_trial = np.ones(CS_trial_bin.shape)
+            # Create the LTP function
+            f_LTP = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
             if LTP_decay_kernel:
-                # LTP_trial = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
+                # f_LTP = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
                 #                     tau_decay=tau_decay, kernel_max=kernel_max,
-                #                     min_val=1.0, reverse=False)
-                LTP_trial = assymetric_CS_LTD(CS_trial_bin, tau_rise, tau_decay,
-                                                kernel_max=kernel_max, min_val=1.0)
+                #                     min_val=0.0, reverse=False)
+                f_LTP = assymetric_CS_LTD(CS_trial_bin, tau_rise, tau_decay,
+                                                kernel_max=kernel_max, min_val=0.0)
+            # Convert LTP function to LTP input space
             if LTP_rates:
-                LTP_trial *= y_obs_trial
-            LTP_on_Inputs = np.dot(LTP_trial, state_input) # Sum of LTP over activation for each input unit
+                # Add a term with firing rate times weight of constant LTP
+                f_LTP_fixed = y_obs_trial * LTP_const
+                # Sum of LTP over activation for each input unit
+                LTP_on_Inputs = np.dot(f_LTP, state_input) + np.dot(f_LTP_fixed, state_input)
+            else:
+                LTP_on_Inputs = np.dot(f_LTP, state_input)
             if LTP_weights:
                 LTP_bound = (W_max - W).squeeze()
                 LTP_bound[LTP_bound < 1e-5] = 1e-5
                 LTP_on_Inputs *= LTP_bound
-
-            W += ( alpha * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None] )
+            W += ( alpha * LTP_on_Inputs[:, None] + beta * CS_on_Inputs[:, None] )
 
             W_full[0:n_gaussians] = W
 
@@ -820,13 +825,13 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         upper_bounds = np.array([1e4, 1e4, np.inf, 300, 300, np.inf, 300, 300, np.inf])
     # For assymetric Gausian CS
     elif CS_gauss_kernel:
-        p0 =           np.array([10, 50, 2*np.amax(W_0), 2*bin_width, 5*bin_width, 1.0,    5*bin_width,   5*bin_width,   4.0])
-        lower_bounds = np.array([0,     0,     np.amax(W_0), 1,   1,   1,      0.001, 0.001, 1])
-        upper_bounds = np.array([1e4,     1e4,     np.inf,       300, 300, np.inf, 300,   300,   np.inf])
+        p0 =           np.array([10, 50, 2*np.amax(W_0), 2*bin_width, 5*bin_width, 1.0,    5*bin_width,   5*bin_width,   4.0, 1.0])
+        lower_bounds = np.array([0,     0,     np.amax(W_0), 1,   1,   1,      0.001, 0.001, 1, 0])
+        upper_bounds = np.array([1e4,     1e4,     np.inf,       300, 300, np.inf, 300,   300,   np.inf, np.inf])
     else:
-        p0 =           np.array([10, 50, 2*np.amax(W_0), 2*bin_width, 5*bin_width, 1.0,    5*bin_width,   5*bin_width,   4.0])
-        lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 1, 0.001, 1])
-        upper_bounds = np.array([1e4, 1e4, np.inf, 300, 300, np.inf, 300, 300, np.inf])
+        p0 =           np.array([10, 50, 2*np.amax(W_0), 2*bin_width, 5*bin_width, 1.0,    5*bin_width,   5*bin_width,   4.0, 1.0])
+        lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 1, 0.001, 1, 0])
+        upper_bounds = np.array([1e4, 1e4, np.inf, 300, 300, np.inf, 300, 300, np.inf, np.inf])
 
     """ INPUT NEEDS TO BE BIN EYE DATA WITH A LAST COLUMN OF CS APPENDED! """
 
@@ -850,6 +855,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS'] = result.x[6]
     NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS'] = result.x[7]
     NN_FIT.fit_results['gauss_basis_kinematics']['kernel_max_CS'] = result.x[8]
+    NN_FIT.fit_results['gauss_basis_kinematics']['LTP_const'] = result.x[9]
 
     return result
 
@@ -933,6 +939,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
     tau_rise_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS'] / bin_width
     tau_decay_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS'] / bin_width
     kernel_max_CS = NN_FIT.fit_results['gauss_basis_kinematics']['kernel_max_CS'] / bin_width
+    LTP_const = NN_FIT.fit_results['gauss_basis_kinematics']['LTP_const']
     use_CS_pair_interval = int(np.around(CS_pair_interval / bin_width))
     print("LTD delay rounded to {0} due to binning in width of {1}.".format(use_CS_pair_interval * bin_width, bin_width))
 
@@ -955,48 +962,56 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
         state_input = state_input[:, 0:n_gaussians]
         y_obs_trial = y_obs_trial / np.nanmax(y_obs_trial)
 
-        # Update weights for next trial based on activations in this trial
-        CS_trial_bin = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Binary CS for this trial
+        # Binary CS for this trial
+        CS_trial_bin = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt]
+        # Create the LTD function
         if CS_gauss_kernel:
-            CS_trial = assymetric_CS_LTD(CS_trial_bin, tau_rise_CS, tau_decay_CS,
+            f_LTD = assymetric_CS_LTD(CS_trial_bin, tau_rise_CS, tau_decay_CS,
                                             kernel_max=kernel_max_CS, min_val=0.0)
         elif CS_decay_kernel:
-            CS_trial = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise_CS,
+            f_LTD = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise_CS,
                                 tau_decay=tau_decay_CS, kernel_max=kernel_max_CS,
                                 min_val=0.0, reverse=True)
         else:
-            CS_trial = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
-        # CS_trial_bin = np.copy(CS_trial)
+            f_LTD = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
+        # Shift f_LTD LTD envelope according to delay_LTD
         if delay_LTD:
             if use_CS_pair_interval <= 0:
-                CS_trial[-use_CS_pair_interval:] = CS_trial[0:use_CS_pair_interval]
-                CS_trial[0:-use_CS_pair_interval] = 0.0
+                f_LTD[-use_CS_pair_interval:] = f_LTD[0:use_CS_pair_interval]
+                f_LTD[0:-use_CS_pair_interval] = 0.0
             else:
-                CS_trial[0:-use_CS_pair_interval] = CS_trial[use_CS_pair_interval:]
-                CS_trial[-use_CS_pair_interval:] = 0.0
+                f_LTD[0:-use_CS_pair_interval] = f_LTD[use_CS_pair_interval:]
+                f_LTD[-use_CS_pair_interval:] = 0.0
+        # Scale by PC firing rate
         if CS_rates:
-            CS_trial *= y_obs_trial
-        CS_on_Inputs = np.dot(CS_trial, state_input) # Sum of CS over activation for each input unit
+            f_LTD *= y_obs_trial
+        # Convolve LTD function for this trial with state activation
+        LTD_Inputs = np.dot(f_LTD, state_input) # Sum of f_LTD over activation for each input unit
+        # Set state modification availability according to current weight
         if CS_weights:
-            CS_on_Inputs *= W.squeeze()
+            LTD_Inputs *= -1 * W.squeeze()
 
-        LTP_trial = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
-        # LTP_trial = np.ones(CS_trial_bin.shape)
+        # Create the LTP function
+        f_LTP = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
         if LTP_decay_kernel:
-            # LTP_trial = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
+            # f_LTP = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
             #                     tau_decay=tau_decay, kernel_max=kernel_max,
-            #                     min_val=1.0, reverse=False)
-            LTP_trial = assymetric_CS_LTD(CS_trial_bin, tau_rise, tau_decay,
-                                            kernel_max=kernel_max, min_val=1.0)
+            #                     min_val=0.0, reverse=False)
+            f_LTP = assymetric_CS_LTD(CS_trial_bin, tau_rise, tau_decay,
+                                            kernel_max=kernel_max, min_val=0.0)
+        # Convert LTP function to LTP input space
         if LTP_rates:
-            LTP_trial *= y_obs_trial
-        LTP_on_Inputs = np.dot(LTP_trial, state_input) # Sum of LTP over activation for each input unit
+            # Add a term with firing rate times weight of constant LTP
+            f_LTP_fixed = y_obs_trial * LTP_const
+            # Sum of LTP over activation for each input unit
+            LTP_on_Inputs = np.dot(f_LTP, state_input) + np.dot(f_LTP_fixed, state_input)
+        else:
+            LTP_on_Inputs = np.dot(f_LTP, state_input)
         if LTP_weights:
             LTP_bound = (W_max - W).squeeze()
             LTP_bound[LTP_bound < 1e-5] = 1e-5
             LTP_on_Inputs *= LTP_bound
-
-        W += ( alpha * LTP_on_Inputs[:, None] - beta * CS_on_Inputs[:, None] )
+        W += ( alpha * LTP_on_Inputs[:, None] + beta * CS_on_Inputs[:, None] )
 
         if np.all(np.isnan(W)):
             print(alpha, beta)
