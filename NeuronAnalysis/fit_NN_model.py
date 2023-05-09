@@ -809,8 +809,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                 LTP_bound = (W_max - W).squeeze()
                 LTP_bound[LTP_bound < 1e-5] = 1e-5
                 LTP_Inputs *= LTP_bound
-            # W += ( alpha * LTP_Inputs[:, None] + beta * LTD_Inputs[:, None] )
-            W += ( LTP_Inputs[:, None] + LTD_Inputs[:, None] )
+            W += ( alpha * LTP_Inputs[:, None] + beta * LTD_Inputs[:, None] )
 
             W_full[0:n_gaussians] = W
 
@@ -1012,8 +1011,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
             LTP_bound = (W_max - W).squeeze()
             LTP_bound[LTP_bound < 1e-5] = 1e-5
             LTP_Inputs *= LTP_bound
-        # W += ( alpha * LTP_Inputs[:, None] + beta * LTD_Inputs[:, None] )
-        W += ( LTP_Inputs[:, None] + LTD_Inputs[:, None] )
+        W += ( alpha * LTP_Inputs[:, None] + beta * LTD_Inputs[:, None] )
+        # W += ( LTP_Inputs[:, None] + LTD_Inputs[:, None] )
 
         if np.all(np.isnan(W)):
             print(alpha, beta)
