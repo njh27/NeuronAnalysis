@@ -758,7 +758,12 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             y_hat[trial*n_obs_pt:(trial + 1)*n_obs_pt] = y_hat_trial
             # Update weights for next trial based on activations in this trial
             state_input = state_input[:, 0:n_gaussians]
-            y_obs_trial = y_obs_trial / np.nanmax(y_obs_trial)
+            t_max_rate = np.nanmax(y_obs_trial)
+            if ( (not np.isfinite(t_max_rate)) or (t_max_rate < 0.01) ):
+                # Basically no firing this trial so just set to zero
+                y_obs_trial[:] = 0.0
+            else:
+                y_obs_trial = y_obs_trial / t_max_rate
 
             # Binary CS for this trial
             CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt]
@@ -961,10 +966,11 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
         state_input[eye_is_nan_trial, :] = 0.0
         state_input = state_input[:, 0:n_gaussians]
         t_max_rate = np.nanmax(y_obs_trial)
-        if ( (not np.isfinite(t_max_rate)) or (t_max_rate == 0) ):
-            raise ValueError("Trial {0} has max rate of {1}.".format(trial_num, t_max_rate))
-        y_obs_trial = y_obs_trial / t_max_rate
-        print(t_max_rate)
+        if ( (not np.isfinite(t_max_rate)) or (t_max_rate < 0.01) ):
+            # Basically no firing this trial so just set to zero
+            y_obs_trial[:] = 0.0
+        else:
+            y_obs_trial = y_obs_trial / t_max_rate
 
         # Binary CS for this trial
         CS_trial_bin = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt]
