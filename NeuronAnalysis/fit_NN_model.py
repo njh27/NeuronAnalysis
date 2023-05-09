@@ -631,7 +631,7 @@ CS_rates = False
 CS_weights = True
 
 LTP_decay_kernel = True
-LTP_rates = True
+LTP_rates = False
 LTP_weights = True
 
 def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5):
