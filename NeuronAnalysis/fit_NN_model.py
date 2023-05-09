@@ -770,7 +770,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                                     min_val=0.0, reverse=True)
             else:
                 CS_trial = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
-            CS_trial_bin = np.copy(CS_trial)
+            # CS_trial_bin = np.copy(CS_trial)
             # Shift LTD envelope according to delay_LTD
             if delay_LTD:
                 if use_CS_pair_interval <= 0:
@@ -966,7 +966,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
                                 min_val=0.0, reverse=True)
         else:
             CS_trial = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
-        CS_trial_bin = np.copy(CS_trial)
+        # CS_trial_bin = np.copy(CS_trial)
         if delay_LTD:
             if use_CS_pair_interval <= 0:
                 CS_trial[-use_CS_pair_interval:] = CS_trial[0:use_CS_pair_interval]
