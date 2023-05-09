@@ -1016,7 +1016,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0=None,
 
         if np.all(np.isnan(W)):
             print(alpha, beta)
-            return LTP_Inputs, LTP_trial, CS_trial_bin, tau_rise, tau_decay, kernel_max
+            return LTP_Inputs, f_LTP, f_LTP_fixed, tau_rise, tau_decay, kernel_max
 
     return weights_by_trial
 
