@@ -643,6 +643,11 @@ MLI_kernel = False
 MLI_rates = False
 MLI_weights = True
 
+if UPDATE_MLI_WEIGHTS:
+    print("Running with PLASTIC MLI weights!")
+else:
+    print("Running with FIXED MLI weights!")
+
 def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5):
     """ Need the trials from blocks and trial_sets to be ORDERED! Weights will
     be updated from one trial to the next as if they are ordered and will
