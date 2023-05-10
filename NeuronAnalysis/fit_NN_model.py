@@ -837,7 +837,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             if LTP_weights:
                 LTP_Inputs *= (W_max_pf - W_pf).squeeze()
             W_pf += ( alpha * LTP_Inputs[:, None] - beta * LTD_Inputs[:, None] )
-            W_pf[W_pf > W_max_pf, :] = W_max_pf
+            W_pf[W_pf > W_max_pf[0], :] = W_max_pf[0]
             W_pf[W_pf < 0.0, :] = 0.0
             W_full[0:n_gaussians] = W_pf
 
@@ -874,7 +874,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                     MLI_LTD_Inputs *= W_mli.squeeze()
 
                 W_mli += psi * MLI_LTP_Inputs[:, None] - omega * MLI_LTD_Inputs[:, None]
-                W_mli[W_mli > W_max_mli, :] = W_max_mli
+                W_mli[W_mli > W_max_mli[0], :] = W_max_mli[0]
                 W_mli[W_mli < 0.0, :] = 0.0
                 W_full[n_gaussians:] = W_mli
 
@@ -1097,7 +1097,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         if LTP_weights:
             LTP_Inputs *= (W_max_pf - W_pf).squeeze()
         W_pf += ( alpha * LTP_Inputs[:, None] - beta * LTD_Inputs[:, None] )
-        W_pf[W_pf > W_max_pf, :] = W_max_pf
+        W_pf[W_pf > W_max_pf[0], :] = W_max_pf[0]
         W_pf[W_pf < 0.0, :] = 0.0
         W_full[0:n_gaussians] = W_pf
 
@@ -1134,7 +1134,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
                 MLI_LTD_Inputs *= W_mli.squeeze()
 
             W_mli += psi * MLI_LTP_Inputs[:, None] - omega * MLI_LTD_Inputs[:, None]
-            W_mli[W_mli > W_max_mli, :] = W_max_mli
+            W_mli[W_mli > W_max_mli[0], :] = W_max_mli[0]
             W_mli[W_mli < 0.0, :] = 0.0
             W_full[n_gaussians:] = W_mli
 
