@@ -835,9 +835,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             else:
                 LTP_Inputs = np.dot(f_LTP, state_input_pf)
             if LTP_weights:
-                LTP_bound = (W_max_pf - W_pf).squeeze()
-                LTP_Inputs *= LTP_bound
+                LTP_Inputs *= (W_max_pf - W_pf).squeeze()
             W_pf += ( alpha * LTP_Inputs[:, None] - beta * LTD_Inputs[:, None] )
+            W_pf[W_pf > W_max_pf] = W_max_pf
+            W_pf[W_pf < 0.0] = 0.0
             W_full[0:n_gaussians] = W_pf
 
             if UPDATE_MLI_WEIGHTS:
@@ -859,8 +860,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                 else:
                     MLI_LTP_Inputs = np.dot(f_MLI_LTP, state_input_mli)
                 if MLI_weights:
-                    MLI_bound = (W_max_mli - W_mli).squeeze()
-                    MLI_LTP_Inputs *= MLI_bound
+                    MLI_LTP_Inputs *= (W_max_mli - W_mli).squeeze()
 
                 # Create the MLI LTD function
                 if MLI_kernel:
@@ -874,6 +874,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                     MLI_LTD_Inputs *= W_mli.squeeze()
 
                 W_mli += psi * MLI_LTP_Inputs[:, None] - omega * MLI_LTD_Inputs[:, None]
+                W_mli[W_mli > W_max_mli] = W_max_mli
+                W_mli[W_mli < 0.0] = 0.0
                 W_full[n_gaussians:] = W_mli
 
         missing_y_hat = np.isnan(y_hat)
@@ -1093,9 +1095,10 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         else:
             LTP_Inputs = np.dot(f_LTP, state_input_pf)
         if LTP_weights:
-            LTP_bound = (W_max_pf - W_pf).squeeze()
-            LTP_Inputs *= LTP_bound
+            LTP_Inputs *= (W_max_pf - W_pf).squeeze()
         W_pf += ( alpha * LTP_Inputs[:, None] - beta * LTD_Inputs[:, None] )
+        W_pf[W_pf > W_max_pf] = W_max_pf
+        W_pf[W_pf < 0.0] = 0.0
         W_full[0:n_gaussians] = W_pf
 
         if UPDATE_MLI_WEIGHTS:
@@ -1117,8 +1120,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             else:
                 MLI_LTP_Inputs = np.dot(f_MLI_LTP, state_input_mli)
             if MLI_weights:
-                MLI_bound = (W_max_mli - W_mli).squeeze()
-                MLI_LTP_Inputs *= MLI_bound
+                MLI_LTP_Inputs *= (W_max_mli - W_mli).squeeze()
 
             # Create the MLI LTD function
             if MLI_kernel:
@@ -1132,6 +1134,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
                 MLI_LTD_Inputs *= W_mli.squeeze()
 
             W_mli += psi * MLI_LTP_Inputs[:, None] - omega * MLI_LTD_Inputs[:, None]
+            W_mli[W_mli > W_max_mli] = W_max_mli
+            W_mli[W_mli < 0.0] = 0.0
             W_full[n_gaussians:] = W_mli
 
         if np.all(np.isnan(W_full)):
