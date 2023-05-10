@@ -836,7 +836,6 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                 LTP_Inputs = np.dot(f_LTP, state_input_pf)
             if LTP_weights:
                 LTP_bound = (W_max_pf - W_pf).squeeze()
-                LTP_bound[LTP_bound < 1e-5] = 1e-5
                 LTP_Inputs *= LTP_bound
             W_pf += ( alpha * LTP_Inputs[:, None] - beta * LTD_Inputs[:, None] )
             W_full[0:n_gaussians] = W_pf
@@ -856,12 +855,11 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                     # Add a term with firing rate times weight of constant MLI
                     f_MLI_fixed = y_obs_trial * MLI_const
                     # Sum of MLI activation for each input unit
-                    MLI_LTP_Inputs = np.dot(f_MLI, state_input_mli) + np.dot(f_MLI_fixed, state_input_mli)
+                    MLI_LTP_Inputs = np.dot(f_MLI_LTP, state_input_mli) + np.dot(f_MLI_fixed, state_input_mli)
                 else:
                     MLI_LTP_Inputs = np.dot(f_MLI_LTP, state_input_mli)
                 if MLI_weights:
                     MLI_bound = (W_max_mli - W_mli).squeeze()
-                    MLI_bound[MLI_bound < 1e-5] = 1e-5
                     MLI_LTP_Inputs *= MLI_bound
 
                 # Create the MLI LTD function
@@ -1096,7 +1094,6 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             LTP_Inputs = np.dot(f_LTP, state_input_pf)
         if LTP_weights:
             LTP_bound = (W_max_pf - W_pf).squeeze()
-            LTP_bound[LTP_bound < 1e-5] = 1e-5
             LTP_Inputs *= LTP_bound
         W_pf += ( alpha * LTP_Inputs[:, None] - beta * LTD_Inputs[:, None] )
         W_full[0:n_gaussians] = W_pf
@@ -1116,12 +1113,11 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
                 # Add a term with firing rate times weight of constant MLI
                 f_MLI_fixed = y_obs_trial * MLI_const
                 # Sum of MLI activation for each input unit
-                MLI_LTP_Inputs = np.dot(f_MLI, state_input_mli) + np.dot(f_MLI_fixed, state_input_mli)
+                MLI_LTP_Inputs = np.dot(f_MLI_LTP, state_input_mli) + np.dot(f_MLI_fixed, state_input_mli)
             else:
                 MLI_LTP_Inputs = np.dot(f_MLI_LTP, state_input_mli)
             if MLI_weights:
                 MLI_bound = (W_max_mli - W_mli).squeeze()
-                MLI_bound[MLI_bound < 1e-5] = 1e-5
                 MLI_LTP_Inputs *= MLI_bound
 
             # Create the MLI LTD function
