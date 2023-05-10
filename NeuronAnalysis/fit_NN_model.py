@@ -848,6 +848,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                 # Add a term with firing rate times weight of constant MLI
                 f_MLI_fixed = y_obs_trial * MLI_const
                 # Sum of MLI activation for each input unit
+                print("CHECKING MLI weights")
+                if np.any(np.any(state_input_mli < 0)):
+                    raise RuntimeError("Why is MLI state negative?")
                 MLI_Inputs = np.dot(f_MLI, state_input_mli) + np.dot(f_MLI_fixed, state_input_mli)
             else:
                 MLI_Inputs = np.dot(f_MLI, state_input_mli)
