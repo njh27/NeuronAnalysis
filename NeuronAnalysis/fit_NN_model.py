@@ -846,10 +846,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             # Convert LTP function to LTP input space
             if MLI_rates:
                 # Add a term with firing rate times weight of constant MLI
-                f_MLI_fixed = y_obs_trial * MLI_const
+                f_MLI_fixed = (1 - y_obs_trial) * MLI_const
                 # Sum of MLI activation for each input unit
-                if np.any(np.any(state_input_mli > 0)):
-                    raise RuntimeError("Why is MLI state negative?")
                 MLI_Inputs = np.dot(f_MLI, state_input_mli) + np.dot(f_MLI_fixed, state_input_mli)
             else:
                 MLI_Inputs = np.dot(f_MLI, state_input_mli)
@@ -1093,7 +1091,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         # Convert LTP function to LTP input space
         if MLI_rates:
             # Add a term with firing rate times weight of constant MLI
-            f_MLI_fixed = y_obs_trial * MLI_const
+            f_MLI_fixed = (1 - y_obs_trial) * MLI_const
             # Sum of MLI activation for each input unit
             MLI_Inputs = np.dot(f_MLI, state_input_mli) + np.dot(f_MLI_fixed, state_input_mli)
         else:
