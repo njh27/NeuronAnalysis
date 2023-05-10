@@ -639,7 +639,7 @@ LTP_rates = True
 LTP_weights = True
 
 MLI_kernel = False
-MLI_rates = True
+MLI_rates = False
 MLI_weights = True
 
 def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5):
@@ -753,7 +753,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         LTP_const = params[9]
         W_max_mli = np.full(W_mli.shape, params[10])
         MLI_const = params[11]
-        gamma = params[12] / 1e4
+        psi = params[12] / 1e4
+        omega = params[13] / 1e4
         for trial in range(0, n_trials):
             state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
             y_obs_trial = y[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Observed FR for this trial
@@ -834,8 +835,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             W_pf += ( alpha * LTP_Inputs[:, None] - beta * LTD_Inputs[:, None] )
             W_full[0:n_gaussians] = W_pf
 
-            # Create the MLI weighting function
-            f_MLI = np.zeros(CS_trial_bin.shape)
+            # Create the MLI LTP weighting function
+            f_MLI_LTP = np.copy(CS_trial_bin)
             if MLI_kernel:
                 raise ValueError("NOT setup for MLI kernel")
                 # f_LTP = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
@@ -848,14 +849,26 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                 # Add a term with firing rate times weight of constant MLI
                 f_MLI_fixed = (1 - y_obs_trial) * MLI_const
                 # Sum of MLI activation for each input unit
-                MLI_Inputs = np.dot(f_MLI, state_input_mli) + np.dot(f_MLI_fixed, state_input_mli)
+                MLI_LTP_Inputs = np.dot(f_MLI, state_input_mli) + np.dot(f_MLI_fixed, state_input_mli)
             else:
-                MLI_Inputs = np.dot(f_MLI, state_input_mli)
+                MLI_LTP_Inputs = np.dot(f_MLI_LTP, state_input_mli)
             if MLI_weights:
                 MLI_bound = (W_max_mli - W_mli).squeeze()
                 MLI_bound[MLI_bound < 1e-5] = 1e-5
-                MLI_Inputs *= MLI_bound
-            W_mli += gamma * MLI_Inputs[:, None]
+                MLI_LTP_Inputs *= MLI_bound
+
+            # Create the MLI LTD function
+            if MLI_kernel:
+                raise ValueError("NOT setup for MLI kernel")
+            else:
+                f_MLI_LTD = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
+            # Convolve LTD function for this trial with state activation
+            MLI_LTD_Inputs = np.dot(f_MLI_LTD, state_input_mli) # Sum of f_LTD over activation for each input unit
+            # Set state modification availability according to current weight
+            if MLI_weights:
+                MLI_LTD_Inputs *= W_mli.squeeze()
+
+            W_mli += psi * MLI_LTP_Inputs[:, None] - omega * MLI_LTD_Inputs[:, None]
             W_full[n_gaussians:] = W_mli
 
         missing_y_hat = np.isnan(y_hat)
@@ -870,13 +883,13 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         upper_bounds = np.array([1e4, 1e4, np.inf, 300, 300, np.inf, 300, 300, np.inf])
     # For assymetric Gausian CS
     elif CS_gauss_kernel:
-        p0 =           np.array([10, 50, 10*np.amax(W_0_pf), 2*bin_width, 5*bin_width, 10.0,    5*bin_width,   5*bin_width,   40.0, 1.0, 10*np.amax(W_0_mli), 1.0, 5])
-        lower_bounds = np.array([0,     0,     np.amax(W_0_pf), 1,   1,   1,      0.001, 0.001, 1, 0, np.amax(W_0_mli), 0, 0])
-        upper_bounds = np.array([1e4,     1e4,     np.inf,       300, 300, np.inf, 300,   300,   np.inf, np.inf, np.inf, np.inf, 1e4])
+        p0 =           np.array([10, 50, 10*np.amax(W_0_pf), 2*bin_width, 5*bin_width, 10.0,    5*bin_width,   5*bin_width,   40.0, 1.0, 10*np.amax(W_0_mli), 1.0, 5, 5])
+        lower_bounds = np.array([0,     0,     np.amax(W_0_pf), 1,   1,   1,      0.001, 0.001, 1, 0, np.amax(W_0_mli), 0, 0, 0])
+        upper_bounds = np.array([1e4,     1e4,     np.inf,       300, 300, np.inf, 300,   300,   np.inf, np.inf, np.inf, np.inf, 1e4, 1e4])
     else:
-        p0 =           np.array([10, 50, 10*np.amax(W_0_pf), 2*bin_width, 5*bin_width, 10.0,    5*bin_width,   5*bin_width,   40.0, 1.0, 10*np.amax(W_0_mli), 1.0, 5])
-        lower_bounds = np.array([0, 0, np.amax(W_0_pf), 1, 1, 1, 1, 0.001, 1, 0, np.amax(W_0_mli), 0, 0])
-        upper_bounds = np.array([1e4, 1e4, np.inf, 300, 300, np.inf, 300, 300, np.inf, np.inf, np.inf, np.inf, 1e4])
+        p0 =           np.array([10, 50, 10*np.amax(W_0_pf), 2*bin_width, 5*bin_width, 10.0,    5*bin_width,   5*bin_width,   40.0, 1.0, 10*np.amax(W_0_mli), 1.0, 5, 5])
+        lower_bounds = np.array([0, 0, np.amax(W_0_pf), 1, 1, 1, 1, 0.001, 1, 0, np.amax(W_0_mli), 0, 0, 0])
+        upper_bounds = np.array([1e4, 1e4, np.inf, 300, 300, np.inf, 300, 300, np.inf, np.inf, np.inf, np.inf, 1e4, 1e4])
 
     """ INPUT NEEDS TO BE BIN EYE DATA WITH A LAST COLUMN OF CS APPENDED! """
 
@@ -903,7 +916,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     NN_FIT.fit_results['gauss_basis_kinematics']['LTP_const'] = result.x[9]
     NN_FIT.fit_results['gauss_basis_kinematics']['W_max_mli'] = result.x[10]
     NN_FIT.fit_results['gauss_basis_kinematics']['MLI_const'] = result.x[11]
-    NN_FIT.fit_results['gauss_basis_kinematics']['gamma'] = result.x[12] / 1e4
+    NN_FIT.fit_results['gauss_basis_kinematics']['psi'] = result.x[12] / 1e4
+    NN_FIT.fit_results['gauss_basis_kinematics']['omega'] = result.x[13] / 1e4
 
     return result
 
@@ -995,7 +1009,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     LTP_const = NN_FIT.fit_results['gauss_basis_kinematics']['LTP_const']
     W_max_mli = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_mli']
     MLI_const = NN_FIT.fit_results['gauss_basis_kinematics']['MLI_const']
-    gamma = NN_FIT.fit_results['gauss_basis_kinematics']['gamma']
+    psi = NN_FIT.fit_results['gauss_basis_kinematics']['psi']
+    omega = NN_FIT.fit_results['gauss_basis_kinematics']['omega']
     use_CS_pair_interval = int(np.around(CS_pair_interval / bin_width))
     print("LTD delay rounded to {0} due to binning in width of {1}.".format(use_CS_pair_interval * bin_width, bin_width))
 
@@ -1079,8 +1094,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         W_pf += ( alpha * LTP_Inputs[:, None] - beta * LTD_Inputs[:, None] )
         W_full[0:n_gaussians] = W_pf
 
-        # Create the MLI weighting function
-        f_MLI = np.zeros(CS_trial_bin.shape)
+        # Create the MLI LTP weighting function
+        f_MLI_LTP = np.copy(CS_trial_bin)
         if MLI_kernel:
             raise ValueError("NOT setup for MLI kernel")
             # f_LTP = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
@@ -1093,18 +1108,30 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             # Add a term with firing rate times weight of constant MLI
             f_MLI_fixed = (1 - y_obs_trial) * MLI_const
             # Sum of MLI activation for each input unit
-            MLI_Inputs = np.dot(f_MLI, state_input_mli) + np.dot(f_MLI_fixed, state_input_mli)
+            MLI_LTP_Inputs = np.dot(f_MLI, state_input_mli) + np.dot(f_MLI_fixed, state_input_mli)
         else:
-            MLI_Inputs = np.dot(f_MLI, state_input_mli)
+            MLI_LTP_Inputs = np.dot(f_MLI_LTP, state_input_mli)
         if MLI_weights:
             MLI_bound = (W_max_mli - W_mli).squeeze()
             MLI_bound[MLI_bound < 1e-5] = 1e-5
-            MLI_Inputs *= MLI_bound
-        W_mli += gamma * MLI_Inputs[:, None]
+            MLI_LTP_Inputs *= MLI_bound
+
+        # Create the MLI LTD function
+        if MLI_kernel:
+            raise ValueError("NOT setup for MLI kernel")
+        else:
+            f_MLI_LTD = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
+        # Convolve LTD function for this trial with state activation
+        MLI_LTD_Inputs = np.dot(f_MLI_LTD, state_input_mli) # Sum of f_LTD over activation for each input unit
+        # Set state modification availability according to current weight
+        if MLI_weights:
+            MLI_LTD_Inputs *= W_mli.squeeze()
+
+        W_mli += psi * MLI_LTP_Inputs[:, None] - omega * MLI_LTD_Inputs[:, None]
         W_full[n_gaussians:] = W_mli
 
         if np.all(np.isnan(W_full)):
-            print(alpha, beta, gamma)
+            print(alpha, beta, psi)
             return LTP_Inputs, f_LTP, f_LTP_fixed, y_obs_trial, state_input, LTP_const
 
     return weights_by_trial
