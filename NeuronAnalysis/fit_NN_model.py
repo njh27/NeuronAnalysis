@@ -640,7 +640,7 @@ LTP_weights = True
 
 UPDATE_MLI_WEIGHTS = True
 MLI_kernel = False
-MLI_rates = False
+MLI_rates = True
 MLI_weights = True
 
 if UPDATE_MLI_WEIGHTS:
