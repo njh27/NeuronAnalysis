@@ -638,6 +638,7 @@ LTP_decay_kernel = True
 LTP_rates = True
 LTP_weights = True
 
+UPDATE_MLI_WEIGHTS = False
 MLI_kernel = False
 MLI_rates = False
 MLI_weights = True
@@ -835,41 +836,42 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             W_pf += ( alpha * LTP_Inputs[:, None] - beta * LTD_Inputs[:, None] )
             W_full[0:n_gaussians] = W_pf
 
-            # Create the MLI LTP weighting function
-            f_MLI_LTP = np.copy(CS_trial_bin)
-            if MLI_kernel:
-                raise ValueError("NOT setup for MLI kernel")
-                # f_LTP = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
-                #                     tau_decay=tau_decay, kernel_max=kernel_max,
-                #                     min_val=0.0, reverse=False)
-                # f_LTP = assymetric_CS_LTD(CS_trial_bin, tau_rise, tau_decay,
-                #                                 kernel_max=kernel_max, min_val=0.0)
-            # Convert LTP function to LTP input space
-            if MLI_rates:
-                # Add a term with firing rate times weight of constant MLI
-                f_MLI_fixed = y_obs_trial * MLI_const
-                # Sum of MLI activation for each input unit
-                MLI_LTP_Inputs = np.dot(f_MLI, state_input_mli) + np.dot(f_MLI_fixed, state_input_mli)
-            else:
-                MLI_LTP_Inputs = np.dot(f_MLI_LTP, state_input_mli)
-            if MLI_weights:
-                MLI_bound = (W_max_mli - W_mli).squeeze()
-                MLI_bound[MLI_bound < 1e-5] = 1e-5
-                MLI_LTP_Inputs *= MLI_bound
+            if UPDATE_MLI_WEIGHTS:
+                # Create the MLI LTP weighting function
+                f_MLI_LTP = np.copy(CS_trial_bin)
+                if MLI_kernel:
+                    raise ValueError("NOT setup for MLI kernel")
+                    # f_LTP = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
+                    #                     tau_decay=tau_decay, kernel_max=kernel_max,
+                    #                     min_val=0.0, reverse=False)
+                    # f_LTP = assymetric_CS_LTD(CS_trial_bin, tau_rise, tau_decay,
+                    #                                 kernel_max=kernel_max, min_val=0.0)
+                # Convert LTP function to LTP input space
+                if MLI_rates:
+                    # Add a term with firing rate times weight of constant MLI
+                    f_MLI_fixed = y_obs_trial * MLI_const
+                    # Sum of MLI activation for each input unit
+                    MLI_LTP_Inputs = np.dot(f_MLI, state_input_mli) + np.dot(f_MLI_fixed, state_input_mli)
+                else:
+                    MLI_LTP_Inputs = np.dot(f_MLI_LTP, state_input_mli)
+                if MLI_weights:
+                    MLI_bound = (W_max_mli - W_mli).squeeze()
+                    MLI_bound[MLI_bound < 1e-5] = 1e-5
+                    MLI_LTP_Inputs *= MLI_bound
 
-            # Create the MLI LTD function
-            if MLI_kernel:
-                raise ValueError("NOT setup for MLI kernel")
-            else:
-                f_MLI_LTD = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
-            # Convolve LTD function for this trial with state activation
-            MLI_LTD_Inputs = np.dot(f_MLI_LTD, state_input_mli) # Sum of f_LTD over activation for each input unit
-            # Set state modification availability according to current weight
-            if MLI_weights:
-                MLI_LTD_Inputs *= W_mli.squeeze()
+                # Create the MLI LTD function
+                if MLI_kernel:
+                    raise ValueError("NOT setup for MLI kernel")
+                else:
+                    f_MLI_LTD = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
+                # Convolve LTD function for this trial with state activation
+                MLI_LTD_Inputs = np.dot(f_MLI_LTD, state_input_mli) # Sum of f_LTD over activation for each input unit
+                # Set state modification availability according to current weight
+                if MLI_weights:
+                    MLI_LTD_Inputs *= W_mli.squeeze()
 
-            W_mli += psi * MLI_LTP_Inputs[:, None] - omega * MLI_LTD_Inputs[:, None]
-            W_full[n_gaussians:] = W_mli
+                W_mli += psi * MLI_LTP_Inputs[:, None] - omega * MLI_LTD_Inputs[:, None]
+                W_full[n_gaussians:] = W_mli
 
         missing_y_hat = np.isnan(y_hat)
         residuals = (y[~missing_y_hat] - y_hat[~missing_y_hat]) ** 2
@@ -1094,41 +1096,42 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         W_pf += ( alpha * LTP_Inputs[:, None] - beta * LTD_Inputs[:, None] )
         W_full[0:n_gaussians] = W_pf
 
-        # Create the MLI LTP weighting function
-        f_MLI_LTP = np.copy(CS_trial_bin)
-        if MLI_kernel:
-            raise ValueError("NOT setup for MLI kernel")
-            # f_LTP = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
-            #                     tau_decay=tau_decay, kernel_max=kernel_max,
-            #                     min_val=0.0, reverse=False)
-            # f_LTP = assymetric_CS_LTD(CS_trial_bin, tau_rise, tau_decay,
-            #                                 kernel_max=kernel_max, min_val=0.0)
-        # Convert LTP function to LTP input space
-        if MLI_rates:
-            # Add a term with firing rate times weight of constant MLI
-            f_MLI_fixed = y_obs_trial * MLI_const
-            # Sum of MLI activation for each input unit
-            MLI_LTP_Inputs = np.dot(f_MLI, state_input_mli) + np.dot(f_MLI_fixed, state_input_mli)
-        else:
-            MLI_LTP_Inputs = np.dot(f_MLI_LTP, state_input_mli)
-        if MLI_weights:
-            MLI_bound = (W_max_mli - W_mli).squeeze()
-            MLI_bound[MLI_bound < 1e-5] = 1e-5
-            MLI_LTP_Inputs *= MLI_bound
+        if UPDATE_MLI_WEIGHTS:
+            # Create the MLI LTP weighting function
+            f_MLI_LTP = np.copy(CS_trial_bin)
+            if MLI_kernel:
+                raise ValueError("NOT setup for MLI kernel")
+                # f_LTP = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
+                #                     tau_decay=tau_decay, kernel_max=kernel_max,
+                #                     min_val=0.0, reverse=False)
+                # f_LTP = assymetric_CS_LTD(CS_trial_bin, tau_rise, tau_decay,
+                #                                 kernel_max=kernel_max, min_val=0.0)
+            # Convert LTP function to LTP input space
+            if MLI_rates:
+                # Add a term with firing rate times weight of constant MLI
+                f_MLI_fixed = y_obs_trial * MLI_const
+                # Sum of MLI activation for each input unit
+                MLI_LTP_Inputs = np.dot(f_MLI, state_input_mli) + np.dot(f_MLI_fixed, state_input_mli)
+            else:
+                MLI_LTP_Inputs = np.dot(f_MLI_LTP, state_input_mli)
+            if MLI_weights:
+                MLI_bound = (W_max_mli - W_mli).squeeze()
+                MLI_bound[MLI_bound < 1e-5] = 1e-5
+                MLI_LTP_Inputs *= MLI_bound
 
-        # Create the MLI LTD function
-        if MLI_kernel:
-            raise ValueError("NOT setup for MLI kernel")
-        else:
-            f_MLI_LTD = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
-        # Convolve LTD function for this trial with state activation
-        MLI_LTD_Inputs = np.dot(f_MLI_LTD, state_input_mli) # Sum of f_LTD over activation for each input unit
-        # Set state modification availability according to current weight
-        if MLI_weights:
-            MLI_LTD_Inputs *= W_mli.squeeze()
+            # Create the MLI LTD function
+            if MLI_kernel:
+                raise ValueError("NOT setup for MLI kernel")
+            else:
+                f_MLI_LTD = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
+            # Convolve LTD function for this trial with state activation
+            MLI_LTD_Inputs = np.dot(f_MLI_LTD, state_input_mli) # Sum of f_LTD over activation for each input unit
+            # Set state modification availability according to current weight
+            if MLI_weights:
+                MLI_LTD_Inputs *= W_mli.squeeze()
 
-        W_mli += psi * MLI_LTP_Inputs[:, None] - omega * MLI_LTD_Inputs[:, None]
-        W_full[n_gaussians:] = W_mli
+            W_mli += psi * MLI_LTP_Inputs[:, None] - omega * MLI_LTD_Inputs[:, None]
+            W_full[n_gaussians:] = W_mli
 
         if np.all(np.isnan(W_full)):
             print(alpha, beta, psi)
