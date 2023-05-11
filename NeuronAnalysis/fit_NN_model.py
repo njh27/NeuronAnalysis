@@ -899,11 +899,11 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     # For assymetric Gausian CS
     elif CS_gauss_kernel:
         p0 =           np.array([10, 50, 10*np.amax(W_0_pf), 2*bin_width, 5*bin_width, 10.0,    5*bin_width,   5*bin_width,   40.0, 1.0, 10*np.amax(W_0_mli), 1.0, 1, 50])
-        lower_bounds = np.array([0,     0,     np.amax(W_0_pf), 1,   1,   1,      0.001, 0.001, 1, 0, np.amax(W_0_mli), 0, 0, 0])
+        lower_bounds = np.array([0,     0,     3*np.amax(W_0_pf), 1,   1,   1,      0.001, 0.001, 1, 0, np.amax(W_0_mli), 0, 0, 0])
         upper_bounds = np.array([1e4,     1e4,     np.inf,       300, 300, np.inf, 300,   300,   np.inf, np.inf, np.inf, np.inf, np.inf, np.inf])
     else:
         p0 =           np.array([10, 50, 10*np.amax(W_0_pf), 2*bin_width, 5*bin_width, 10.0,    5*bin_width,   5*bin_width,   40.0, 1.0, 10*np.amax(W_0_mli), 1.0, 1, 50])
-        lower_bounds = np.array([0, 0, np.amax(W_0_pf), 1, 1, 1, 1, 0.001, 1, 0, np.amax(W_0_mli), 0, 0, 0])
+        lower_bounds = np.array([0, 0, 3*np.amax(W_0_pf), 1, 1, 1, 1, 0.001, 1, 0, np.amax(W_0_mli), 0, 0, 0])
         upper_bounds = np.array([1e4, 1e4, np.inf, 300, 300, np.inf, 300, 300, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf])
 
     """ INPUT NEEDS TO BE BIN EYE DATA WITH A LAST COLUMN OF CS APPENDED! """
@@ -1155,7 +1155,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             W_full[n_gaussians:] = W_mli
 
         if np.all(np.isnan(W_full)):
-            print(alpha, beta, psi)
+            print(alpha, beta, psi, omega)
             return LTP_Inputs, f_LTP, f_LTP_fixed, y_obs_trial, state_input, LTP_const
 
     return weights_by_trial
