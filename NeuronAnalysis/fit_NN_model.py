@@ -740,8 +740,8 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args):
     tau_rise = params[3] / bin_width
     tau_decay = params[4] / bin_width
     scale_LTP = params[5] / bin_width
-    tau_rise_CS = params[6] / bin_width
-    tau_decay_CS = params[7] / bin_width
+    tau_rise_CS = params[6]
+    tau_decay_CS = params[7]
     scale_CS = params[8] / bin_width
     PC_FR_rate_const = params[9]
     W_max_mli = np.full(W_0_mli.shape, params[10])
@@ -753,8 +753,8 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args):
     # These must be integers in some cases
     tau_rise = int(np.around(tau_rise))
     tau_decay = int(np.around(tau_decay))
-    tau_rise_CS = int(np.around(tau_rise_CS))
-    tau_decay_CS = int(np.around(tau_decay_CS))
+    tau_rise_CS = int(np.ceil(tau_rise_CS))
+    tau_decay_CS = int(np.ceil(tau_decay_CS))
     for trial in range(0, n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
         y_obs_trial = y[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Observed FR for this trial
@@ -957,8 +957,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                    "tau_rise": (bin_width, 0, 50, 3),
                    "tau_decay": (0, 0, 200, 4),
                    "scale_LTP": (2., 0, np.inf, 5),
-                   "tau_rise_CS": (20*bin_width, 0, np.inf, 6),
-                   "tau_decay_CS": (20*bin_width, -np.inf, np.inf, 7),
+                   "tau_rise_CS": (20/bin_width, 0, np.inf, 6),
+                   "tau_decay_CS": (20/bin_width, -np.inf, np.inf, 7),
                    "scale_CS": (10., 0, np.inf, 8),
                    "LTP_const": (1, 0, np.inf, 9),
                    "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 10),
@@ -991,6 +991,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = result.x[param_ind]
         if param_ind in [0, 1, 12, 13]:
             NN_FIT.fit_results['gauss_basis_kinematics'][key] /= 1e4
+        if key in ["tau_rise_CS", "tau_decay_CS"]:
+            NN_FIT.fit_results['gauss_basis_kinematics'][key] *= bin_width
 
     return result
 
