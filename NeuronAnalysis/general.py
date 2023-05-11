@@ -201,7 +201,7 @@ def postsynaptic_decay_FR(spike_train, tau_rise=1., tau_decay=2.5,
 def boxcar_convolve(signal, box_pre, box_post, box_max=1.0):
     center_ind = len(signal) // 2
     kernel = np.zeros(signal.shape)
-    kernel[center_ind-box_pre:x_center+box_post] = box_max
+    kernel[center_ind-box_pre:center_ind+box_post] = box_max
     filtered_sig = np.convolve(signal, kernel, mode='same')
     return filtered_sig
 
