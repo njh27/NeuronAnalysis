@@ -782,7 +782,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args):
         CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt]
 
         # Get LTD function for parallel fibers
-        do_print = True if trial == 1 else False
+        do_print = False #True if trial == 1 else False
         pf_LTD = f_pf_LTD(CS_trial_bin, tau_rise_CS, tau_decay_CS, scale_CS,
                             0, do_print=do_print)
         # Convert to LTD input for Purkinje cell
