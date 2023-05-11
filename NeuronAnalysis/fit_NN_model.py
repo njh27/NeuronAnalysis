@@ -641,6 +641,7 @@ def f_pf_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0, delay=0):
     # pf_LTD = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
     print("Start events:", np.count_nonzero(CS_trial_bin > 0))
     pf_LTD = boxcar_convolve(CS_trial_bin, tau_1, tau_2, box_max=scale)
+    print("with taus:", tau_1, tau_2)
     print("After box events:", np.count_nonzero(pf_LTD > 0), np.count_nonzero(pf_LTD == scale))
     # Shift pf_LTD LTD envelope according to delay_LTD
     delay = int(delay)
