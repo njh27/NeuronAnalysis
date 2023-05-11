@@ -658,8 +658,12 @@ def f_pf_LTP(CS_trial_bin, tau_1, tau_2, scale=1.0):
     """
     """
     # Inverts the CS function
-    pf_LTP = np.mod(CS_trial_bin + 1, 2)
-    pf_LTP = boxcar_convolve(pf_LTP, tau_1, tau_2, box_max=scale)
+    # pf_LTP = np.mod(CS_trial_bin + 1, 2)
+    # pf_LTP = boxcar_convolve(pf_LTP, tau_1, tau_2, box_max=scale)
+    pf_LTP = np.copy(CS_trial_bin)
+    CS_is_zero = CS_trial_bin == 0
+    pf_LTP[CS_is_zero] = scale
+    pf_LTP[~CS_is_zero] = 0.0
     return pf_LTP
 
 def f_pf_LTD_I(pf_LTD, state_input_pf, W_pf=None, W_min_pf=0.0):
@@ -779,7 +783,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args):
         pf_LTD_I = f_pf_LTD_I(pf_LTD, state_input_pf, W_pf, W_min_pf)
 
         # Create the LTP function for parallel fibers
-        pf_LTP = f_pf_LTP(CS_trial_bin, tau_rise, tau_decay, scale_LTP)
+        pf_LTP = f_pf_LTP(pf_LTD, tau_rise, tau_decay, scale_LTP)
         # Convert to LTP input for Purkinje cell
         pf_LTP_I = f_pf_LTP_I(pf_LTP, state_input_pf, W_pf, W_max_pf,
                                 PC_FR=y_obs_trial,
@@ -853,16 +857,7 @@ if CS_pair_interval != 0:
 else:
     print("NO LTD delay. Using ", CS_pair_interval)
     delay_LTD = False
-CS_decay_kernel = False
 
-CS_gauss_kernel = True
-CS_rates = False
-CS_rates_opp = False
-CS_weights = True
-
-LTP_decay_kernel = True
-LTP_rates = True
-LTP_weights = True
 
 UPDATE_MLI_WEIGHTS = False
 MLI_kernel = True
@@ -1138,7 +1133,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         pf_LTD_I = f_pf_LTD_I(pf_LTD, state_input_pf, W_pf, W_min_pf)
 
         # Create the LTP function for parallel fibers
-        pf_LTP = f_pf_LTP(CS_trial_bin, tau_rise, tau_decay, scale_LTP)
+        pf_LTP = f_pf_LTP(pf_LTD, tau_rise, tau_decay, scale_LTP)
         # Convert to LTP input for Purkinje cell
         pf_LTP_I = f_pf_LTP_I(pf_LTP, state_input_pf, W_pf, W_max_pf,
                                 PC_FR=y_obs_trial,
