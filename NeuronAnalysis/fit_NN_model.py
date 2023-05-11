@@ -638,7 +638,7 @@ LTP_decay_kernel = True
 LTP_rates = True
 LTP_weights = True
 
-UPDATE_MLI_WEIGHTS = True
+UPDATE_MLI_WEIGHTS = False
 MLI_kernel = True
 MLI_rates = False
 MLI_weights = True
