@@ -5,7 +5,7 @@ from tensorflow.keras import layers, models, constraints, initializers
 from tensorflow.keras.optimizers import SGD
 import warnings
 from NeuronAnalysis.fit_neuron_to_eye import FitNeuronToEye
-from NeuronAnalysis.general import postsynaptic_decay_FR, assymetric_CS_LTD
+from NeuronAnalysis.general import postsynaptic_decay_FR, assymetric_CS_LTD, boxcar_convolve
 import NeuronAnalysis.activation_functions as af
 
 
@@ -846,6 +846,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                 f_MLI_LTP = np.copy(CS_trial_bin)
                 if MLI_kernel:
                     raise ValueError("NOT setup for MLI kernel")
+                    f_MLI_LTP = boxcar_convolve(CS_trial_bin, 50, 25, box_max=1.0)
                     # f_LTP = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
                     #                     tau_decay=tau_decay, kernel_max=kernel_max,
                     #                     min_val=0.0, reverse=False)
@@ -898,11 +899,11 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         upper_bounds = np.array([1e4, 1e4, np.inf, 300, 300, np.inf, 300, 300, np.inf])
     # For assymetric Gausian CS
     elif CS_gauss_kernel:
-        p0 =           np.array([10, 50, 10*np.amax(W_0_pf), 2*bin_width, 5*bin_width, 10.0,    5*bin_width,   5*bin_width,   40.0, 1.0, 10*np.amax(W_0_mli), 1.0, 10, 50])
+        p0 =           np.array([10, 50, 10*np.amax(W_0_pf), 2*bin_width, 5*bin_width, 10.0,    5*bin_width,   5*bin_width,   40.0, 1.0, 10*np.amax(W_0_mli), 1.0, 1, 50])
         lower_bounds = np.array([0,     0,     np.amax(W_0_pf), 1,   1,   1,      0.001, 0.001, 1, 0, np.amax(W_0_mli), 0, 0, 0])
         upper_bounds = np.array([1e4,     1e4,     np.inf,       300, 300, np.inf, 300,   300,   np.inf, np.inf, np.inf, np.inf, np.inf, np.inf])
     else:
-        p0 =           np.array([10, 50, 10*np.amax(W_0_pf), 2*bin_width, 5*bin_width, 10.0,    5*bin_width,   5*bin_width,   40.0, 1.0, 10*np.amax(W_0_mli), 1.0, 10, 50])
+        p0 =           np.array([10, 50, 10*np.amax(W_0_pf), 2*bin_width, 5*bin_width, 10.0,    5*bin_width,   5*bin_width,   40.0, 1.0, 10*np.amax(W_0_mli), 1.0, 1, 50])
         lower_bounds = np.array([0, 0, np.amax(W_0_pf), 1, 1, 1, 1, 0.001, 1, 0, np.amax(W_0_mli), 0, 0, 0])
         upper_bounds = np.array([1e4, 1e4, np.inf, 300, 300, np.inf, 300, 300, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf])
 
@@ -1114,6 +1115,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             f_MLI_LTP = np.copy(CS_trial_bin)
             if MLI_kernel:
                 raise ValueError("NOT setup for MLI kernel")
+                f_MLI_LTP = boxcar_convolve(CS_trial_bin, 50, 25, box_max=1.0)
                 # f_LTP = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
                 #                     tau_decay=tau_decay, kernel_max=kernel_max,
                 #                     min_val=0.0, reverse=False)

@@ -198,6 +198,12 @@ def postsynaptic_decay_FR(spike_train, tau_rise=1., tau_decay=2.5,
 
     return psp_decay_FR
 
+def boxcar_convolve(signal, box_pre, box_post, box_max=1.0):
+    center_ind = len(signal) // 2
+    kernel = np.zeros(signal.shape)
+    kernel[center_ind-box_pre:x_center+box_post] = box_max
+    filtered_sig = np.convolve(signal, kernel, mode='same')
+    return filtered_sig
 
 def gaussian(x, mu, sigma):
     return (1 / (np.sqrt(2 * np.pi * sigma ** 2))) * np.exp(-0.5 * ((x - mu) / sigma) ** 2)
