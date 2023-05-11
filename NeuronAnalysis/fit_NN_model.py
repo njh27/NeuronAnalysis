@@ -642,10 +642,14 @@ def f_pf_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0, delay=0):
     pf_LTD = boxcar_convolve(CS_trial_bin, tau_1, tau_2, box_max=scale)
     # Shift pf_LTD LTD envelope according to delay_LTD
     delay = int(delay)
-    if delay <= 0:
+    if delay == 0:
+        # No delay so we are done
+        return pf_LTD
+    elif delay < 0:
         pf_LTD[-delay:] = pf_LTD[0:delay]
         pf_LTD[0:-delay] = 0.0
     else:
+        # Implies delay > 0
         pf_LTD[0:-delay] = pf_LTD[delay:]
         pf_LTD[-delay:] = 0.0
     return pf_LTD
@@ -683,6 +687,8 @@ def f_pf_LTP_I(pf_LTP, state_input_pf, W_pf=None, W_max_pf=None, PC_FR=None,
     """
     # Convert LTP function to LTP input space
     if PC_FR is not None:
+        if PC_FR_rate_const is None:
+            raise ValueError("If weighting by PC firing rate then a PC_FR_rate_const must be specified also.")
         # Add a term with firing rate times weight of constant LTP
         f_LTP_fixed = PC_FR * PC_FR_rate_const
         # Sum of LTP over activation for each input unit
@@ -698,7 +704,7 @@ def f_pf_LTP_I(pf_LTP, state_input_pf, W_pf=None, W_max_pf=None, PC_FR=None,
 
 """ *********************************************************************** """
 
-def learning_function(params, x, y, W_0_pf, W_0_mli, bin_width):
+def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args):
     """ Defines the learning model we are fitting to the data """
     # Separate behavior state from CS inputs
     state = x[:, 0:-1]
@@ -708,6 +714,16 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, bin_width):
     W_pf = np.copy(W_0_pf)
     W_mli = np.copy(W_0_mli)
     W_full = np.vstack((W_0_pf, W_0_mli))
+    # Extract other precomputed necessary args
+    bin_width = args[0]
+    n_trials = args[1]
+    n_obs_pt = args[2]
+    eye_is_nan = args[3]
+    n_gaussians_per_dim = args[4]
+    gauss_means = args[5]
+    gauss_stds = args[6]
+    n_gaussians = args[7]
+    W_min_pf = 0.0
     # Parse parameters to be fit
     alpha = params[0] / 1e4
     beta = params[1] / 1e4
@@ -718,11 +734,18 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, bin_width):
     tau_rise_CS = params[6] / bin_width
     tau_decay_CS = params[7] / bin_width
     scale_CS = params[8] / bin_width
-    LTP_const = params[9]
+    PC_FR_rate_const = params[9]
     W_max_mli = np.full(W_0_mli.shape, params[10])
     MLI_const = params[11]
     psi = params[12] / 1e4
     omega = params[13] / 1e4
+    CS_delay = int(np.around(params[14] / bin_width))
+
+    # These must be integers in some cases
+    tau_rise = int(np.around(tau_rise))
+    tau_decay = int(np.around(tau_decay))
+    tau_rise_CS = int(np.around(tau_rise_CS))
+    tau_decay_CS = int(np.around(tau_decay_CS))
     for trial in range(0, n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
         y_obs_trial = y[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Observed FR for this trial
@@ -751,7 +774,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, bin_width):
 
         # Get LTD function for parallel fibers
         pf_LTD = f_pf_LTD(CS_trial_bin, tau_rise_CS, tau_decay_CS, scale_CS,
-                            use_CS_pair_interval)
+                            0)
         # Convert to LTD input for Purkinje cell
         pf_LTD_I = f_pf_LTD_I(pf_LTD, state_input_pf, W_pf, W_min_pf)
 
@@ -759,13 +782,14 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, bin_width):
         pf_LTP = f_pf_LTP(CS_trial_bin, tau_rise, tau_decay, scale_LTP)
         # Convert to LTP input for Purkinje cell
         pf_LTP_I = f_pf_LTP_I(pf_LTP, state_input_pf, W_pf, W_max_pf,
-                                PC_FR=y_obs_trial)
+                                PC_FR=y_obs_trial,
+                                PC_FR_rate_const=PC_FR_rate_const)
 
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
         W_pf += ( alpha * pf_LTP_I[:, None] + beta * pf_LTD_I[:, None] )
 
         # Ensure W_pf values are within range and store in output W_full
-        W_pf[(W_pf > W_max_pf[0]).squeeze()] = W_max_pf[0]
+        W_pf[(W_pf > W_max_pf).squeeze()] = W_max_pf
         W_pf[(W_pf < 0.0).squeeze()] = 0.0
         W_full[0:n_gaussians] = W_pf
 
@@ -925,23 +949,36 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     W_0_mli = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:]
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
 
-    use_CS_pair_interval = int(np.around(CS_pair_interval / bin_width))
-    print("LTD delay rounded to {0} due to binning in width of {1}.".format(use_CS_pair_interval * bin_width, bin_width))
-    boxwin1 = int(np.around(50 / bin_width))
-    boxwin2 = int(np.around(25 / bin_width))
-    print("LTD boxwin rounded to [{0}, {1}] due to binning in width of {2}.".format(boxwin1, boxwin2, bin_width))
+    # Format of p0, upper, lower, index order for each variable to make this legible
+    param_conds = {"alpha": (10, 0, 1e4, 0),
+                   "beta": (50, 0, 1e4, 1),
+                   "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 2),
+                   "tau_rise": (bin_width, 0, 50, 3),
+                   "tau_decay": (0, 0, 200, 4),
+                   "scale_LTP": (2., 0, np.inf, 5),
+                   "tau_rise_CS": (2*bin_width, 0, np.inf, 6),
+                   "tau_decay_CS": (bin_width, -100, np.inf, 7),
+                   "scale_CS": (10., 0, np.inf, 8),
+                   "LTP_const": (1, 0, np.inf, 9),
+                   "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 10),
+                   "MLI_const": (1, 0, np.inf, 11),
+                   "psi": (1, 0, np.inf, 12),
+                   "omega": (50, 0, np.inf, 13),
+                   "CS_delay": (0, -100, 200, 14),
+            }
 
+    # Make sure params are in correct order and saved for input to least_squares
+    p0 = [x[1][0] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
+    lower_bounds = [x[1][1] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
+    upper_bounds = [x[1][2] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
 
-
-    p0 =           np.array([10, 50, 10*np.amax(W_0_pf), 2*bin_width, 5*bin_width, 10.0,    5*bin_width,   5*bin_width,   40.0, 1.0, 10*np.amax(W_0_mli), 1.0, 1, 50])
-    lower_bounds = np.array([0,     0,     np.amax(W_0_pf), 1,   1,   1,      0.001, 0.001, 1, 0, np.amax(W_0_mli), 0, 0, 0])
-    upper_bounds = np.array([1e4,     1e4,     np.inf,       300, 300, np.inf, 300,   300,   np.inf, np.inf, np.inf, np.inf, np.inf, np.inf])
-    """ INPUT NEEDS TO BE BIN EYE DATA WITH A LAST COLUMN OF CS APPENDED! """
-
+    # Finally append CS to inputs and get other args needed for learning function
     fit_inputs = np.hstack([bin_eye_data, binned_CS[:, None]])
+    t_n_info = (bin_width, n_trials, n_obs_pt, eye_is_nan,
+                n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians)
     # Fit the learning rates to the data
     result = least_squares(learning_function, p0,
-                            args=(fit_inputs, binned_FR, W_0_pf, W_0_mli, bin_width),
+                            args=(fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *t_n_info),
                             bounds=(lower_bounds, upper_bounds),
                             ftol=ftol,
                             xtol=xtol,
@@ -962,6 +999,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     NN_FIT.fit_results['gauss_basis_kinematics']['MLI_const'] = result.x[11]
     NN_FIT.fit_results['gauss_basis_kinematics']['psi'] = result.x[12] / 1e4
     NN_FIT.fit_results['gauss_basis_kinematics']['omega'] = result.x[13] / 1e4
+    NN_FIT.fit_results['gauss_basis_kinematics']['CS_delay'] = result.x[14]
 
     return result
 
@@ -1050,22 +1088,24 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     tau_rise_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS'] / bin_width
     tau_decay_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS'] / bin_width
     scale_CS = NN_FIT.fit_results['gauss_basis_kinematics']['scale_CS'] / bin_width
-    LTP_const = NN_FIT.fit_results['gauss_basis_kinematics']['LTP_const']
+    PC_FR_rate_const = NN_FIT.fit_results['gauss_basis_kinematics']['LTP_const']
     W_max_mli = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_mli']
     MLI_const = NN_FIT.fit_results['gauss_basis_kinematics']['MLI_const']
     psi = NN_FIT.fit_results['gauss_basis_kinematics']['psi']
     omega = NN_FIT.fit_results['gauss_basis_kinematics']['omega']
-    use_CS_pair_interval = int(np.around(CS_pair_interval / bin_width))
-    print("LTD delay rounded to {0} due to binning in width of {1}.".format(use_CS_pair_interval * bin_width, bin_width))
-    boxwin1 = int(np.around(50 / bin_width))
-    boxwin2 = int(np.around(25 / bin_width))
+    CS_delay = NN_FIT.fit_results['gauss_basis_kinematics']['CS_delay']
+
+    # These must be integers in some cases
+    tau_rise = int(np.around(tau_rise))
+    tau_decay = int(np.around(tau_decay))
+    tau_rise_CS = int(np.around(tau_rise_CS))
+    tau_decay_CS = int(np.around(tau_decay_CS))
 
     W_pf = np.zeros(W_0_pf.shape) # Place to store updating result and copy to output
     W_pf[:] = W_0_pf # Initialize storage to start values
-    W_max_pf = np.full(W_pf.shape, W_max_pf)
     W_mli = np.zeros(W_0_mli.shape) # Place to store updating result and copy to output
     W_mli[:] = W_0_mli # Initialize storage to start values
-    W_max_mli = np.full(W_mli.shape, W_max_mli)
+    W_min_pf = 0.0
     for trial_ind, trial_num in zip(range(0, n_trials), all_t_inds):
         weights_by_trial[trial_num][:] = W_full # Copy W for this trial, befoe updating at end of loop
         state_trial = state[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt, :] # State for this trial
@@ -1088,7 +1128,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
 
         # Get LTD function for parallel fibers
         pf_LTD = f_pf_LTD(CS_trial_bin, tau_rise_CS, tau_decay_CS, scale_CS,
-                            use_CS_pair_interval)
+                            0)
         # Convert to LTD input for Purkinje cell
         pf_LTD_I = f_pf_LTD_I(pf_LTD, state_input_pf, W_pf, W_min_pf)
 
@@ -1096,13 +1136,14 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         pf_LTP = f_pf_LTP(CS_trial_bin, tau_rise, tau_decay, scale_LTP)
         # Convert to LTP input for Purkinje cell
         pf_LTP_I = f_pf_LTP_I(pf_LTP, state_input_pf, W_pf, W_max_pf,
-                                PC_FR=y_obs_trial)
+                                PC_FR=y_obs_trial,
+                                PC_FR_rate_const=PC_FR_rate_const)
 
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
         W_pf += ( alpha * pf_LTP_I[:, None] + beta * pf_LTD_I[:, None] )
 
         # Ensure W_pf values are within range and store in output W_full
-        W_pf[(W_pf > W_max_pf[0]).squeeze()] = W_max_pf[0]
+        W_pf[(W_pf > W_max_pf).squeeze()] = W_max_pf
         W_pf[(W_pf < 0.0).squeeze()] = 0.0
         W_full[0:n_gaussians] = W_pf
 
