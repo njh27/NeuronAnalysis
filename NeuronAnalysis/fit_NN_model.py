@@ -633,7 +633,7 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
 """ THESE ARE THE LEARNING RULE PLASTICITY FUNCTIONS """
 """ *********************************************************************** """
 
-def f_pf_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0, delay=0):
+def f_pf_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0, delay=0, do_print=False):
     """ Computes the parallel fiber LTD as a function of time of the complex
     spike input f_CS with a kernel scaled from tau_1 to tau_2 with peak equal to
     scale and with CSs shifted by an amoutn of time "delay" INDICES (not time!). """
@@ -781,8 +781,9 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args):
         CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt]
 
         # Get LTD function for parallel fibers
+        do_print = True if trial == 1 else False
         pf_LTD = f_pf_LTD(CS_trial_bin, tau_rise_CS, tau_decay_CS, scale_CS,
-                            0)
+                            0, do_print=do_print)
         # Convert to LTD input for Purkinje cell
         pf_LTD_I = f_pf_LTD_I(pf_LTD, state_input_pf, W_pf, W_min_pf)
 
