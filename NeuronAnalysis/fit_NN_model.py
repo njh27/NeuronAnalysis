@@ -639,7 +639,7 @@ LTP_rates = True
 LTP_weights = True
 
 UPDATE_MLI_WEIGHTS = True
-MLI_kernel = False
+MLI_kernel = True
 MLI_rates = False
 MLI_weights = True
 
@@ -845,7 +845,6 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                 # Create the MLI LTP weighting function
                 f_MLI_LTP = np.copy(CS_trial_bin)
                 if MLI_kernel:
-                    raise ValueError("NOT setup for MLI kernel")
                     f_MLI_LTP = boxcar_convolve(CS_trial_bin, 50, 25, box_max=1.0)
                     # f_LTP = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
                     #                     tau_decay=tau_decay, kernel_max=kernel_max,
@@ -866,7 +865,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
 
                 # Create the MLI LTD function
                 if MLI_kernel:
-                    raise ValueError("NOT setup for MLI kernel")
+                    f_MLI_LTD = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
                 else:
                     f_MLI_LTD = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
                 # Convolve LTD function for this trial with state activation
@@ -1114,7 +1113,6 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             # Create the MLI LTP weighting function
             f_MLI_LTP = np.copy(CS_trial_bin)
             if MLI_kernel:
-                raise ValueError("NOT setup for MLI kernel")
                 f_MLI_LTP = boxcar_convolve(CS_trial_bin, 50, 25, box_max=1.0)
                 # f_LTP = postsynaptic_decay_FR(CS_trial_bin, tau_rise=tau_rise,
                 #                     tau_decay=tau_decay, kernel_max=kernel_max,
@@ -1135,7 +1133,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
 
             # Create the MLI LTD function
             if MLI_kernel:
-                raise ValueError("NOT setup for MLI kernel")
+                f_MLI_LTD = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
             else:
                 f_MLI_LTD = np.mod(CS_trial_bin + 1, 2) # Opposite 1's and 0's as CS
             # Convolve LTD function for this trial with state activation
