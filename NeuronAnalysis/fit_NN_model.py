@@ -1091,8 +1091,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     # These must be integers in some cases
     tau_rise = int(np.around(tau_rise))
     tau_decay = int(np.around(tau_decay))
-    tau_rise_CS = int(np.around(tau_rise_CS))
-    tau_decay_CS = int(np.around(tau_decay_CS))
+    tau_rise_CS = int(np.ceil(tau_rise_CS))
+    tau_decay_CS = int(np.ceil(tau_decay_CS))
 
     W_pf = np.zeros(W_0_pf.shape) # Place to store updating result and copy to output
     W_pf[:] = W_0_pf # Initialize storage to start values
