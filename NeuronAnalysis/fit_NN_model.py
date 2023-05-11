@@ -647,7 +647,7 @@ def f_pf_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0, delay=0, do_print=False):
     # Shift pf_LTD LTD envelope according to delay_LTD
     delay = int(delay)
     if delay == 0:
-        print("Exit on 0 delay")
+        if do_print: print("Exit on 0 delay")
         # No delay so we are done
         return pf_LTD
     elif delay < 0:
