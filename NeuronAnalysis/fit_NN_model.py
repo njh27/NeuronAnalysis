@@ -638,8 +638,8 @@ def f_pf_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0, delay=0, do_print=False):
     spike input f_CS with a kernel scaled from tau_1 to tau_2 with peak equal to
     scale and with CSs shifted by an amoutn of time "delay" INDICES (not time!). """
     # Just CS point plasticity
-    # pf_LTD = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
-    pf_LTD = boxcar_convolve(CS_trial_bin, tau_1, tau_2, box_max=scale)
+    pf_LTD = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
+    # pf_LTD = boxcar_convolve(CS_trial_bin, tau_1, tau_2, box_max=scale)
     if do_print:
         print("Start events:", np.count_nonzero(CS_trial_bin > 0))
         print("with taus:", tau_1, tau_2)
