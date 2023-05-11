@@ -639,10 +639,13 @@ def f_pf_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0, delay=0):
     scale and with CSs shifted by an amoutn of time "delay" INDICES (not time!). """
     # Just CS point plasticity
     # pf_LTD = np.copy(CS_trial_bin) # MUST KEEP ORIGINAL BINARY FOR LTP KERNEL!
+    print("Start events:", np.count_nonzero(CS_trial_bin > 0))
     pf_LTD = boxcar_convolve(CS_trial_bin, tau_1, tau_2, box_max=scale)
+    print("After box events:", np.count_nonzero(pf_LTD > 0), np.count_nonzero(pf_LTD == scale))
     # Shift pf_LTD LTD envelope according to delay_LTD
     delay = int(delay)
     if delay == 0:
+        print("Exit on 0 delay")
         # No delay so we are done
         return pf_LTD
     elif delay < 0:
@@ -985,21 +988,6 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = result.x[param_ind]
         if param_ind in [0, 1, 12, 13]:
             NN_FIT.fit_results['gauss_basis_kinematics'][key] /= 1e4
-    # NN_FIT.fit_results['gauss_basis_kinematics']['alpha'] = result.x[0] / 1e4
-    # NN_FIT.fit_results['gauss_basis_kinematics']['beta'] = result.x[1] / 1e4
-    # NN_FIT.fit_results['gauss_basis_kinematics']['W_max_pf'] = result.x[2]
-    # NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise'] = result.x[3]
-    # NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay'] = result.x[4]
-    # NN_FIT.fit_results['gauss_basis_kinematics']['scale_LTP'] = result.x[5]
-    # NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS'] = result.x[6]
-    # NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS'] = result.x[7]
-    # NN_FIT.fit_results['gauss_basis_kinematics']['scale_CS'] = result.x[8]
-    # NN_FIT.fit_results['gauss_basis_kinematics']['LTP_const'] = result.x[9]
-    # NN_FIT.fit_results['gauss_basis_kinematics']['W_max_mli'] = result.x[10]
-    # NN_FIT.fit_results['gauss_basis_kinematics']['MLI_const'] = result.x[11]
-    # NN_FIT.fit_results['gauss_basis_kinematics']['psi'] = result.x[12] / 1e4
-    # NN_FIT.fit_results['gauss_basis_kinematics']['omega'] = result.x[13] / 1e4
-    # NN_FIT.fit_results['gauss_basis_kinematics']['CS_delay'] = result.x[14]
 
     return result
 
