@@ -629,7 +629,7 @@ else:
     delay_LTD = False
 CS_decay_kernel = False
 
-CS_gauss_kernel = True
+CS_gauss_kernel = False
 CS_rates = False
 CS_rates_opp = False
 CS_weights = True
@@ -890,22 +890,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         residuals = (y[~missing_y_hat] - y_hat[~missing_y_hat]) ** 2
         return residuals
 
-    # For psp decay CS
-    if CS_decay_kernel:
-        raise ValueError("init conds not set right!")
-        p0 = np.array([10, 50, np.amax(W_0), 10.0, 30.0, 200.0, 0.10, 5.0, 400])
-        lower_bounds = np.array([0, 0, np.amax(W_0), 1, 1, 1, 0.001, 1, 1])
-        upper_bounds = np.array([1e4, 1e4, np.inf, 300, 300, np.inf, 300, 300, np.inf])
-    # For assymetric Gausian CS
-    elif CS_gauss_kernel:
-        p0 =           np.array([10, 50, 10*np.amax(W_0_pf), 2*bin_width, 5*bin_width, 10.0,    5*bin_width,   5*bin_width,   40.0, 1.0, 10*np.amax(W_0_mli), 1.0, 1, 50])
-        lower_bounds = np.array([0,     0,     3*np.amax(W_0_pf), 1,   1,   1,      0.001, 0.001, 1, 0, np.amax(W_0_mli), 0, 0, 0])
-        upper_bounds = np.array([1e4,     1e4,     np.inf,       300, 300, np.inf, 300,   300,   np.inf, np.inf, np.inf, np.inf, np.inf, np.inf])
-    else:
-        p0 =           np.array([10, 50, 10*np.amax(W_0_pf), 2*bin_width, 5*bin_width, 10.0,    5*bin_width,   5*bin_width,   40.0, 1.0, 10*np.amax(W_0_mli), 1.0, 1, 50])
-        lower_bounds = np.array([0, 0, 3*np.amax(W_0_pf), 1, 1, 1, 1, 0.001, 1, 0, np.amax(W_0_mli), 0, 0, 0])
-        upper_bounds = np.array([1e4, 1e4, np.inf, 300, 300, np.inf, 300, 300, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf])
-
+    p0 =           np.array([10, 50, 10*np.amax(W_0_pf), 2*bin_width, 5*bin_width, 10.0,    5*bin_width,   5*bin_width,   40.0, 1.0, 10*np.amax(W_0_mli), 1.0, 1, 50])
+    lower_bounds = np.array([0,     0,     np.amax(W_0_pf), 1,   1,   1,      0.001, 0.001, 1, 0, np.amax(W_0_mli), 0, 0, 0])
+    upper_bounds = np.array([1e4,     1e4,     np.inf,       300, 300, np.inf, 300,   300,   np.inf, np.inf, np.inf, np.inf, np.inf, np.inf])
     """ INPUT NEEDS TO BE BIN EYE DATA WITH A LAST COLUMN OF CS APPENDED! """
 
     # return bin_eye_data, binned_CS, binned_FR, p0, lower_bounds, upper_bounds, n_trials, n_obs_pt, eye_is_nan, gauss_means, gauss_stds
