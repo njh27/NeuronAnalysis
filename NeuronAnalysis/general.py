@@ -198,15 +198,16 @@ def postsynaptic_decay_FR(spike_train, tau_rise=1., tau_decay=2.5,
 
     return psp_decay_FR
 
-def boxcar_convolve(spike_train, box_pre, box_post, box_max=1.0):
+def boxcar_convolve(spike_train, box_pre, box_post, scale=1.0):
     """ Converts events in spike train to box shape windows of duration pre-event
     equal to box_pre and duration after event box_post. Negative box indices
     will shift the window away from events. If box indices overlap positive/
     negative in the wrong way this will return all zeros. e.g. if box_pre > 0
-    and box_post < 0 and abs(box_post) > box_pre. """
-    center_ind = len(spike_train) // 2
-    kernel = np.zeros(spike_train.shape)
-    kernel[center_ind-box_pre:center_ind+box_post] = box_max
+    and box_post < 0 and abs(box_post) > box_pre. pre == post == 0 returns
+    single point values where spike_train == 1"""
+    center_ind = max(abs(box_pre), abs(box_post)) + 1 # plus 1 for cushion on ends
+    kernel = np.zeros(2*center_ind + 1)
+    kernel[center_ind-box_pre:center_ind+box_post+1] = scale
     filtered_sig = np.convolve(spike_train, kernel, mode='same')
     return filtered_sig
 
