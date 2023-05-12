@@ -767,7 +767,7 @@ def f_mli_LTD(mli_CS_LTD, mli_FR_LTD, state_input_mli, W_mli=None, W_min_mli=0.0
     # Convert LTD functions to MLI input space
     mli_LTD = np.dot((mli_CS_LTD + mli_FR_LTD), state_input_mli)
     if W_mli is not None:
-        W_min_pf = np.full(W_mli.shape, W_min_pf)
+        W_min_mli = np.full(W_mli.shape, W_min_mli)
         mli_LTD *= (W_min_mli - W_mli).squeeze() # Will all be negative values
     else:
         mli_LTD *= -1.0
