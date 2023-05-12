@@ -862,7 +862,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             mli_CS_LTP = f_mli_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS'],
                               kwargs['tau_decay_CS'], 1.0, 0.0)
             # Convert to LTP input for Purkinje cell MLI weights
-            mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli=None, W_max_mli=0.0)
+            mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli, W_max_mli)
 
             # Create the LTD function for MLIs
             mli_CS_LTD = f_mli_CS_LTD(mli_CS_LTP, 0, 0, CS_scale_LTD_mli) # Tau's == 0 will just invert pf_CS_LTD input function
@@ -1148,7 +1148,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             mli_CS_LTP = f_mli_CS_LTP(CS_trial_bin, tau_rise_CS,
                               tau_decay_CS, 1.0, 0.0)
             # Convert to LTP input for Purkinje cell MLI weights
-            mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli=None, W_max_mli=0.0)
+            mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli, W_max_mli)
 
             # Create the LTD function for MLIs
             mli_CS_LTD = f_mli_CS_LTD(mli_CS_LTP, 0, 0, CS_scale_LTD_mli) # Tau's == 0 will just invert pf_CS_LTD input function
