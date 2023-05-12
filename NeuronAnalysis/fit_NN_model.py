@@ -1153,8 +1153,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli=None, W_max_mli=0.0)
 
             # Create the LTD function for MLIs
-            mli_CS_LTD = f_mli_CS_LTD(mli_CS_LTP, 0, 0, 1.0) # Tau's == 0 will just invert pf_CS_LTD input function
-            mli_FR_LTD = f_mli_FR_LTD(y_obs_trial, PC_FR_weight_LTP)
+            mli_CS_LTD = f_mli_CS_LTD(mli_CS_LTP, 0, 0, CS_scale_LTD_mli) # Tau's == 0 will just invert pf_CS_LTD input function
+            mli_FR_LTD = f_mli_FR_LTD(y_obs_trial, PC_FR_weight_LTD_mli)
             # Convert to LTP input for Purkinje cell
             mli_LTD = f_mli_LTD(pf_CS_LTP, pf_FR_LTP, state_input_pf, W_pf, W_max_pf)
 
