@@ -985,7 +985,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     # "MLI_const": (1, 0, np.inf, 11),
 
     # "CS_delay": (0, -100, 200, 14),
-    lf_kwargs = {'tau_rise_CS': int(np.around(20 /bin_width)),
+    lf_kwargs = {'tau_rise_CS': int(np.around(0 /bin_width)),
                  'tau_decay_CS': int(np.around(0 /bin_width)),
                  'FR_MAX': 500,
                  'UPDATE_MLI_WEIGHTS': False,
