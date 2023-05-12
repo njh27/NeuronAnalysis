@@ -804,11 +804,12 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     W_max_pf = params[2]
     CS_scale_LTP = params[3]
     PC_FR_weight_LTP = params[4]
-    psi = params[5]
-    omega = params[6]
-    W_max_mli = params[7]
-    CS_scale_LTD_mli = params[8]
-    PC_FR_weight_LTD_mli = params[9]
+    if kwargs['UPDATE_MLI_WEIGHTS']:
+        psi = params[5]
+        omega = params[6]
+        W_max_mli = params[7]
+        CS_scale_LTD_mli = params[8]
+        PC_FR_weight_LTD_mli = params[9]
 
     for trial in range(0, n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
@@ -953,18 +954,25 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     W_0_mli = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:]
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
 
+    lf_kwargs = {'tau_rise_CS': int(np.around(0 /bin_width)),
+                 'tau_decay_CS': int(np.around(0 /bin_width)),
+                 'FR_MAX': 500,
+                 'UPDATE_MLI_WEIGHTS': True,
+                 }
     # Format of p0, upper, lower, index order for each variable to make this legible
     param_conds = {"alpha": (10, 0, np.inf, 0),
                    "beta": (50, 0, np.inf, 1),
                    "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 2),
                    "CS_scale_LTP": (1., 0, np.inf, 3),
                    "PC_FR_weight_LTP": (1., 0, np.inf, 4),
-                   "psi": (2, 0, np.inf, 5),
-                   "omega": (10, 0, np.inf, 6),
-                   "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 7),
-                   "CS_scale_LTD_mli": (1., 0, np.inf, 8),
-                   "PC_FR_weight_LTD_mli": (1., 0, np.inf, 9),
             }
+    if lf_kwargs['UPDATE_MLI_WEIGHTS']:
+        param_conds = {"psi": (2, 0, np.inf, 5),
+                       "omega": (10, 0, np.inf, 6),
+                       "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 7),
+                       "CS_scale_LTD_mli": (1., 0, np.inf, 8),
+                       "PC_FR_weight_LTD_mli": (1., 0, np.inf, 9),
+                }
 
     # Make sure params are in correct order and saved for input to least_squares
     p0 = [x[1][0] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
@@ -975,12 +983,6 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     fit_inputs = np.hstack([bin_eye_data, binned_CS[:, None]])
     lf_args = (bin_width, n_trials, n_obs_pt, eye_is_nan,
                 n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians)
-
-    lf_kwargs = {'tau_rise_CS': int(np.around(0 /bin_width)),
-                 'tau_decay_CS': int(np.around(0 /bin_width)),
-                 'FR_MAX': 500,
-                 'UPDATE_MLI_WEIGHTS': True,
-                 }
     # Fit the learning rates to the data
     result = least_squares(learning_function, p0,
                             args=(fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
@@ -1077,22 +1079,23 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     # Separate behavior state from CS inputs
     state = fit_inputs[:, 0:-1]
     CS = fit_inputs[:, -1]
+    # Fixed input params
+    tau_rise_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS']
+    tau_decay_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS']
+    FR_MAX = NN_FIT.fit_results['gauss_basis_kinematics']['FR_MAX']
+    UPDATE_MLI_WEIGHTS = NN_FIT.fit_results['gauss_basis_kinematics']['UPDATE_MLI_WEIGHTS']
     # Fit parameters
     alpha = NN_FIT.fit_results['gauss_basis_kinematics']['alpha']
     beta = NN_FIT.fit_results['gauss_basis_kinematics']['beta']
     W_max_pf = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_pf']
     CS_scale_LTP = NN_FIT.fit_results['gauss_basis_kinematics']['CS_scale_LTP']
     PC_FR_weight_LTP = NN_FIT.fit_results['gauss_basis_kinematics']['PC_FR_weight_LTP']
-    # psi = NN_FIT.fit_results['gauss_basis_kinematics']['psi']
-    # omega = NN_FIT.fit_results['gauss_basis_kinematics']['omega']
-    # W_max_mli = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_mli']
-    # CS_scale_LTD_mli = NN_FIT.fit_results['gauss_basis_kinematics']['CS_scale_LTD_mli']
-    # PC_FR_weight_LTD_mli = NN_FIT.fit_results['gauss_basis_kinematics']['PC_FR_weight_LTD_mli']
-    # Fixed input params
-    tau_rise_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS']
-    tau_decay_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS']
-    FR_MAX = NN_FIT.fit_results['gauss_basis_kinematics']['FR_MAX']
-    UPDATE_MLI_WEIGHTS = NN_FIT.fit_results['gauss_basis_kinematics']['UPDATE_MLI_WEIGHTS']
+    if UPDATE_MLI_WEIGHTS:
+        psi = NN_FIT.fit_results['gauss_basis_kinematics']['psi']
+        omega = NN_FIT.fit_results['gauss_basis_kinematics']['omega']
+        W_max_mli = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_mli']
+        CS_scale_LTD_mli = NN_FIT.fit_results['gauss_basis_kinematics']['CS_scale_LTD_mli']
+        PC_FR_weight_LTD_mli = NN_FIT.fit_results['gauss_basis_kinematics']['PC_FR_weight_LTD_mli']
 
     W_pf = np.zeros(W_0_pf.shape) # Place to store updating result and copy to output
     W_pf[:] = W_0_pf # Initialize storage to start values
