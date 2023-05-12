@@ -976,15 +976,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     fit_inputs = np.hstack([bin_eye_data, binned_CS[:, None]])
     lf_args = (bin_width, n_trials, n_obs_pt, eye_is_nan,
                 n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians)
-    # "tau_rise": (bin_width, 0, 50, 3),
-    # "tau_decay": (0, 0, 200, 4),
-    # "tau_rise_CS": (20/bin_width, 0, np.inf, 6),
-    # "tau_decay_CS": (20/bin_width, -np.inf, np.inf, 7),
-    # "scale_CS": (10., 0, np.inf, 8),
 
-    # "MLI_const": (1, 0, np.inf, 11),
-
-    # "CS_delay": (0, -100, 200, 14),
     lf_kwargs = {'tau_rise_CS': int(np.around(0 /bin_width)),
                  'tau_decay_CS': int(np.around(0 /bin_width)),
                  'FR_MAX': 500,
