@@ -1084,22 +1084,16 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     W_max_pf = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_pf']
     CS_scale_LTP = NN_FIT.fit_results['gauss_basis_kinematics']['CS_scale_LTP']
     PC_FR_weight_LTP = NN_FIT.fit_results['gauss_basis_kinematics']['PC_FR_weight_LTP']
+    # psi = NN_FIT.fit_results['gauss_basis_kinematics']['psi']
+    # omega = NN_FIT.fit_results['gauss_basis_kinematics']['omega']
+    # W_max_mli = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_mli']
+    # CS_scale_LTD_mli = NN_FIT.fit_results['gauss_basis_kinematics']['CS_scale_LTD_mli']
+    # PC_FR_weight_LTD_mli = NN_FIT.fit_results['gauss_basis_kinematics']['PC_FR_weight_LTD_mli']
     # Fixed input params
     tau_rise_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS']
     tau_decay_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS']
     FR_MAX = NN_FIT.fit_results['gauss_basis_kinematics']['FR_MAX']
     UPDATE_MLI_WEIGHTS = NN_FIT.fit_results['gauss_basis_kinematics']['UPDATE_MLI_WEIGHTS']
-
-    # Not currently used params
-    # tau_rise = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise'] / bin_width
-    # tau_decay = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay'] / bin_width
-    # scale_LTP = NN_FIT.fit_results['gauss_basis_kinematics']['scale_LTP'] / bin_width
-    # scale_CS = NN_FIT.fit_results['gauss_basis_kinematics']['scale_CS'] / bin_width
-    # W_max_mli = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_mli']
-    # MLI_const = NN_FIT.fit_results['gauss_basis_kinematics']['MLI_const']
-    # psi = NN_FIT.fit_results['gauss_basis_kinematics']['psi']
-    # omega = NN_FIT.fit_results['gauss_basis_kinematics']['omega']
-    # CS_delay = NN_FIT.fit_results['gauss_basis_kinematics']['CS_delay']
 
     W_pf = np.zeros(W_0_pf.shape) # Place to store updating result and copy to output
     W_pf[:] = W_0_pf # Initialize storage to start values
