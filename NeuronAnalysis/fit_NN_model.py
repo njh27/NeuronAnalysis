@@ -750,11 +750,11 @@ def f_mli_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0):
     mli_CS_LTD[mli_CS_LTD > 0] = scale
     return mli_CS_LTD
 
-def f_mli_FR_LTD(PC_FR, PC_FR_weight_mli_LTD):
+def f_mli_FR_LTD(PC_FR, PC_FR_weight_LTD_mli):
     """
     """
     # Add a term with firing rate times weight of constant LTD
-    mli_FR_LTD = PC_FR * PC_FR_weight_mli_LTD
+    mli_FR_LTD = PC_FR * PC_FR_weight_LTD_mli
     return mli_FR_LTD
 
 def f_mli_LTD(mli_CS_LTD, mli_FR_LTD, state_input_mli, W_mli=None, W_min_mli=0.0):
@@ -795,6 +795,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     gauss_stds = args[6]
     n_gaussians = args[7]
     W_min_pf = 0.0
+    W_min_mli = 0.0
     FR_MAX = kwargs['FR_MAX']
 
     # Parse parameters to be fit
@@ -803,14 +804,11 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     W_max_pf = params[2]
     CS_scale_LTP = params[3]
     PC_FR_weight_LTP = params[4]
-
-    # CS_scale_mli_LTD = 1.0
-
-    # W_max_mli = np.full(W_0_mli.shape, params[10])
-    # MLI_const = params[11]
-    # psi = params[12] / 1e4
-    # omega = params[13] / 1e4
-    # CS_delay = int(np.around(params[14] / bin_width))
+    psi = params[5]
+    omega = params[6]
+    W_max_mli = params[7]
+    CS_scale_LTD_mli = params[8]
+    PC_FR_weight_LTD_mli = params[9]
 
     for trial in range(0, n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
@@ -831,7 +829,6 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         y_hat[trial*n_obs_pt:(trial + 1)*n_obs_pt] = y_hat_trial
         # Update weights for next trial based on activations in this trial
         state_input_pf = state_input[:, 0:n_gaussians]
-        state_input_mli = state_input[:, n_gaussians:]
 
         # Rescaled trial firing rate in proportion to max
         y_obs_trial = y_obs_trial / FR_MAX
@@ -858,6 +855,8 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         W_full[0:n_gaussians] = W_pf
 
         if kwargs['UPDATE_MLI_WEIGHTS']:
+            # MLI state input is all <= 0, so need to multiply by -1 here
+            state_input_mli = -1.0 * state_input[:, n_gaussians:]
             # Create the MLI LTP weighting function
             mli_CS_LTP = f_mli_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS'],
                               kwargs['tau_decay_CS'], 1.0, 0.0)
@@ -865,10 +864,10 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli=None, W_max_mli=0.0)
 
             # Create the LTD function for MLIs
-            mli_CS_LTD = f_mli_CS_LTD(mli_CS_LTP, 0, 0, 1.0) # Tau's == 0 will just invert pf_CS_LTD input function
-            mli_FR_LTD = f_mli_FR_LTD(y_obs_trial, PC_FR_weight_LTP)
-            # Convert to LTP input for Purkinje cell
-            mli_LTD = f_mli_LTD(pf_CS_LTP, pf_FR_LTP, state_input_pf, W_pf, W_max_pf)
+            mli_CS_LTD = f_mli_CS_LTD(mli_CS_LTP, 0, 0, CS_scale_LTD_mli) # Tau's == 0 will just invert pf_CS_LTD input function
+            mli_FR_LTD = f_mli_FR_LTD(y_obs_trial, PC_FR_weight_LTD_mli)
+            # Convert to LTD input for MLI
+            mli_LTD = f_mli_LTD(mli_CS_LTD, mli_FR_LTD, state_input_mli, W_mli, W_min_mli)
 
             # Ensure W_mli values are within range and store in output W_full
             W_mli += ( psi * mli_LTP[:, None] + omega * mli_LTD[:, None] )
@@ -960,11 +959,11 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                    "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 2),
                    "CS_scale_LTP": (1., 0, np.inf, 3),
                    "PC_FR_weight_LTP": (1., 0, np.inf, 4),
-                   # "psi": (2, 0, np.inf, 5),
-                   # "omega": (10, 0, np.inf, 6),
-                   # "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 7),
-                   # "CS_scale_LTD_mli": (1., 0, np.inf, 8),
-                   # "PC_FR_weight_LTD_mli": (1., 0, np.inf, 9),
+                   "psi": (2, 0, np.inf, 5),
+                   "omega": (10, 0, np.inf, 6),
+                   "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 7),
+                   "CS_scale_LTD_mli": (1., 0, np.inf, 8),
+                   "PC_FR_weight_LTD_mli": (1., 0, np.inf, 9),
             }
 
     # Make sure params are in correct order and saved for input to least_squares
@@ -980,7 +979,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     lf_kwargs = {'tau_rise_CS': int(np.around(0 /bin_width)),
                  'tau_decay_CS': int(np.around(0 /bin_width)),
                  'FR_MAX': 500,
-                 'UPDATE_MLI_WEIGHTS': False,
+                 'UPDATE_MLI_WEIGHTS': True,
                  }
     # Fit the learning rates to the data
     result = least_squares(learning_function, p0,
@@ -1100,6 +1099,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     W_mli = np.zeros(W_0_mli.shape) # Place to store updating result and copy to output
     W_mli[:] = W_0_mli # Initialize storage to start values
     W_min_pf = 0.0
+    W_min_mli = 0.0
     for trial_ind, trial_num in zip(range(0, n_trials), all_t_inds):
         weights_by_trial[trial_num][:] = W_full # Copy W for this trial, befoe updating at end of loop
         state_trial = state[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt, :] # State for this trial
@@ -1113,7 +1113,6 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         # for these states are not affected during nans
         state_input[eye_is_nan_trial, :] = 0.0
         state_input_pf = state_input[:, 0:n_gaussians]
-        state_input_mli = state_input[:, n_gaussians:]
 
         # Rescaled trial firing rate in proportion to max
         y_obs_trial = y_obs_trial / FR_MAX
@@ -1140,6 +1139,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         W_full[0:n_gaussians] = W_pf
 
         if UPDATE_MLI_WEIGHTS:
+            # MLI state input is all <= 0, so need to multiply by -1 here
+            state_input_mli = -1.0 * state_input[:, n_gaussians:]
             # Create the MLI LTP weighting function
             mli_CS_LTP = f_mli_CS_LTP(CS_trial_bin, tau_rise_CS,
                               tau_decay_CS, 1.0, 0.0)
@@ -1149,8 +1150,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             # Create the LTD function for MLIs
             mli_CS_LTD = f_mli_CS_LTD(mli_CS_LTP, 0, 0, CS_scale_LTD_mli) # Tau's == 0 will just invert pf_CS_LTD input function
             mli_FR_LTD = f_mli_FR_LTD(y_obs_trial, PC_FR_weight_LTD_mli)
-            # Convert to LTP input for Purkinje cell
-            mli_LTD = f_mli_LTD(pf_CS_LTP, pf_FR_LTP, state_input_pf, W_pf, W_max_pf)
+            # Convert to LTD input for MLI
+            mli_LTD = f_mli_LTD(mli_CS_LTD, mli_FR_LTD, state_input_mli, W_mli, W_min_mli)
 
             # Ensure W_mli values are within range and store in output W_full
             W_mli += ( psi * mli_LTP[:, None] + omega * mli_LTD[:, None] )
