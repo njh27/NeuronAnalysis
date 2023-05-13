@@ -679,7 +679,7 @@ def f_pf_CS_LTP(CS_trial_bin, tau_1, tau_2, scale=1.0):
     # pf_CS_LTP = np.mod(CS_trial_bin + 1, 2)
     pf_CS_LTP = boxcar_convolve(CS_trial_bin, tau_1, tau_2)
     pf_CS_LTP[pf_CS_LTP > 0] = scale
-    return np.zeros_like(pf_CS_LTP)
+    return pf_CS_LTP
 
 def f_pf_static_LTP(pf_CS_LTD, static_weight_LTP):
     """ Inverts the input pf_CS_LTD fun so that it is opposite.
@@ -975,10 +975,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     W_0_mli = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:]
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
 
-    lf_kwargs = {'tau_rise_CS': int(np.around(60 /bin_width)),
-                 'tau_decay_CS': int(np.around(0 /bin_width)),
-                 'tau_rise_CS_LTP': int(np.around(-20 /bin_width)),
-                 'tau_decay_CS_LTP': int(np.around(120 /bin_width)),
+    lf_kwargs = {'tau_rise_CS': int(np.around(200 /bin_width)),
+                 'tau_decay_CS': int(np.around(-60 /bin_width)),
+                 'tau_rise_CS_LTP': int(np.around(-60 /bin_width)),
+                 'tau_decay_CS_LTP': int(np.around(40 /bin_width)),
                  'tau_rise_CS_mli_LTD': int(np.around(0 /bin_width)),
                  'tau_decay_CS_mli_LTD': int(np.around(0 /bin_width)),
                  'FR_MAX': 500,
