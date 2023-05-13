@@ -755,7 +755,7 @@ def f_mli_FR_LTD(PC_FR, PC_FR_weight_LTD_mli):
     """
     # Add a term with firing rate times weight of constant LTD
     mli_FR_LTD = PC_FR * PC_FR_weight_LTD_mli
-    return mli_FR_LTD
+    return np.zeros_like(mli_FR_LTD)
 
 def f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli):
     """
