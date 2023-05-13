@@ -681,12 +681,12 @@ def f_pf_CS_LTP(CS_trial_bin, tau_1, tau_2, scale=1.0):
     pf_CS_LTP[pf_CS_LTP > 0] = scale
     return pf_CS_LTP
 
-def f_pf_static_LTP(pf_CS_LTD, scale=1.0):
+def f_pf_static_LTP(pf_CS_LTD, static_weight_LTP):
     """ Inverts the input pf_CS_LTD fun so that it is opposite.
     """
     # Inverts the CS function
     pf_static_LTP = np.zeros_like(pf_CS_LTD)
-    pf_static_LTP[pf_CS_LTD > 0.0] = scale
+    pf_static_LTP[pf_CS_LTD == 0.0] = static_weight_LTP
     return pf_static_LTP
 
 def f_pf_FR_LTP(PC_FR, PC_FR_weight_LTP):
@@ -816,14 +816,15 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     alpha = params[0] / 1e4
     beta = params[1] / 1e4
     W_max_pf = params[2]
-    CS_scale_LTP = params[3] / 1e4
+    CS_weight_LTP = params[3] / 1e4
     PC_FR_weight_LTP = params[4] / 1e4
+    static_weight_LTP = params[5] / 1e4
     if kwargs['UPDATE_MLI_WEIGHTS']:
-        psi = params[5] / 1e4
-        omega = params[6] / 1e4
-        W_max_mli = params[7]
-        CS_scale_LTD_mli = params[8] / 1e4
-        PC_FR_weight_LTD_mli = params[9] / 1e4
+        psi = params[6] / 1e4
+        omega = params[7] / 1e4
+        W_max_mli = params[8]
+        CS_scale_LTD_mli = params[9] / 1e4
+        PC_FR_weight_LTD_mli = params[10] / 1e4
 
     for trial in range(0, n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
@@ -858,10 +859,10 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
 
         # Create the LTP function for parallel fibers
         pf_CS_LTP = f_pf_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_LTP'],
-                        kwargs['tau_decay_CS_LTP'], CS_scale_LTP)
+                        kwargs['tau_decay_CS_LTP'], CS_weight_LTP)
         pf_FR_LTP = f_pf_FR_LTP(y_obs_trial, PC_FR_weight_LTP)
         pf_FR_LTP[pf_CS_LTD > 0.0] = 0.0
-        pf_FR_LTP += f_pf_static_LTP(pf_CS_LTD, scale=1.0)
+        pf_FR_LTP += f_pf_static_LTP(pf_CS_LTD, scale=static_weight_LTP)
         # Convert to LTP input for Purkinje cell
         pf_LTP = f_pf_LTP(pf_CS_LTP, pf_FR_LTP, state_input_pf, W_pf=W_pf, W_max_pf=W_max_pf)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
@@ -987,18 +988,19 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     param_conds = {"alpha": (10, 0, np.inf, 0),
                    "beta": (50, 0, np.inf, 1),
                    "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 2),
-                   "CS_scale_LTP": (1.0, 0, np.inf, 3),
+                   "CS_weight_LTP": (1.0, 0, np.inf, 3),
                    "PC_FR_weight_LTP": (1.0, 0, np.inf, 4),
+                   "static_weight_LTP": (1.0, 0, np.inf, 5),
             }
     if lf_kwargs['UPDATE_MLI_WEIGHTS']:
-        param_conds.update({"psi": (2, 0, np.inf, 5),
-                            "omega": (10, 0, np.inf, 6),
-                            "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 7),
-                            "CS_scale_LTD_mli": (1.0, 0, np.inf, 8),
-                            "PC_FR_weight_LTD_mli": (1.0, 0, np.inf, 9),
+        param_conds.update({"psi": (2, 0, np.inf, 6),
+                            "omega": (10, 0, np.inf, 7),
+                            "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 8),
+                            "CS_scale_LTD_mli": (1.0, 0, np.inf, 9),
+                            "PC_FR_weight_LTD_mli": (1.0, 0, np.inf, 10),
                             })
-    rescale_1e4 = ["alpha", "beta", "psi", "omega", "CS_scale_LTP",
-                   "PC_FR_weight_LTP", "CS_scale_LTD_mli",
+    rescale_1e4 = ["alpha", "beta", "psi", "omega", "CS_weight_LTP",
+                   "PC_FR_weight_LTP", "static_weight_LTP", "CS_scale_LTD_mli",
                    "PC_FR_weight_LTD_mli"
                    ]
 
@@ -1120,8 +1122,9 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     alpha = NN_FIT.fit_results['gauss_basis_kinematics']['alpha']
     beta = NN_FIT.fit_results['gauss_basis_kinematics']['beta']
     W_max_pf = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_pf']
-    CS_scale_LTP = NN_FIT.fit_results['gauss_basis_kinematics']['CS_scale_LTP']
+    CS_weight_LTP = NN_FIT.fit_results['gauss_basis_kinematics']['CS_weight_LTP']
     PC_FR_weight_LTP = NN_FIT.fit_results['gauss_basis_kinematics']['PC_FR_weight_LTP']
+    static_weight_LTP = NN_FIT.fit_results['gauss_basis_kinematics']['static_weight_LTP']
     if UPDATE_MLI_WEIGHTS:
         psi = NN_FIT.fit_results['gauss_basis_kinematics']['psi']
         omega = NN_FIT.fit_results['gauss_basis_kinematics']['omega']
@@ -1161,10 +1164,10 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, W_pf=W_pf, W_min_pf=W_min_pf)
 
         # Create the LTP function for parallel fibers
-        pf_CS_LTP = f_pf_CS_LTP(CS_trial_bin, tau_rise_CS_LTP, tau_decay_CS_LTP, CS_scale_LTP) # Tau's == 0 will just invert pf_CS_LTD input function
+        pf_CS_LTP = f_pf_CS_LTP(CS_trial_bin, tau_rise_CS_LTP, tau_decay_CS_LTP, CS_weight_LTP) # Tau's == 0 will just invert pf_CS_LTD input function
         pf_FR_LTP = f_pf_FR_LTP(y_obs_trial, PC_FR_weight_LTP)
         pf_FR_LTP[pf_CS_LTD > 0.0] = 0.0
-        pf_FR_LTP += f_pf_static_LTP(pf_CS_LTD, scale=1.0)
+        pf_FR_LTP += f_pf_static_LTP(pf_CS_LTD, scale=static_weight_LTP)
         # Convert to LTP input for Purkinje cell
         pf_LTP = f_pf_LTP(pf_CS_LTP, pf_FR_LTP, state_input_pf, W_pf=W_pf, W_max_pf=W_max_pf)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
@@ -1198,9 +1201,9 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             W_mli[(W_mli < 0.0).squeeze()] = 0.0
             W_full[n_gaussians:] = W_mli
 
-        if np.all(np.isnan(W_full)):
-            print(alpha, beta, psi, omega)
-            return LTP_Inputs, f_LTP, f_LTP_fixed, y_obs_trial, state_input, PC_FR_weight_LTP
+        # if np.all(np.isnan(W_full)):
+        #     print(alpha, beta, psi, omega)
+        #     return LTP_Inputs, f_LTP, f_LTP_fixed, y_obs_trial, state_input, PC_FR_weight_LTP
 
     return weights_by_trial
 
