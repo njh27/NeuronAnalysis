@@ -679,7 +679,7 @@ def f_pf_CS_LTP(CS_trial_bin, tau_1, tau_2, scale=1.0):
     # pf_CS_LTP = np.mod(CS_trial_bin + 1, 2)
     pf_CS_LTP = boxcar_convolve(CS_trial_bin, tau_1, tau_2)
     pf_CS_LTP[pf_CS_LTP > 0] = scale
-    return np.zeros_like(pf_CS_LTP)
+    return pf_CS_LTP
 
 def f_pf_FR_LTP(PC_FR, PC_FR_weight_LTP):
     """
