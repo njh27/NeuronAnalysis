@@ -988,11 +988,11 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     lf_kwargs = {'tau_rise_CS': int(np.around(200 /bin_width)),
                  'tau_decay_CS': int(np.around(-40 /bin_width)),
                  'tau_rise_CS_LTP': int(np.around(-40 /bin_width)),
-                 'tau_decay_CS_LTP': int(np.around(140 /bin_width)),
+                 'tau_decay_CS_LTP': int(np.around(200 /bin_width)),
                  'tau_rise_CS_mli_LTP': int(np.around(200 /bin_width)),
-                 'tau_decay_CS_mli_LTP': int(np.around(40 /bin_width)),
+                 'tau_decay_CS_mli_LTP': int(np.around(-40 /bin_width)),
                  'tau_rise_CS_mli_LTD': int(np.around(-40 /bin_width)),
-                 'tau_decay_CS_mli_LTD': int(np.around(140 /bin_width)),
+                 'tau_decay_CS_mli_LTD': int(np.around(100 /bin_width)),
                  'FR_MAX': 500,
                  'UPDATE_MLI_WEIGHTS': True,
                  }
@@ -1004,10 +1004,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                    "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 4),
             }
     if lf_kwargs['UPDATE_MLI_WEIGHTS']:
-        param_conds.update({"omega": (4.0, 0, np.inf, 5),
-                            "psi": (1.0, 0, np.inf, 6),
-                            "chi": (1.0, 0, np.inf, 7),
-                            "phi": (1.0, 0, np.inf, 8),
+        param_conds.update({"omega": (0.01, 0, np.inf, 5),
+                            "psi": (0.01, 0, np.inf, 6),
+                            "chi": (0.01, 0, np.inf, 7),
+                            "phi": (0.01, 0, np.inf, 8),
                             "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 9),
                             })
     rescale_1e4 = ["alpha", "beta", "gamma", "epsilon"]
