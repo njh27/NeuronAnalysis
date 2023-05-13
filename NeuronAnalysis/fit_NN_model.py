@@ -262,7 +262,7 @@ class FitNNModel(object):
             layers.Input(shape=(n_gaussians + 8,)),
             layers.Dense(1, activation="relu",
                             kernel_constraint=constraints.NonNeg(),
-                            bias_initializer=initializers.Constant(np.nanmedian(binned_FR_train))),
+                            bias_initializer=initializers.Constant(0.25*np.nanmedian(binned_FR_train))),
         ])
         clip_value = None
         optimizer = SGD(learning_rate=learning_rate, clipvalue=clip_value)
