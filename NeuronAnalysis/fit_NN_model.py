@@ -965,8 +965,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     W_0_mli = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:]
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
 
-    lf_kwargs = {'tau_rise_CS': int(np.around(0 /bin_width)),
-                 'tau_decay_CS': int(np.around(0 /bin_width)),
+    lf_kwargs = {'tau_rise_CS': int(np.around(60 /bin_width)),
+                 'tau_decay_CS': int(np.around(60 /bin_width)),
                  'tau_rise_CS_LTP': int(np.around(-60 /bin_width)),
                  'tau_decay_CS_LTP': int(np.around(160 /bin_width)),
                  'tau_rise_CS_mli_LTD': int(np.around(0 /bin_width)),
