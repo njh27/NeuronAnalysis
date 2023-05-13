@@ -968,7 +968,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     lf_kwargs = {'tau_rise_CS': int(np.around(160 /bin_width)),
                  'tau_decay_CS': int(np.around(40 /bin_width)),
                  'tau_rise_CS_LTP': int(np.around(-40 /bin_width)),
-                 'tau_decay_CS_LTP': int(np.around(240 /bin_width)),
+                 'tau_decay_CS_LTP': int(np.around(140 /bin_width)),
                  'tau_rise_CS_mli_LTD': int(np.around(0 /bin_width)),
                  'tau_decay_CS_mli_LTD': int(np.around(0 /bin_width)),
                  'FR_MAX': 500,
