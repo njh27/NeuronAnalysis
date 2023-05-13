@@ -760,9 +760,8 @@ def f_mli_FR_LTD(PC_FR, PC_FR_weight_LTD_mli):
 def f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli):
     """
     """
-
     mli_FR_LTD = np.dot(state_input_pf, W_pf) * PC_FR_weight_LTD_mli
-    return mli_FR_LTD.squeeze()
+    return np.zeros_like(mli_FR_LTD).squeeze()
 
 def f_mli_LTD(mli_CS_LTD, mli_FR_LTD, state_input_mli, W_mli=None, W_min_mli=0.0):
     """ Updates the parallel fiber LTP function of time "mli_CS_LTD" to be scaled
