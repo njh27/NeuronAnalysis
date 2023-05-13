@@ -759,11 +759,11 @@ def f_mli_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0):
 def f_mli_FR_LTD(PC_FR, PC_FR_weight_LTD_mli):
     """
     """
-    inv_PC_FR = 1 - PC_FR
-    inv_PC_FR[inv_PC_FR < 0.0] = 0.0
-    mli_FR_LTD = inv_PC_FR * PC_FR_weight_LTD_mli
+    # inv_PC_FR = 1 - PC_FR
+    # inv_PC_FR[inv_PC_FR < 0.0] = 0.0
+    # mli_FR_LTD = inv_PC_FR * PC_FR_weight_LTD_mli
     # Add a term with firing rate times weight of constant LTD
-    # mli_FR_LTD = PC_FR * PC_FR_weight_LTD_mli
+    mli_FR_LTD = PC_FR * PC_FR_weight_LTD_mli
     return mli_FR_LTD
 
 def f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli):
