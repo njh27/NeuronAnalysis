@@ -748,7 +748,7 @@ def f_mli_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0):
     mli_CS_LTD = np.mod(CS_trial_bin + 1, 2)
     mli_CS_LTD = boxcar_convolve(mli_CS_LTD, tau_1, tau_2)
     mli_CS_LTD[mli_CS_LTD > 0] = scale
-    return mli_CS_LTD
+    return np.zeros_like(mli_CS_LTD)
 
 def f_mli_FR_LTD(PC_FR, PC_FR_weight_LTD_mli):
     """
