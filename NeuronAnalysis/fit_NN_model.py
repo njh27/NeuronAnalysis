@@ -745,7 +745,7 @@ def f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli=None, W_max_mli=None):
             raise ValueError("If updating weights by inputting values for W_mli, a W_max_mli > 0 must also be specified.")
         W_max_mli = np.full(W_mli.shape, W_max_mli)
         mli_LTP *= (W_max_mli - W_mli).squeeze()
-    return np.zeros_like(mli_LTP)
+    return mli_LTP
 
 def f_mli_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0):
     """ Assumes CS_trial_bin is an array of 0's and 1's where 1's indicate that
@@ -985,10 +985,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                  'tau_decay_CS': int(np.around(-40 /bin_width)),
                  'tau_rise_CS_LTP': int(np.around(-40 /bin_width)),
                  'tau_decay_CS_LTP': int(np.around(140 /bin_width)),
-                 'tau_rise_CS_mli_LTP': int(np.around(100 /bin_width)),
-                 'tau_decay_CS_mli_LTP': int(np.around(-40 /bin_width)),
-                 'tau_rise_CS_mli_LTD': int(np.around(-40 /bin_width)),
-                 'tau_decay_CS_mli_LTD': int(np.around(100 /bin_width)),
+                 'tau_rise_CS_mli_LTP': int(np.around(0 /bin_width)),
+                 'tau_decay_CS_mli_LTP': int(np.around(0 /bin_width)),
+                 'tau_rise_CS_mli_LTD': int(np.around(0 /bin_width)),
+                 'tau_decay_CS_mli_LTD': int(np.around(0 /bin_width)),
                  'FR_MAX': 500,
                  'UPDATE_MLI_WEIGHTS': True,
                  }
@@ -1006,8 +1006,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                             "phi": (1.0, 0, np.inf, 8),
                             "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 9),
                             })
-    rescale_1e4 = ["alpha", "beta", "gamma", "epsilon",
-                   "omega", "psi", "chi", "phi"]
+    rescale_1e4 = ["alpha", "beta", "gamma", "epsilon"]
+                   # "omega", "psi", "chi", "phi"]
 
     # Make sure params are in correct order and saved for input to least_squares
     p0 = [x[1][0] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
