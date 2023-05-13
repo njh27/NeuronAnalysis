@@ -752,11 +752,9 @@ def f_mli_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0):
     CS is taking place and 0's indicate no CS related LTD. This function
     will then invert the CS train and form windows of LTD where CS is absent.
     """
-    # Inverts the CS function
-    # mli_CS_LTD = np.mod(CS_trial_bin + 1, 2)
     mli_CS_LTD = boxcar_convolve(CS_trial_bin, tau_1, tau_2)
     mli_CS_LTD[mli_CS_LTD > 0] = scale
-    return np.zeros_like(mli_CS_LTD)
+    return mli_CS_LTD
 
 def f_mli_FR_LTD(PC_FR, PC_FR_weight_LTD_mli):
     """
@@ -982,7 +980,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                  'tau_rise_CS_mli_LTD': int(np.around(0 /bin_width)),
                  'tau_decay_CS_mli_LTD': int(np.around(0 /bin_width)),
                  'FR_MAX': 500,
-                 'UPDATE_MLI_WEIGHTS': False,
+                 'UPDATE_MLI_WEIGHTS': True,
                  }
     # Format of p0, upper, lower, index order for each variable to make this legible
     param_conds = {"alpha": (10, 0, np.inf, 0),
