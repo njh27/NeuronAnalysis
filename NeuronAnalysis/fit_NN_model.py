@@ -737,7 +737,7 @@ def f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli=None, W_max_mli=None):
             raise ValueError("If updating weights by inputting values for W_mli, a W_max_mli > 0 must also be specified.")
         W_max_mli = np.full(W_mli.shape, W_max_mli)
         mli_LTP *= (W_max_mli - W_mli).squeeze()
-    return np.zeros_like(mli_LTP)
+    return mli_LTP
 
 def f_mli_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0):
     """ Assumes CS_trial_bin is an array of 0's and 1's where 1's indicate that
