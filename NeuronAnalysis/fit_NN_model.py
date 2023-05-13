@@ -757,6 +757,12 @@ def f_mli_FR_LTD(PC_FR, PC_FR_weight_LTD_mli):
     mli_FR_LTD = PC_FR * PC_FR_weight_LTD_mli
     return mli_FR_LTD
 
+def f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD):
+    """
+    """
+    mli_FR_LTD = np.dot(state_input_mli, W_pf) * PC_FR_weight_LTD
+    return mli_FR_LTD
+
 def f_mli_LTD(mli_CS_LTD, mli_FR_LTD, state_input_mli, W_mli=None, W_min_mli=0.0):
     """ Updates the parallel fiber LTP function of time "mli_CS_LTD" to be scaled
     by PC firing rate if input, then scales by the pf state input and finally
@@ -866,7 +872,8 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
 
             # Create the LTD function for MLIs
             mli_CS_LTD = f_mli_CS_LTD(mli_CS_LTP, 0, 0, CS_scale_LTD_mli) # Tau's == 0 will just invert pf_CS_LTD input function
-            mli_FR_LTD = f_mli_FR_LTD(y_obs_trial, PC_FR_weight_LTD_mli)
+            # mli_FR_LTD = f_mli_FR_LTD(y_obs_trial, PC_FR_weight_LTD_mli)
+            mli_FR_LTD = f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD)
             # Convert to LTD input for MLI
             mli_LTD = f_mli_LTD(mli_CS_LTD, mli_FR_LTD, state_input_mli, W_mli, W_min_mli)
 
@@ -970,8 +977,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         param_conds.update({"psi": (2, 0, np.inf, 5),
                             "omega": (10, 0, np.inf, 6),
                             "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 7),
-                            "CS_scale_LTD_mli": (100.0, 0, np.inf, 8),
-                            "PC_FR_weight_LTD_mli": (100.0, 0, np.inf, 9),
+                            "CS_scale_LTD_mli": (1.0, 0, np.inf, 8),
+                            "PC_FR_weight_LTD_mli": (1.0, 0, np.inf, 9),
                             })
     rescale_1e4 = ["alpha", "beta", "psi", "omega", "CS_scale_LTP",
                    "PC_FR_weight_LTP", "CS_scale_LTD_mli",
@@ -1156,7 +1163,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
 
             # Create the LTD function for MLIs
             mli_CS_LTD = f_mli_CS_LTD(mli_CS_LTP, 0, 0, CS_scale_LTD_mli) # Tau's == 0 will just invert pf_CS_LTD input function
-            mli_FR_LTD = f_mli_FR_LTD(y_obs_trial, PC_FR_weight_LTD_mli)
+            # mli_FR_LTD = f_mli_FR_LTD(y_obs_trial, PC_FR_weight_LTD_mli)
+            mli_FR_LTD = f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD)
             # Convert to LTD input for MLI
             mli_LTD = f_mli_LTD(mli_CS_LTD, mli_FR_LTD, state_input_mli, W_mli, W_min_mli)
 
