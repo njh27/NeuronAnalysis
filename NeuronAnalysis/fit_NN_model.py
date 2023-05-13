@@ -846,7 +846,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS'],
                           kwargs['tau_decay_CS'], 1.0, 0.0)
         # Convert to LTD input for Purkinje cell
-        pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, W_pf, W_min_pf)
+        pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, W_pf=None, W_min_pf=None)
 
         # Create the LTP function for parallel fibers
         pf_CS_LTP = f_pf_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_LTP'],
@@ -972,7 +972,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                  'tau_rise_CS_mli_LTD': int(np.around(0 /bin_width)),
                  'tau_decay_CS_mli_LTD': int(np.around(0 /bin_width)),
                  'FR_MAX': 500,
-                 'UPDATE_MLI_WEIGHTS': True,
+                 'UPDATE_MLI_WEIGHTS': False,
                  }
     # Format of p0, upper, lower, index order for each variable to make this legible
     param_conds = {"alpha": (10, 0, np.inf, 0),
@@ -1149,7 +1149,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, tau_rise_CS,
                           tau_decay_CS, 1.0, 0.0)
         # Convert to LTD input for Purkinje cell
-        pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, W_pf, W_min_pf)
+        pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, W_pf=None, W_min_pf=None)
 
         # Create the LTP function for parallel fibers
         pf_CS_LTP = f_pf_CS_LTP(CS_trial_bin, tau_rise_CS_LTP, tau_decay_CS_LTP, CS_scale_LTP) # Tau's == 0 will just invert pf_CS_LTD input function
