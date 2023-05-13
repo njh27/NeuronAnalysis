@@ -884,6 +884,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             # Create the MLI LTP weighting function
             mli_CS_LTP = f_mli_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_mli_LTP'],
                               kwargs['tau_decay_CS_mli_LTP'], omega, 0.0)
+            mli_CS_LTP += f_mli_FR_LTD(y_obs_trial, chi)
             # Convert to LTP input for Purkinje cell MLI weights
             mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli, W_max_mli)
 
@@ -981,12 +982,12 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     W_0_mli = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:]
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
 
-    lf_kwargs = {'tau_rise_CS': int(np.around(140 /bin_width)),
+    lf_kwargs = {'tau_rise_CS': int(np.around(200 /bin_width)),
                  'tau_decay_CS': int(np.around(-40 /bin_width)),
                  'tau_rise_CS_LTP': int(np.around(-40 /bin_width)),
                  'tau_decay_CS_LTP': int(np.around(140 /bin_width)),
-                 'tau_rise_CS_mli_LTP': int(np.around(140 /bin_width)),
-                 'tau_decay_CS_mli_LTP': int(np.around(-40 /bin_width)),
+                 'tau_rise_CS_mli_LTP': int(np.around(200 /bin_width)),
+                 'tau_decay_CS_mli_LTP': int(np.around(40 /bin_width)),
                  'tau_rise_CS_mli_LTD': int(np.around(-40 /bin_width)),
                  'tau_decay_CS_mli_LTD': int(np.around(140 /bin_width)),
                  'FR_MAX': 500,
@@ -1188,6 +1189,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             # Create the MLI LTP weighting function
             mli_CS_LTP = f_mli_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_mli_LTP'],
                               kwargs['tau_decay_CS_mli_LTP'], omega, 0.0)
+            mli_CS_LTP += f_mli_FR_LTD(y_obs_trial, chi)
             # Convert to LTP input for Purkinje cell MLI weights
             mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli, W_max_mli)
 
