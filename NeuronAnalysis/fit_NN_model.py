@@ -676,8 +676,8 @@ def f_pf_CS_LTP(CS_trial_bin, tau_1, tau_2, scale=1.0):
     will then invert the CS train and form windows of LTP where LTD is absent.
     """
     # Inverts the CS function
-    pf_CS_LTP = np.mod(CS_trial_bin + 1, 2)
-    pf_CS_LTP = boxcar_convolve(pf_CS_LTP, tau_1, tau_2)
+    # pf_CS_LTP = np.mod(CS_trial_bin + 1, 2)
+    pf_CS_LTP = boxcar_convolve(CS_trial_bin, tau_1, tau_2)
     pf_CS_LTP[pf_CS_LTP > 0] = scale
     return pf_CS_LTP
 
@@ -850,7 +850,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, W_pf, W_min_pf)
 
         # Create the LTP function for parallel fibers
-        pf_CS_LTP = f_pf_CS_LTP(pf_CS_LTD, kwargs['tau_rise_CS_LTP'],
+        pf_CS_LTP = f_pf_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_LTP'],
                         kwargs['tau_decay_CS_LTP'], CS_scale_LTP) # Tau's == 0 will just invert pf_CS_LTD input function
         pf_FR_LTP = f_pf_FR_LTP(y_obs_trial, PC_FR_weight_LTP)
         pf_FR_LTP[pf_CS_LTD == 1.0] = 0.0
@@ -1147,7 +1147,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, W_pf, W_min_pf)
 
         # Create the LTP function for parallel fibers
-        pf_CS_LTP = f_pf_CS_LTP(pf_CS_LTD, tau_rise_CS_LTP, tau_decay_CS_LTP, CS_scale_LTP) # Tau's == 0 will just invert pf_CS_LTD input function
+        pf_CS_LTP = f_pf_CS_LTP(CS_trial_bin, tau_rise_CS_LTP, tau_decay_CS_LTP, CS_scale_LTP) # Tau's == 0 will just invert pf_CS_LTD input function
         pf_FR_LTP = f_pf_FR_LTP(y_obs_trial, PC_FR_weight_LTP)
         pf_FR_LTP[pf_CS_LTD == 1.0] = 0.0
         # Convert to LTP input for Purkinje cell
