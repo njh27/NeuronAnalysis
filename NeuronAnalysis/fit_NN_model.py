@@ -846,7 +846,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS'],
                           kwargs['tau_decay_CS'], 1.0, 0.0)
         # Convert to LTD input for Purkinje cell
-        pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, W_pf=None, W_min_pf=None)
+        pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, W_pf=W_pf, W_min_pf=W_min_pf)
 
         # Create the LTP function for parallel fibers
         pf_CS_LTP = f_pf_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_LTP'],
@@ -854,7 +854,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         pf_FR_LTP = f_pf_FR_LTP(y_obs_trial, PC_FR_weight_LTP)
         pf_FR_LTP[pf_CS_LTD > 0.0] = 0.0
         # Convert to LTP input for Purkinje cell
-        pf_LTP = f_pf_LTP(pf_CS_LTP, pf_FR_LTP, state_input_pf, W_pf=None, W_max_pf=None)
+        pf_LTP = f_pf_LTP(pf_CS_LTP, pf_FR_LTP, state_input_pf, W_pf=W_pf, W_max_pf=W_max_pf)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
         W_pf += ( alpha * pf_LTP[:, None] + beta * pf_LTD[:, None] )
 
@@ -1149,14 +1149,14 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, tau_rise_CS,
                           tau_decay_CS, 1.0, 0.0)
         # Convert to LTD input for Purkinje cell
-        pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, W_pf=None, W_min_pf=None)
+        pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, W_pf=W_pf, W_min_pf=W_min_pf)
 
         # Create the LTP function for parallel fibers
         pf_CS_LTP = f_pf_CS_LTP(CS_trial_bin, tau_rise_CS_LTP, tau_decay_CS_LTP, CS_scale_LTP) # Tau's == 0 will just invert pf_CS_LTD input function
         pf_FR_LTP = f_pf_FR_LTP(y_obs_trial, PC_FR_weight_LTP)
         pf_FR_LTP[pf_CS_LTD > 0.0] = 0.0
         # Convert to LTP input for Purkinje cell
-        pf_LTP = f_pf_LTP(pf_CS_LTP, pf_FR_LTP, state_input_pf, W_pf=None, W_max_pf=None)
+        pf_LTP = f_pf_LTP(pf_CS_LTP, pf_FR_LTP, state_input_pf, W_pf=W_pf, W_max_pf=W_max_pf)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
         W_pf += ( alpha * pf_LTP[:, None] + beta * pf_LTD[:, None] )
 
