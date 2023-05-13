@@ -745,8 +745,8 @@ def f_mli_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0):
     will then invert the CS train and form windows of LTD where CS is absent.
     """
     # Inverts the CS function
-    mli_CS_LTD = np.mod(CS_trial_bin + 1, 2)
-    mli_CS_LTD = boxcar_convolve(mli_CS_LTD, tau_1, tau_2)
+    # mli_CS_LTD = np.mod(CS_trial_bin + 1, 2)
+    mli_CS_LTD = boxcar_convolve(CS_trial_bin, tau_1, tau_2)
     mli_CS_LTD[mli_CS_LTD > 0] = scale
     return np.zeros_like(mli_CS_LTD)
 
@@ -874,9 +874,11 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli, W_max_mli)
 
             # Create the LTD function for MLIs
-            mli_CS_LTD = f_mli_CS_LTD(mli_CS_LTP, 0, 0, CS_scale_LTD_mli) # Tau's == 0 will just invert pf_CS_LTD input function
+            mli_CS_LTD = f_mli_CS_LTD(mli_CS_LTP, kwargs['tau_rise_CS_mli_LTD'],
+                            kwargs['tau_decay_CS_mli_LTD'], CS_scale_LTD_mli) # Tau's == 0 will just invert pf_CS_LTD input function
             # mli_FR_LTD = f_mli_FR_LTD(y_obs_trial, PC_FR_weight_LTD_mli)
             mli_FR_LTD = f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli)
+            mli_FR_LTD[mli_CS_LTP == 1.0] = 0.0
             # Convert to LTD input for MLI
             mli_LTD = f_mli_LTD(mli_CS_LTD, mli_FR_LTD, state_input_mli, W_mli, W_min_mli)
 
@@ -968,6 +970,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                  'tau_decay_CS': int(np.around(40 /bin_width)),
                  'tau_rise_CS_LTP': int(np.around(-40 /bin_width)),
                  'tau_decay_CS_LTP': int(np.around(200 /bin_width)),
+                 'tau_rise_CS_mli_LTD': int(np.around(-60 /bin_width)),
+                 'tau_decay_CS_mli_LTD': int(np.around(160 /bin_width)),
                  'FR_MAX': 500,
                  'UPDATE_MLI_WEIGHTS': False,
                  }
@@ -1100,6 +1104,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     tau_decay_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS']
     tau_rise_CS_LTP = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS_LTP']
     tau_decay_CS_LTP = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS_LTP']
+    tau_rise_CS_mli_LTD = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS_mli_LTD']
+    tau_decay_CS_mli_LTD = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS_mli_LTD']
     FR_MAX = NN_FIT.fit_results['gauss_basis_kinematics']['FR_MAX']
     UPDATE_MLI_WEIGHTS = NN_FIT.fit_results['gauss_basis_kinematics']['UPDATE_MLI_WEIGHTS']
     # Fit parameters
@@ -1170,9 +1176,10 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli, W_max_mli)
 
             # Create the LTD function for MLIs
-            mli_CS_LTD = f_mli_CS_LTD(mli_CS_LTP, 0, 0, CS_scale_LTD_mli) # Tau's == 0 will just invert pf_CS_LTD input function
+            mli_CS_LTD = f_mli_CS_LTD(mli_CS_LTP, tau_rise_CS_mli_LTD, tau_decay_CS_mli_LTD, CS_scale_LTD_mli) # Tau's == 0 will just invert pf_CS_LTD input function
             # mli_FR_LTD = f_mli_FR_LTD(y_obs_trial, PC_FR_weight_LTD_mli)
             mli_FR_LTD = f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli)
+            mli_FR_LTD[mli_CS_LTP == 1.0] = 0.0
             # Convert to LTD input for MLI
             mli_LTD = f_mli_LTD(mli_CS_LTD, mli_FR_LTD, state_input_mli, W_mli, W_min_mli)
 
