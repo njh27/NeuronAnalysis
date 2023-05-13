@@ -760,7 +760,9 @@ def f_mli_FR_LTD(PC_FR, PC_FR_weight_LTD_mli):
 def f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli):
     """
     """
+
     mli_FR_LTD = np.dot(state_input_pf, W_pf) * PC_FR_weight_LTD_mli
+    print("Shapes", state_input_pf.shape, W_pf.shape, mli_FR_LTD.shape)
     return mli_FR_LTD
 
 def f_mli_LTD(mli_CS_LTD, mli_FR_LTD, state_input_mli, W_mli=None, W_min_mli=0.0):
