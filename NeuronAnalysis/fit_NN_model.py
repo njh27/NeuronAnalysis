@@ -850,7 +850,8 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, W_pf, W_min_pf)
 
         # Create the LTP function for parallel fibers
-        pf_CS_LTP = f_pf_CS_LTP(pf_CS_LTD, 0, 0, CS_scale_LTP) # Tau's == 0 will just invert pf_CS_LTD input function
+        pf_CS_LTP = f_pf_CS_LTP(pf_CS_LTD, kwargs['tau_rise_CS_LTP'],
+                        kwargs['tau_decay_CS_LTP'], CS_scale_LTP) # Tau's == 0 will just invert pf_CS_LTD input function
         pf_FR_LTP = f_pf_FR_LTP(y_obs_trial, PC_FR_weight_LTP)
         # Convert to LTP input for Purkinje cell
         pf_LTP = f_pf_LTP(pf_CS_LTP, pf_FR_LTP, state_input_pf, W_pf, W_max_pf)
@@ -962,10 +963,12 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     W_0_mli = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:]
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
 
-    lf_kwargs = {'tau_rise_CS': int(np.around(0 /bin_width)),
-                 'tau_decay_CS': int(np.around(0 /bin_width)),
+    lf_kwargs = {'tau_rise_CS': int(np.around(40 /bin_width)),
+                 'tau_decay_CS': int(np.around(40 /bin_width)),
+                 'tau_rise_CS_LTP': int(np.around(-40 /bin_width)),
+                 'tau_decay_CS_LTP': int(np.around(100 /bin_width)),
                  'FR_MAX': 500,
-                 'UPDATE_MLI_WEIGHTS': True,
+                 'UPDATE_MLI_WEIGHTS': False,
                  }
     # Format of p0, upper, lower, index order for each variable to make this legible
     param_conds = {"alpha": (10, 0, np.inf, 0),
@@ -1094,6 +1097,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     # Fixed input params
     tau_rise_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS']
     tau_decay_CS = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS']
+    tau_rise_CS_LTP = NN_FIT.fit_results['gauss_basis_kinematics']['tau_rise_CS_LTP']
+    tau_decay_CS_LTP = NN_FIT.fit_results['gauss_basis_kinematics']['tau_decay_CS_LTP']
     FR_MAX = NN_FIT.fit_results['gauss_basis_kinematics']['FR_MAX']
     UPDATE_MLI_WEIGHTS = NN_FIT.fit_results['gauss_basis_kinematics']['UPDATE_MLI_WEIGHTS']
     # Fit parameters
@@ -1141,7 +1146,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, W_pf, W_min_pf)
 
         # Create the LTP function for parallel fibers
-        pf_CS_LTP = f_pf_CS_LTP(pf_CS_LTD, 0, 0, CS_scale_LTP) # Tau's == 0 will just invert pf_CS_LTD input function
+        pf_CS_LTP = f_pf_CS_LTP(pf_CS_LTD, tau_rise_CS_LTP, tau_decay_CS_LTP, CS_scale_LTP) # Tau's == 0 will just invert pf_CS_LTD input function
         pf_FR_LTP = f_pf_FR_LTP(y_obs_trial, PC_FR_weight_LTP)
         # Convert to LTP input for Purkinje cell
         pf_LTP = f_pf_LTP(pf_CS_LTP, pf_FR_LTP, state_input_pf, W_pf, W_max_pf)
