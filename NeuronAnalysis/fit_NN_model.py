@@ -852,7 +852,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         pf_CS_LTP = f_pf_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_LTP'],
                         kwargs['tau_decay_CS_LTP'], CS_scale_LTP) # Tau's == 0 will just invert pf_CS_LTD input function
         pf_FR_LTP = f_pf_FR_LTP(y_obs_trial, PC_FR_weight_LTP)
-        pf_FR_LTP[pf_CS_LTD == 1.0] = 0.0
+        pf_FR_LTP[pf_CS_LTD > 0.0] = 0.0
         # Convert to LTP input for Purkinje cell
         pf_LTP = f_pf_LTP(pf_CS_LTP, pf_FR_LTP, state_input_pf, W_pf, W_max_pf)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
@@ -877,7 +877,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
                             kwargs['tau_decay_CS_mli_LTD'], CS_scale_LTD_mli) # Tau's == 0 will just invert pf_CS_LTD input function
             # mli_FR_LTD = f_mli_FR_LTD(y_obs_trial, PC_FR_weight_LTD_mli)
             mli_FR_LTD = f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli)
-            mli_FR_LTD[mli_CS_LTP == 1.0] = 0.0
+            mli_FR_LTD[mli_CS_LTP > 0.0] = 0.0
             # Convert to LTD input for MLI
             mli_LTD = f_mli_LTD(mli_CS_LTD, mli_FR_LTD, state_input_mli, W_mli, W_min_mli)
 
@@ -1154,7 +1154,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         # Create the LTP function for parallel fibers
         pf_CS_LTP = f_pf_CS_LTP(CS_trial_bin, tau_rise_CS_LTP, tau_decay_CS_LTP, CS_scale_LTP) # Tau's == 0 will just invert pf_CS_LTD input function
         pf_FR_LTP = f_pf_FR_LTP(y_obs_trial, PC_FR_weight_LTP)
-        pf_FR_LTP[pf_CS_LTD == 1.0] = 0.0
+        pf_FR_LTP[pf_CS_LTD > 0.0] = 0.0
         # Convert to LTP input for Purkinje cell
         pf_LTP = f_pf_LTP(pf_CS_LTP, pf_FR_LTP, state_input_pf, W_pf, W_max_pf)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
@@ -1178,7 +1178,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             mli_CS_LTD = f_mli_CS_LTD(mli_CS_LTP, tau_rise_CS_mli_LTD, tau_decay_CS_mli_LTD, CS_scale_LTD_mli) # Tau's == 0 will just invert pf_CS_LTD input function
             # mli_FR_LTD = f_mli_FR_LTD(y_obs_trial, PC_FR_weight_LTD_mli)
             mli_FR_LTD = f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli)
-            mli_FR_LTD[mli_CS_LTP == 1.0] = 0.0
+            mli_FR_LTD[mli_CS_LTP > 0.0] = 0.0
             # Convert to LTD input for MLI
             mli_LTD = f_mli_LTD(mli_CS_LTD, mli_FR_LTD, state_input_mli, W_mli, W_min_mli)
 
