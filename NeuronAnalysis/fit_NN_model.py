@@ -995,7 +995,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                  'tau_rise_CS_mli_LTD': int(np.around(-40 /bin_width)),
                  'tau_decay_CS_mli_LTD': int(np.around(100 /bin_width)),
                  'FR_MAX': 500,
-                 'UPDATE_MLI_WEIGHTS': True,
+                 'UPDATE_MLI_WEIGHTS': False,
                  }
     # Format of p0, upper, lower, index order for each variable to make this legible
     param_conds = {"alpha": (1.0, 0, np.inf, 0),
