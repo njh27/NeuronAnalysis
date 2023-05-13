@@ -888,12 +888,12 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli, W_max_mli)
 
             # Create the LTD function for MLIs
-            # mli_LTD_funs = f_mli_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS_mli_LTD'],
-            #                 kwargs['tau_decay_CS_mli_LTD'], psi)
-            mli_LTD_funs = f_mli_FR_LTD(y_obs_trial, chi)
-            # mli_FR_LTD = f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli)
-            mli_LTD_funs += f_mli_static_LTD(mli_CS_LTP, phi)
-            mli_LTD_funs[mli_CS_LTP > 0.0] = 0.0
+            mli_LTD_funs = f_mli_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS_mli_LTD'],
+                            kwargs['tau_decay_CS_mli_LTD'], psi)
+            # mli_LTD_funs += f_mli_FR_LTD(y_obs_trial, chi)
+            # # mli_FR_LTD = f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli)
+            # mli_LTD_funs += f_mli_static_LTD(mli_CS_LTP, phi)
+            # mli_LTD_funs[mli_CS_LTP > 0.0] = 0.0
             # Convert to LTD input for MLI
             mli_LTD = f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli, W_min_mli)
 
@@ -985,10 +985,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                  'tau_decay_CS': int(np.around(-40 /bin_width)),
                  'tau_rise_CS_LTP': int(np.around(-40 /bin_width)),
                  'tau_decay_CS_LTP': int(np.around(140 /bin_width)),
-                 'tau_rise_CS_mli_LTP': int(np.around(0 /bin_width)),
-                 'tau_decay_CS_mli_LTP': int(np.around(0 /bin_width)),
-                 'tau_rise_CS_mli_LTD': int(np.around(0 /bin_width)),
-                 'tau_decay_CS_mli_LTD': int(np.around(0 /bin_width)),
+                 'tau_rise_CS_mli_LTP': int(np.around(140 /bin_width)),
+                 'tau_decay_CS_mli_LTP': int(np.around(-40 /bin_width)),
+                 'tau_rise_CS_mli_LTD': int(np.around(-40 /bin_width)),
+                 'tau_decay_CS_mli_LTD': int(np.around(140 /bin_width)),
                  'FR_MAX': 500,
                  'UPDATE_MLI_WEIGHTS': True,
                  }
@@ -1192,12 +1192,12 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli, W_max_mli)
 
             # Create the LTD function for MLIs
-            # mli_LTD_funs = f_mli_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS_mli_LTD'],
-            #                 kwargs['tau_decay_CS_mli_LTD'], psi)
-            mli_LTD_funs = f_mli_FR_LTD(y_obs_trial, chi)
-            # mli_FR_LTD = f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli)
-            mli_LTD_funs += f_mli_static_LTD(mli_CS_LTP, phi)
-            mli_LTD_funs[mli_CS_LTP > 0.0] = 0.0
+            mli_LTD_funs = f_mli_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS_mli_LTD'],
+                            kwargs['tau_decay_CS_mli_LTD'], psi)
+            # mli_LTD_funs += f_mli_FR_LTD(y_obs_trial, chi)
+            # # mli_FR_LTD = f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli)
+            # mli_LTD_funs += f_mli_static_LTD(mli_CS_LTP, phi)
+            # mli_LTD_funs[mli_CS_LTP > 0.0] = 0.0
             # Convert to LTD input for MLI
             mli_LTD = f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli, W_min_mli)
 
