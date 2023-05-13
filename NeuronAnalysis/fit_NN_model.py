@@ -802,14 +802,14 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     alpha = params[0] / 1e4
     beta = params[1] / 1e4
     W_max_pf = params[2]
-    CS_scale_LTP = params[3]
-    PC_FR_weight_LTP = params[4]
+    CS_scale_LTP = params[3] / 1e4
+    PC_FR_weight_LTP = params[4] / 1e4
     if kwargs['UPDATE_MLI_WEIGHTS']:
         psi = params[5] / 1e4
         omega = params[6] / 1e4
         W_max_mli = params[7]
-        CS_scale_LTD_mli = params[8]
-        PC_FR_weight_LTD_mli = params[9]
+        CS_scale_LTD_mli = params[8] / 1e4
+        PC_FR_weight_LTD_mli = params[9] / 1e4
 
     for trial in range(0, n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
@@ -963,16 +963,20 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     param_conds = {"alpha": (10, 0, np.inf, 0),
                    "beta": (50, 0, np.inf, 1),
                    "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 2),
-                   "CS_scale_LTP": (1., 0, np.inf, 3),
-                   "PC_FR_weight_LTP": (1., 0, np.inf, 4),
+                   "CS_scale_LTP": (1.0, 0, np.inf, 3),
+                   "PC_FR_weight_LTP": (1.0, 0, np.inf, 4),
             }
     if lf_kwargs['UPDATE_MLI_WEIGHTS']:
         param_conds.update({"psi": (2, 0, np.inf, 5),
                             "omega": (10, 0, np.inf, 6),
                             "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 7),
-                            "CS_scale_LTD_mli": (1., 0, np.inf, 8),
-                            "PC_FR_weight_LTD_mli": (1., 0, np.inf, 9),
+                            "CS_scale_LTD_mli": (1.0, 0, np.inf, 8),
+                            "PC_FR_weight_LTD_mli": (1.0, 0, np.inf, 9),
                             })
+    rescale_1e4 = ["alpha", "beta", "psi", "omega", "CS_scale_LTP",
+                   "PC_FR_weight_LTP", "CS_scale_LTD_mli",
+                   "PC_FR_weight_LTD_mli"
+                   ]
 
     # Make sure params are in correct order and saved for input to least_squares
     p0 = [x[1][0] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
@@ -996,7 +1000,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     for key in param_conds.keys():
         param_ind = param_conds[key][3]
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = result.x[param_ind]
-        if key in ["alpha", "beta", "psi", "omega"]:
+        if key in rescale_1e4:
             NN_FIT.fit_results['gauss_basis_kinematics'][key] /= 1e4
     for key in lf_kwargs.keys():
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = lf_kwargs[key]
