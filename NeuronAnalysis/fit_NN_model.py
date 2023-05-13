@@ -759,8 +759,11 @@ def f_mli_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0):
 def f_mli_FR_LTD(PC_FR, PC_FR_weight_LTD_mli):
     """
     """
+    inv_PC_FR = 1 - PC_FR
+    inv_PC_FR[inv_PC_FR < 0.0] = 0.0
+    mli_FR_LTD = inv_PC_FR * PC_FR_weight_LTD_mli
     # Add a term with firing rate times weight of constant LTD
-    mli_FR_LTD = PC_FR * PC_FR_weight_LTD_mli
+    # mli_FR_LTD = PC_FR * PC_FR_weight_LTD_mli
     return mli_FR_LTD
 
 def f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli):
@@ -891,9 +894,8 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             # Create the LTD function for MLIs
             # mli_LTD_funs = f_mli_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS_mli_LTD'],
             #                 kwargs['tau_decay_CS_mli_LTD'], psi)
-            # mli_LTD_funs += f_mli_FR_LTD(y_obs_trial, chi)
-            # # mli_FR_LTD = f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli)
-            mli_LTD_funs = f_mli_static_LTD(mli_CS_LTP, phi)
+            mli_LTD_funs = f_mli_FR_LTD(y_obs_trial, chi)
+            mli_LTD_funs += f_mli_static_LTD(mli_CS_LTP, phi)
             mli_LTD_funs[mli_CS_LTP > 0.0] = 0.0
             # Convert to LTD input for MLI
             mli_LTD = f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli, W_min_mli)
@@ -1199,9 +1201,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             # Create the LTD function for MLIs
             # mli_LTD_funs = f_mli_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS_mli_LTD'],
             #                 kwargs['tau_decay_CS_mli_LTD'], psi)
-            # mli_LTD_funs += f_mli_FR_LTD(y_obs_trial, chi)
-            # # mli_FR_LTD = f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli)
-            mli_LTD_funs = f_mli_static_LTD(mli_CS_LTP, phi)
+            mli_LTD_funs = f_mli_FR_LTD(y_obs_trial, chi)
+            mli_LTD_funs += f_mli_static_LTD(mli_CS_LTP, phi)
             mli_LTD_funs[mli_CS_LTP > 0.0] = 0.0
             # Convert to LTD input for MLI
             mli_LTD = f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli, W_min_mli)
