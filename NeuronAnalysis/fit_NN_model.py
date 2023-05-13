@@ -769,7 +769,15 @@ def f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli):
     mli_FR_LTD = np.dot(state_input_pf, W_pf) * PC_FR_weight_LTD_mli
     return mli_FR_LTD
 
-def f_mli_LTD(mli_CS_LTD, mli_FR_LTD, state_input_mli, W_mli=None, W_min_mli=0.0):
+def f_mli_static_LTD(mli_CS_LTP, static_weight_mli_LTD):
+    """ Inverts the input pf_CS_LTD fun so that it is opposite.
+    """
+    # Inverts the CS function
+    mli_static_LTD = np.zeros_like(mli_CS_LTP)
+    mli_static_LTD[mli_CS_LTP == 0.0] = static_weight_mli_LTD
+    return mli_static_LTD
+
+def f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli=None, W_min_mli=0.0):
     """ Updates the parallel fiber LTP function of time "mli_CS_LTD" to be scaled
     by PC firing rate if input, then scales by the pf state input and finally
     weights by the current weight function. pf_LTP is MODIFIED IN PLACE!
@@ -777,7 +785,7 @@ def f_mli_LTD(mli_CS_LTD, mli_FR_LTD, state_input_mli, W_mli=None, W_min_mli=0.0
     critical if using weight updates. Same for PC_FR_weight_LTP.
     """
     # Convert LTD functions to MLI input space
-    mli_LTD = np.dot((mli_CS_LTD + mli_FR_LTD), state_input_mli)
+    mli_LTD = np.dot(mli_LTD_funs, state_input_mli)
     if W_mli is not None:
         W_min_mli = np.full(W_mli.shape, W_min_mli)
         mli_LTD *= (W_min_mli - W_mli).squeeze() # Will all be negative values
@@ -817,11 +825,11 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     epsilon = params[3] / 1e4
     W_max_pf = params[4]
     if kwargs['UPDATE_MLI_WEIGHTS']:
+        omega = params[5] / 1e4
         psi = params[6] / 1e4
-        omega = params[7] / 1e4
-        W_max_mli = params[8]
-        CS_scale_LTD_mli = params[9] / 1e4
-        PC_FR_weight_LTD_mli = params[10] / 1e4
+        chi = params[7] / 1e4
+        phi = params[8] / 1e4
+        W_max_mli = params[9]
 
     for trial in range(0, n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
@@ -863,7 +871,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         # Convert to LTP input for Purkinje cell
         pf_LTP = f_pf_LTP(pf_LTP_funs, state_input_pf, W_pf=W_pf, W_max_pf=W_max_pf)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
-        W_pf += (pf_LTP[:, None] + pf_LTD[:, None] )
+        W_pf += ( pf_LTP[:, None] + pf_LTD[:, None] )
 
         # Ensure W_pf values are within range and store in output W_full
         W_pf[(W_pf > W_max_pf).squeeze()] = W_max_pf
@@ -874,22 +882,23 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             # MLI state input is all <= 0, so need to multiply by -1 here
             state_input_mli = -1.0 * state_input[:, n_gaussians:]
             # Create the MLI LTP weighting function
-            mli_CS_LTP = f_mli_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS'],
-                              kwargs['tau_decay_CS'], 1.0, 0.0)
+            mli_CS_LTP = f_mli_CS_LTP(CS_trial_bin, 0.0,
+                              0.0, omega, 0.0)
             # Convert to LTP input for Purkinje cell MLI weights
             mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli, W_max_mli)
 
             # Create the LTD function for MLIs
-            mli_CS_LTD = f_mli_CS_LTD(mli_CS_LTP, kwargs['tau_rise_CS_mli_LTD'],
-                            kwargs['tau_decay_CS_mli_LTD'], CS_scale_LTD_mli)
-            mli_FR_LTD = f_mli_FR_LTD(y_obs_trial, PC_FR_weight_LTD_mli)
+            mli_LTD_funs = f_mli_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS_mli_LTD'],
+                            kwargs['tau_decay_CS_mli_LTD'], psi)
+            mli_LTD_funs += f_mli_FR_LTD(y_obs_trial, chi)
             # mli_FR_LTD = f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli)
-            mli_FR_LTD[mli_CS_LTP > 0.0] = 0.0
+            mli_LTD_funs += f_mli_static_LTD(mli_CS_LTP, phi)
+            mli_LTD_funs[mli_CS_LTP > 0.0] = 0.0
             # Convert to LTD input for MLI
-            mli_LTD = f_mli_LTD(mli_CS_LTD, mli_FR_LTD, state_input_mli, W_mli, W_min_mli)
+            mli_LTD = f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli, W_min_mli)
 
             # Ensure W_mli values are within range and store in output W_full
-            W_mli += ( psi * mli_LTP[:, None] + omega * mli_LTD[:, None] )
+            W_mli += ( mli_LTP[:, None] + mli_LTD[:, None] )
             W_mli[(W_mli > W_max_mli).squeeze()] = W_max_mli
             W_mli[(W_mli < 0.0).squeeze()] = 0.0
             W_full[n_gaussians:] = W_mli
@@ -976,8 +985,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                  'tau_decay_CS': int(np.around(-40 /bin_width)),
                  'tau_rise_CS_LTP': int(np.around(-40 /bin_width)),
                  'tau_decay_CS_LTP': int(np.around(140 /bin_width)),
-                 'tau_rise_CS_mli_LTD': int(np.around(0 /bin_width)),
-                 'tau_decay_CS_mli_LTD': int(np.around(0 /bin_width)),
+                 'tau_rise_CS_mli_LTD': int(np.around(-40 /bin_width)),
+                 'tau_decay_CS_mli_LTD': int(np.around(100 /bin_width)),
                  'FR_MAX': 500,
                  'UPDATE_MLI_WEIGHTS': False,
                  }
@@ -989,19 +998,14 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                    "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 4),
             }
     if lf_kwargs['UPDATE_MLI_WEIGHTS']:
-        param_conds.update({"psi": (2, 0, np.inf, 6),
-                            "omega": (10, 0, np.inf, 7),
-                            "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 8),
-                            "CS_scale_LTD_mli": (1.0, 0, np.inf, 9),
-                            "PC_FR_weight_LTD_mli": (1.0, 0, np.inf, 10),
+        param_conds.update({"omega": (4.0, 0, np.inf, 5),
+                            "psi": (1.0, 0, np.inf, 6),
+                            "chi": (1.0, 0, np.inf, 7),
+                            "phi": (1.0, 0, np.inf, 8),
+                            "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 9),
                             })
     rescale_1e4 = ["alpha", "beta", "gamma", "epsilon",
-
-
-                    "psi", "omega", "CS_weight_LTP",
-                   "PC_FR_weight_LTP", "static_weight_LTP", "CS_scale_LTD_mli",
-                   "PC_FR_weight_LTD_mli"
-                   ]
+                   "omega", "psi", "chi", "phi"]
 
     # Make sure params are in correct order and saved for input to least_squares
     p0 = [x[1][0] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
@@ -1123,11 +1127,11 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     epsilon = NN_FIT.fit_results['gauss_basis_kinematics']['epsilon']
     W_max_pf = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_pf']
     if kwargs['UPDATE_MLI_WEIGHTS']:
-        psi = NN_FIT.fit_results['gauss_basis_kinematics']['psi']
         omega = NN_FIT.fit_results['gauss_basis_kinematics']['omega']
+        psi = NN_FIT.fit_results['gauss_basis_kinematics']['psi']
+        chi = NN_FIT.fit_results['gauss_basis_kinematics']['chi']
+        phi = NN_FIT.fit_results['gauss_basis_kinematics']['phi']
         W_max_mli = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_mli']
-        CS_scale_LTD_mli = NN_FIT.fit_results['gauss_basis_kinematics']['CS_scale_LTD_mli']
-        PC_FR_weight_LTD_mli = NN_FIT.fit_results['gauss_basis_kinematics']['PC_FR_weight_LTD_mli']
 
     W_pf = np.zeros(W_0_pf.shape) # Place to store updating result and copy to output
     W_pf[:] = W_0_pf # Initialize storage to start values
@@ -1169,7 +1173,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         # Convert to LTP input for Purkinje cell
         pf_LTP = f_pf_LTP(pf_LTP_funs, state_input_pf, W_pf=W_pf, W_max_pf=W_max_pf)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
-        W_pf += (pf_LTP[:, None] + pf_LTD[:, None] )
+        W_pf += ( pf_LTP[:, None] + pf_LTD[:, None] )
 
         # Ensure W_pf values are within range and store in output W_full
         W_pf[(W_pf > W_max_pf).squeeze()] = W_max_pf
@@ -1180,21 +1184,23 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             # MLI state input is all <= 0, so need to multiply by -1 here
             state_input_mli = -1.0 * state_input[:, n_gaussians:]
             # Create the MLI LTP weighting function
-            mli_CS_LTP = f_mli_CS_LTP(CS_trial_bin, tau_rise_CS,
-                              tau_decay_CS, 1.0, 0.0)
+            mli_CS_LTP = f_mli_CS_LTP(CS_trial_bin, 0.0,
+                              0.0, omega, 0.0)
             # Convert to LTP input for Purkinje cell MLI weights
             mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli, W_max_mli)
 
             # Create the LTD function for MLIs
-            mli_CS_LTD = f_mli_CS_LTD(mli_CS_LTP, tau_rise_CS_mli_LTD, tau_decay_CS_mli_LTD, CS_scale_LTD_mli) # Tau's == 0 will just invert pf_CS_LTD input function
-            mli_FR_LTD = f_mli_FR_LTD(y_obs_trial, PC_FR_weight_LTD_mli)
+            mli_LTD_funs = f_mli_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS_mli_LTD'],
+                            kwargs['tau_decay_CS_mli_LTD'], psi)
+            mli_LTD_funs += f_mli_FR_LTD(y_obs_trial, chi)
             # mli_FR_LTD = f_mli_pf_LTD(state_input_pf, W_pf, PC_FR_weight_LTD_mli)
-            mli_FR_LTD[mli_CS_LTP > 0.0] = 0.0
+            mli_LTD_funs += f_mli_static_LTD(mli_CS_LTP, phi)
+            mli_LTD_funs[mli_CS_LTP > 0.0] = 0.0
             # Convert to LTD input for MLI
-            mli_LTD = f_mli_LTD(mli_CS_LTD, mli_FR_LTD, state_input_mli, W_mli, W_min_mli)
+            mli_LTD = f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli, W_min_mli)
 
             # Ensure W_mli values are within range and store in output W_full
-            W_mli += ( psi * mli_LTP[:, None] + omega * mli_LTD[:, None] )
+            W_mli += ( mli_LTP[:, None] + mli_LTD[:, None] )
             W_mli[(W_mli > W_max_mli).squeeze()] = W_max_mli
             W_mli[(W_mli < 0.0).squeeze()] = 0.0
             W_full[n_gaussians:] = W_mli
