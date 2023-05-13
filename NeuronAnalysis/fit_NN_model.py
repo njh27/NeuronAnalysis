@@ -884,7 +884,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             # Create the MLI LTP weighting function
             mli_CS_LTP = f_mli_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_mli_LTP'],
                               kwargs['tau_decay_CS_mli_LTP'], omega, 0.0)
-            mli_CS_LTP += f_mli_FR_LTD(y_obs_trial, chi)
+            # mli_CS_LTP += f_mli_FR_LTD(y_obs_trial, chi)
             # Convert to LTP input for Purkinje cell MLI weights
             mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli, W_max_mli)
 
@@ -897,7 +897,10 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             mli_LTD_funs[mli_CS_LTP > 0.0] = 0.0
             # Convert to LTD input for MLI
             mli_LTD = f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli, W_min_mli)
-
+            if np.any(np.any(mli_LTD > 0.0)):
+                raise ValueError("MLI LTD OVER zero")
+            if np.any(np.any(mli_LTP < 0.0)):
+                raise ValueError("MLI LTP UNDER zero...")
             # Ensure W_mli values are within range and store in output W_full
             W_mli += ( mli_LTP[:, None] + mli_LTD[:, None] )
             W_mli[(W_mli > W_max_mli).squeeze()] = W_max_mli
@@ -1189,7 +1192,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             # Create the MLI LTP weighting function
             mli_CS_LTP = f_mli_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_mli_LTP'],
                               kwargs['tau_decay_CS_mli_LTP'], omega, 0.0)
-            mli_CS_LTP += f_mli_FR_LTD(y_obs_trial, chi)
+            # mli_CS_LTP += f_mli_FR_LTD(y_obs_trial, chi)
             # Convert to LTP input for Purkinje cell MLI weights
             mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli, W_max_mli)
 
@@ -1202,7 +1205,10 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             mli_LTD_funs[mli_CS_LTP > 0.0] = 0.0
             # Convert to LTD input for MLI
             mli_LTD = f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli, W_min_mli)
-
+            if np.any(np.any(mli_LTD > 0.0)):
+                raise ValueError("MLI LTD OVER zero")
+            if np.any(np.any(mli_LTP < 0.0)):
+                raise ValueError("MLI LTP UNDER zero...")
             # Ensure W_mli values are within range and store in output W_full
             W_mli += ( mli_LTP[:, None] + mli_LTD[:, None] )
             W_mli[(W_mli > W_max_mli).squeeze()] = W_max_mli
