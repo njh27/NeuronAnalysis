@@ -970,8 +970,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
         param_conds.update({"psi": (2, 0, np.inf, 5),
                             "omega": (10, 0, np.inf, 6),
                             "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 7),
-                            "CS_scale_LTD_mli": (1.0, 0, np.inf, 8),
-                            "PC_FR_weight_LTD_mli": (1.0, 0, np.inf, 9),
+                            "CS_scale_LTD_mli": (100.0, 0, np.inf, 8),
+                            "PC_FR_weight_LTD_mli": (100.0, 0, np.inf, 9),
                             })
     rescale_1e4 = ["alpha", "beta", "psi", "omega", "CS_scale_LTP",
                    "PC_FR_weight_LTP", "CS_scale_LTD_mli",
