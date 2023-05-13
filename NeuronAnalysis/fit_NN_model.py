@@ -805,8 +805,8 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     CS_scale_LTP = params[3]
     PC_FR_weight_LTP = params[4]
     if kwargs['UPDATE_MLI_WEIGHTS']:
-        psi = params[5]
-        omega = params[6]
+        psi = params[5] / 1e4
+        omega = params[6] / 1e4
         W_max_mli = params[7]
         CS_scale_LTD_mli = params[8]
         PC_FR_weight_LTD_mli = params[9]
@@ -996,7 +996,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     for key in param_conds.keys():
         param_ind = param_conds[key][3]
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = result.x[param_ind]
-        if key in ["alpha", "beta"]:
+        if key in ["alpha", "beta", "psi", "omega"]:
             NN_FIT.fit_results['gauss_basis_kinematics'][key] /= 1e4
     for key in lf_kwargs.keys():
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = lf_kwargs[key]
