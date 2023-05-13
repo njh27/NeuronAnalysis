@@ -968,11 +968,11 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
             }
     if lf_kwargs['UPDATE_MLI_WEIGHTS']:
         param_conds.update({"psi": (2, 0, np.inf, 5),
-                       "omega": (10, 0, np.inf, 6),
-                       "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 7),
-                       "CS_scale_LTD_mli": (1., 0, np.inf, 8),
-                       "PC_FR_weight_LTD_mli": (1., 0, np.inf, 9),
-                        })
+                            "omega": (10, 0, np.inf, 6),
+                            "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 7),
+                            "CS_scale_LTD_mli": (1., 0, np.inf, 8),
+                            "PC_FR_weight_LTD_mli": (1., 0, np.inf, 9),
+                            })
 
     # Make sure params are in correct order and saved for input to least_squares
     p0 = [x[1][0] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
