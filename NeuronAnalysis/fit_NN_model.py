@@ -679,7 +679,7 @@ def f_pf_CS_LTP(CS_trial_bin, tau_1, tau_2, scale=1.0):
     # pf_CS_LTP = np.mod(CS_trial_bin + 1, 2)
     pf_CS_LTP = boxcar_convolve(CS_trial_bin, tau_1, tau_2)
     pf_CS_LTP[pf_CS_LTP > 0] = scale
-    return pf_CS_LTP
+    return np.zeros_like(pf_CS_LTP)
 
 def f_pf_FR_LTP(PC_FR, PC_FR_weight_LTP):
     """
@@ -850,7 +850,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
 
         # Create the LTP function for parallel fibers
         pf_CS_LTP = f_pf_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_LTP'],
-                        kwargs['tau_decay_CS_LTP'], CS_scale_LTP) # Tau's == 0 will just invert pf_CS_LTD input function
+                        kwargs['tau_decay_CS_LTP'], CS_scale_LTP)
         pf_FR_LTP = f_pf_FR_LTP(y_obs_trial, PC_FR_weight_LTP)
         pf_FR_LTP[pf_CS_LTD > 0.0] = 0.0
         # Convert to LTP input for Purkinje cell
@@ -965,7 +965,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     W_0_mli = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:]
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
 
-    lf_kwargs = {'tau_rise_CS': int(np.around(0 /bin_width)),
+    lf_kwargs = {'tau_rise_CS': int(np.around(50 /bin_width)),
                  'tau_decay_CS': int(np.around(0 /bin_width)),
                  'tau_rise_CS_LTP': int(np.around(0 /bin_width)),
                  'tau_decay_CS_LTP': int(np.around(0 /bin_width)),
