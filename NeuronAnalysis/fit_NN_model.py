@@ -854,7 +854,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         pf_FR_LTP = f_pf_FR_LTP(y_obs_trial, PC_FR_weight_LTP)
         pf_FR_LTP[pf_CS_LTD > 0.0] = 0.0
         # Convert to LTP input for Purkinje cell
-        pf_LTP = f_pf_LTP(pf_CS_LTP, pf_FR_LTP, state_input_pf, W_pf, W_max_pf)
+        pf_LTP = f_pf_LTP(pf_CS_LTP, pf_FR_LTP, state_input_pf, W_pf=None, W_max_pf=None)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
         W_pf += ( alpha * pf_LTP[:, None] + beta * pf_LTD[:, None] )
 
@@ -967,8 +967,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
 
     lf_kwargs = {'tau_rise_CS': int(np.around(0 /bin_width)),
                  'tau_decay_CS': int(np.around(0 /bin_width)),
-                 'tau_rise_CS_LTP': int(np.around(-20 /bin_width)),
-                 'tau_decay_CS_LTP': int(np.around(40 /bin_width)),
+                 'tau_rise_CS_LTP': int(np.around(-60 /bin_width)),
+                 'tau_decay_CS_LTP': int(np.around(160 /bin_width)),
                  'tau_rise_CS_mli_LTD': int(np.around(0 /bin_width)),
                  'tau_decay_CS_mli_LTD': int(np.around(0 /bin_width)),
                  'FR_MAX': 500,
@@ -1156,7 +1156,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         pf_FR_LTP = f_pf_FR_LTP(y_obs_trial, PC_FR_weight_LTP)
         pf_FR_LTP[pf_CS_LTD > 0.0] = 0.0
         # Convert to LTP input for Purkinje cell
-        pf_LTP = f_pf_LTP(pf_CS_LTP, pf_FR_LTP, state_input_pf, W_pf, W_max_pf)
+        pf_LTP = f_pf_LTP(pf_CS_LTP, pf_FR_LTP, state_input_pf, W_pf=None, W_max_pf=None)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
         W_pf += ( alpha * pf_LTP[:, None] + beta * pf_LTD[:, None] )
 
