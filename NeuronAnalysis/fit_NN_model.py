@@ -823,8 +823,8 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     gamma = params[2] / 1e4
     epsilon = params[3] / 1e4
     W_max_pf = params[4]
-    pf_scale = params[5]
-    mli_scale = params[6]
+    pf_scale = 1 #params[5]
+    mli_scale = 1 #params[6]
     # Set weights to initial fit values
     W_pf = np.copy(W_0_pf) * pf_scale
     W_mli = np.copy(W_0_mli) * mli_scale
@@ -1006,8 +1006,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                    "gamma": (1.0, 0, np.inf, 2),
                    "epsilon": (4.0, 0, np.inf, 3),
                    "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 4),
-                   "pf_scale": (1.05, 0.9, 1.15, 5),
-                   "mli_scale": (1.05, 0.9, 1.15, 6),
+                   # "pf_scale": (1.05, 0.9, 1.15, 5),
+                   # "mli_scale": (1.05, 0.9, 1.15, 6),
             }
     if lf_kwargs['UPDATE_MLI_WEIGHTS']:
         raise ValueError("check param nums")
@@ -1139,8 +1139,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     gamma = NN_FIT.fit_results['gauss_basis_kinematics']['gamma']
     epsilon = NN_FIT.fit_results['gauss_basis_kinematics']['epsilon']
     W_max_pf = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_pf']
-    pf_scale = NN_FIT.fit_results['gauss_basis_kinematics']['pf_scale']
-    mli_scale = NN_FIT.fit_results['gauss_basis_kinematics']['mli_scale']
+    pf_scale = 1. #NN_FIT.fit_results['gauss_basis_kinematics']['pf_scale']
+    mli_scale = 1. #NN_FIT.fit_results['gauss_basis_kinematics']['mli_scale']
     W_pf = np.zeros(W_0_pf.shape) # Place to store updating result and copy to output
     W_pf[:] = pf_scale * W_0_pf # Initialize storage to start values
     W_mli = np.zeros(W_0_mli.shape) # Place to store updating result and copy to output
