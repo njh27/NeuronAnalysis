@@ -913,17 +913,9 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         y_hat_trial = np.maximum(0, np.dot(state_input, W_full) + b).squeeze()
         # Store prediction for current trial
         y_hat[trial*n_obs_pt:(trial + 1)*n_obs_pt] = y_hat_trial
-        if np.any(np.isnan(y_obs_trial)):
-            print("NANs in OBSERVED FR trial: ", trial)
-        if np.any(np.isnan(y_hat_trial)):
-            print("NANs in PREDICTED FR trial: ", trial)
-        if np.any(np.isnan(state_input[:, 0])):
-            print("NANs in STATE INPUT trial: ", trial)
-        if np.any(np.isnan(W_full)):
-            print("NANs in WEIGHT MATRIX trial: ", trial)
+
         # Update weights for next trial based on activations in this trial
         state_input_pf = state_input[:, 0:n_gaussians]
-
         # Rescaled trial firing rate in proportion to max
         y_obs_trial = y_obs_trial / FR_MAX
         # Binary CS for this trial
@@ -974,8 +966,9 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             W_mli[(W_mli < W_min_mli).squeeze()] = W_min_mli
             W_full[n_gaussians:] = W_mli
 
-    missing_y_hat = np.isnan(y_hat)
-    residuals = (y[~missing_y_hat] - y_hat[~missing_y_hat]) ** 2
+    # missing_y_hat = np.isnan(y_hat)
+    # residuals = (y[~missing_y_hat] - y_hat[~missing_y_hat]) ** 2
+    residuals = (y - y_hat) ** 2
     return residuals
 
 def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=10, bin_threshold=5):
