@@ -919,6 +919,8 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             print("NANs in PREDICTED FR trial: ", trial)
         if np.any(np.isnan(state_input[:, 0])):
             print("NANs in STATE INPUT trial: ", trial)
+        if np.any(np.isnan(W_full)):
+            print("NANs in WEIGHT MATRIX trial: ", trial)
         # Update weights for next trial based on activations in this trial
         state_input_pf = state_input[:, 0:n_gaussians]
 
