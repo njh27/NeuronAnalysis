@@ -804,10 +804,6 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     state = x[:, 0:-1]
     CS = x[:, -1]
     y_hat = np.zeros(x.shape[0])
-    # Set weights to initial fit values
-    W_pf = np.copy(W_0_pf)
-    W_mli = np.copy(W_0_mli)
-    W_full = np.vstack((W_0_pf, W_0_mli))
     # Extract other precomputed necessary args
     bin_width = args[0]
     n_trials = args[1]
@@ -827,12 +823,21 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     gamma = params[2] / 1e4
     epsilon = params[3] / 1e4
     W_max_pf = params[4]
+    # Set weights to initial fit values
+    W_pf = np.copy(W_0_pf) * params[5]
+    W_mli = np.copy(W_0_mli) * params[6]
+    # Ensure W_pf values are within range and store in output W_full
+    W_pf[(W_pf > W_max_pf).squeeze()] = W_max_pf
+    W_pf[(W_pf < W_min_pf).squeeze()] = W_min_pf
+    W_mli[(W_mli < W_min_mli).squeeze()] = W_min_mli
     if kwargs['UPDATE_MLI_WEIGHTS']:
         omega = params[5] / 1e4
         psi = params[6] / 1e4
         chi = params[7] / 1e4
         phi = params[8] / 1e4
         W_max_mli = params[9]
+        W_mli[(W_mli > W_max_mli).squeeze()] = W_max_mli
+    W_full = np.vstack((W_pf, W_mli))
 
     for trial in range(0, n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
@@ -878,7 +883,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
 
         # Ensure W_pf values are within range and store in output W_full
         W_pf[(W_pf > W_max_pf).squeeze()] = W_max_pf
-        W_pf[(W_pf < 0.0).squeeze()] = 0.0
+        W_pf[(W_pf < W_min_pf).squeeze()] = W_min_pf
         W_full[0:n_gaussians] = W_pf
 
         if kwargs['UPDATE_MLI_WEIGHTS']:
@@ -898,14 +903,10 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             mli_LTD_funs[mli_CS_LTP > 0.0] = 0.0
             # Convert to LTD input for MLI
             mli_LTD = f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli, W_min_mli)
-            if np.any(np.any(mli_LTD > 0.0)):
-                raise ValueError("MLI LTD OVER zero")
-            if np.any(np.any(mli_LTP < 0.0)):
-                raise ValueError("MLI LTP UNDER zero...")
             # Ensure W_mli values are within range and store in output W_full
             W_mli += ( mli_LTP[:, None] + mli_LTD[:, None] )
             W_mli[(W_mli > W_max_mli).squeeze()] = W_max_mli
-            W_mli[(W_mli < 0.0).squeeze()] = 0.0
+            W_mli[(W_mli < W_min_mli).squeeze()] = W_min_mli
             W_full[n_gaussians:] = W_mli
 
     missing_y_hat = np.isnan(y_hat)
@@ -1003,8 +1004,11 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                    "gamma": (1.0, 0, np.inf, 2),
                    "epsilon": (4.0, 0, np.inf, 3),
                    "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 4),
+                   "pf_scale": (1.0, 0.1, 10, 5),
+                   "mli_scale": (1.0, 0.1, 10, 6),
             }
     if lf_kwargs['UPDATE_MLI_WEIGHTS']:
+        raise ValueError("check param nums")
         param_conds.update({"omega": (0.01, 0, np.inf, 5),
                             "psi": (0.01, 0, np.inf, 6),
                             "chi": (0.01, 0, np.inf, 7),
@@ -1112,9 +1116,9 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         W_0_mli = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:]
     if W_0_mli.shape[0] != 8:
         raise ValueError("Input W_0_mli must have match the MLI coefficients shape of 8.")
-    W_full = np.vstack((W_0_pf, W_0_mli))
-    weights_by_trial = {t_num: np.zeros(W_full.shape) for t_num in all_t_inds}
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
+    W_min_pf = 0.0
+    W_min_mli = 0.0
 
     # Separate behavior state from CS inputs
     state = fit_inputs[:, 0:-1]
@@ -1133,19 +1137,26 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     gamma = NN_FIT.fit_results['gauss_basis_kinematics']['gamma']
     epsilon = NN_FIT.fit_results['gauss_basis_kinematics']['epsilon']
     W_max_pf = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_pf']
+    pf_scale = NN_FIT.fit_results['gauss_basis_kinematics']['pf_scale']
+    mli_scale = NN_FIT.fit_results['gauss_basis_kinematics']['mli_scale']
+    W_pf = np.zeros(W_0_pf.shape) # Place to store updating result and copy to output
+    W_pf[:] = pf_scale * W_0_pf # Initialize storage to start values
+    W_mli = np.zeros(W_0_mli.shape) # Place to store updating result and copy to output
+    W_mli[:] = mli_scale * W_0_mli # Initialize storage to start values
+    # Ensure W_pf values are within range and store in output W_full
+    W_pf[(W_pf > W_max_pf).squeeze()] = W_max_pf
+    W_pf[(W_pf < W_min_pf).squeeze()] = W_min_pf
+    W_mli[(W_mli < W_min_mli).squeeze()] = W_min_mli
     if kwargs['UPDATE_MLI_WEIGHTS']:
         omega = NN_FIT.fit_results['gauss_basis_kinematics']['omega']
         psi = NN_FIT.fit_results['gauss_basis_kinematics']['psi']
         chi = NN_FIT.fit_results['gauss_basis_kinematics']['chi']
         phi = NN_FIT.fit_results['gauss_basis_kinematics']['phi']
         W_max_mli = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_mli']
+        W_mli[(W_mli > W_max_mli).squeeze()] = W_max_mli
+    W_full = np.vstack((W_pf, W_mli))
+    weights_by_trial = {t_num: np.zeros(W_full.shape) for t_num in all_t_inds}
 
-    W_pf = np.zeros(W_0_pf.shape) # Place to store updating result and copy to output
-    W_pf[:] = W_0_pf # Initialize storage to start values
-    W_mli = np.zeros(W_0_mli.shape) # Place to store updating result and copy to output
-    W_mli[:] = W_0_mli # Initialize storage to start values
-    W_min_pf = 0.0
-    W_min_mli = 0.0
     for trial_ind, trial_num in zip(range(0, n_trials), all_t_inds):
         weights_by_trial[trial_num][:] = W_full # Copy W for this trial, befoe updating at end of loop
         state_trial = state[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt, :] # State for this trial
@@ -1184,7 +1195,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
 
         # Ensure W_pf values are within range and store in output W_full
         W_pf[(W_pf > W_max_pf).squeeze()] = W_max_pf
-        W_pf[(W_pf < 0.0).squeeze()] = 0.0
+        W_pf[(W_pf < W_min_pf).squeeze()] = W_min_pf
         W_full[0:n_gaussians] = W_pf
 
         if kwargs['UPDATE_MLI_WEIGHTS']:
@@ -1204,14 +1215,10 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             mli_LTD_funs[mli_CS_LTP > 0.0] = 0.0
             # Convert to LTD input for MLI
             mli_LTD = f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli, W_min_mli)
-            if np.any(np.any(mli_LTD > 0.0)):
-                raise ValueError("MLI LTD OVER zero")
-            if np.any(np.any(mli_LTP < 0.0)):
-                raise ValueError("MLI LTP UNDER zero...")
             # Ensure W_mli values are within range and store in output W_full
             W_mli += ( mli_LTP[:, None] + mli_LTD[:, None] )
             W_mli[(W_mli > W_max_mli).squeeze()] = W_max_mli
-            W_mli[(W_mli < 0.0).squeeze()] = 0.0
+            W_mli[(W_mli < W_min_mli).squeeze()] = W_min_mli
             W_full[n_gaussians:] = W_mli
 
         # if np.all(np.isnan(W_full)):
