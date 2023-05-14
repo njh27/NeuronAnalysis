@@ -915,7 +915,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     residuals = (y[~missing_y_hat] - y_hat[~missing_y_hat]) ** 2
     return residuals
 
-def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5):
+def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=10, bin_threshold=5):
     """ Need the trials from blocks and trial_sets to be ORDERED! Weights will
     be updated from one trial to the next as if they are ordered and will
     not check if the numbers are correct because it could fail for various
@@ -926,6 +926,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
     max_nfev=200000
     loss='linear'
 
+    if learn_t_win is None:
+        learn_t_win = NN_FIT.time_window
     """ Get all the binned firing rate data """
     firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(NN_FIT.time_window,
                                         blocks, trial_sets, return_inds=True)
