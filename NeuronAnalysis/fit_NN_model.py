@@ -913,6 +913,12 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         y_hat_trial = np.maximum(0, np.dot(state_input, W_full) + b).squeeze()
         # Store prediction for current trial
         y_hat[trial*n_obs_pt:(trial + 1)*n_obs_pt] = y_hat_trial
+        if np.any(np.isnan(y_obs_trial)):
+            print("NANs in OBSERVED FR trial: ", trial)
+        if np.any(np.isnan(y_hat_trail)):
+            print("NANs in PREDICTED FR trial: ", trial)
+        if np.any(np.isnan(state_input[:, 0])):
+            print("NANs in STATE INPUT trial: ", trial)
         # Update weights for next trial based on activations in this trial
         state_input_pf = state_input[:, 0:n_gaussians]
 
