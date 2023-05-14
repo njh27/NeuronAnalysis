@@ -559,7 +559,8 @@ class FitNNModel(object):
 
 
 
-
+""" SOME FUNCTIONS FOR GETTING DATA TO PREDICT FIRING BASED ON PLASTIC WEIGHTS """
+""" ********************************************************************** """
 def comp_learning_response(NN_FIT, X_trial, W_trial, return_comp=False):
     """
     """
@@ -628,6 +629,58 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
     else:
         y_hat = comp_learning_response(NN_FIT, X_trial, W_trial)
         return y_hat
+
+
+""" SOME HELPERS FOR GETTING THE EYE DATA TO FIT FOR PLASTIC WEIGHTS """
+""" *********************************************************************** """
+def get_eye_data_traces_win(NN_FIT, blocks, trial_sets, time_window, lag=0,
+                            return_inds=False):
+    """ Gets eye position and velocity in array of trial x time_window
+        3rd dimension of array is ordered as pursuit, learning position,
+        then pursuit, learning velocity.
+        Data are only retrieved for valid neuron trials!
+    """
+    lag_time_window = time_window + np.int32(lag)
+    if lag_time_window[1] <= lag_time_window[0]:
+        raise ValueError("time_window[1] must be greater than time_window[0]")
+
+    trial_sets = NN_FIT.neuron.append_valid_trial_set(trial_sets)
+    pos_p, pos_l, t_inds = NN_FIT.neuron.session.get_xy_traces("eye position",
+                            lag_time_window, blocks, trial_sets,
+                            return_inds=True)
+    vel_p, vel_l = NN_FIT.neuron.session.get_xy_traces("eye velocity",
+                            lag_time_window, blocks, trial_sets,
+                            return_inds=False)
+    eye_data = np.stack((pos_p, pos_l, vel_p, vel_l), axis=2)
+    if return_inds:
+        return eye_data, t_inds
+    else:
+        return eye_data
+
+
+def get_plasticity_data_trial_win(NN_FIT, blocks, trial_sets, time_window,
+                                    return_shape=False, return_inds=False):
+    """ Gets behavioral data from blocks and trial sets and formats in a
+    way that it can be used to predict firing rate according to the linear
+    eye kinematic model using predict_lin_eye_kinematics.
+    Data are only retrieved for trials that are valid for the fitted neuron. """
+    trial_sets = NN_FIT.neuron.append_valid_trial_set(trial_sets)
+    eye_data_pf, t_inds = get_eye_data_traces_win(NN_FIT, blocks, trial_sets,
+                        NN_FIT.fit_results['gauss_basis_kinematics']['pf_lag'],
+                        return_inds=True)
+    eye_data_mli = get_eye_data_traces_win(NN_FIT, blocks, trial_sets,
+                        NN_FIT.fit_results['gauss_basis_kinematics']['mli_lag'])
+    eye_data = np.concatenate((eye_data_pf, eye_data_mli), axis=2)
+    initial_shape = eye_data.shape
+    eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
+    if return_shape and return_inds:
+        return eye_data, initial_shape, t_inds
+    elif return_shape and not return_inds:
+        return eye_data, initial_shape
+    elif not return_shape and return_inds:
+        return eye_data, t_inds
+    else:
+        return eye_data
 
 
 """ THESE ARE THE LEARNING RULE PLASTICITY FUNCTIONS """
@@ -928,10 +981,11 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
 
     if learn_t_win is None:
         learn_t_win = NN_FIT.time_window
+    NN_FIT.learn_rates_time_window = learn_t_win
     """ Get all the binned firing rate data """
-    firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(NN_FIT.time_window,
+    firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(learn_t_win,
                                         blocks, trial_sets, return_inds=True)
-    CS_bin_evts = NN_FIT.neuron.get_CS_dataseries_by_trial(NN_FIT.time_window,
+    CS_bin_evts = NN_FIT.neuron.get_CS_dataseries_by_trial(learn_t_win,
                                 blocks, trial_sets, nan_sacc=False)
 
     """ Here we have to do some work to get all the data in the correct format """
@@ -946,9 +1000,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     binned_CS = binned_CS.reshape(binned_CS.shape[0]*binned_CS.shape[1], order='C')
 
     """ Get all the binned eye data """
-    eye_data, initial_shape = NN_FIT.get_gauss_basis_kinematics_predict_data_trial(
-                                    blocks, trial_sets,
-                                    return_shape=True, test_data_only=False)
+    eye_data, initial_shape = get_plasticity_data_trial_win(NN_FIT,
+                                    blocks, trial_sets, learn_t_win,
+                                    return_shape=True)
     eye_data = eye_data.reshape(initial_shape)
     # Use bin smoothing on data before fitting
     bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
@@ -1055,9 +1109,11 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
                                     W_0_mli=None, bin_width=10, bin_threshold=5):
     """ Need the trials from blocks and trial_sets to be ORDERED! """
     """ Get all the binned firing rate data """
-    firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(NN_FIT.time_window,
+    firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(
+                                        NN_FIT.learn_rates_time_window,
                                         blocks, trial_sets, return_inds=True)
-    CS_bin_evts = NN_FIT.neuron.get_CS_dataseries_by_trial(NN_FIT.time_window,
+    CS_bin_evts = NN_FIT.neuron.get_CS_dataseries_by_trial(
+                                NN_FIT.learn_rates_time_window,
                                 blocks, trial_sets, nan_sacc=False)
 
     """ Here we have to do some work to get all the data in the correct format """
@@ -1072,9 +1128,10 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     binned_CS = binned_CS.reshape(binned_CS.shape[0]*binned_CS.shape[1], order='C')
 
     """ Get all the binned eye data """
-    eye_data, initial_shape = NN_FIT.get_gauss_basis_kinematics_predict_data_trial(
+    eye_data, initial_shape = get_plasticity_data_trial_win(NN_FIT,
                                     blocks, trial_sets,
-                                    return_shape=True, test_data_only=False)
+                                    NN_FIT.learn_rates_time_window,
+                                    return_shape=True)
     eye_data = eye_data.reshape(initial_shape)
     # Use bin smoothing on data before fitting
     bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
