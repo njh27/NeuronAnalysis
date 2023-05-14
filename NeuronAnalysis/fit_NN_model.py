@@ -863,7 +863,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     bin_width = args[0]
     n_trials = args[1]
     n_obs_pt = args[2]
-    eye_is_nan = args[3]
+    is_missing_data = args[3]
     n_gaussians_per_dim = args[4]
     gauss_means = args[5]
     gauss_stds = args[6]
@@ -899,7 +899,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     for trial in range(0, n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
         y_obs_trial = y[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Observed FR for this trial
-        eye_is_nan_trial = eye_is_nan[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Nan state points for this trial
+        is_missing_data_trial = is_missing_data[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Nan state points for this trial
 
         # Convert state to input layer activations
         state_input = af.eye_input_to_PC_gauss_relu(state_trial,
@@ -907,7 +907,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
                                         n_gaussians_per_dim=n_gaussians_per_dim)
         # Set inputs derived from nan points to 0.0 so that the weights
         # for these states are not affected during nans
-        state_input[eye_is_nan_trial, :] = 0.0
+        state_input[is_missing_data_trial, :] = 0.0
         # Expected rate this trial given updated weights
         # Use maximum here because of relu activation of output
         y_hat_trial = np.maximum(0, np.dot(state_input, W_full) + b).squeeze()
@@ -1029,8 +1029,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     # Firing rate data is only NaN where data for a trial does not cover NN_FIT.time_window
     # So we need to find this separate from saccades and can set to 0.0 to ignore
     # We will AND this with where eye is NaN because both should be if data are truly missing
-    # is_missing_data = np.isnan(binned_FR) & eye_is_nan
-    binned_FR[eye_is_nan] = 0.0
+    is_missing_data = np.isnan(binned_FR) | eye_is_nan
+    binned_FR[is_missing_data] = 0.0
 
     # Need the means and stds for converting state to input
     pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
@@ -1093,7 +1093,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
 
     # Finally append CS to inputs and get other args needed for learning function
     fit_inputs = np.hstack([bin_eye_data, binned_CS[:, None]])
-    lf_args = (bin_width, n_trials, n_obs_pt, eye_is_nan,
+    lf_args = (bin_width, n_trials, n_obs_pt, is_missing_data,
                 n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians)
     # Fit the learning rates to the data
     result = least_squares(learning_function, p0,
@@ -1159,8 +1159,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     # Firing rate data is only NaN where data for a trial does not cover NN_FIT.time_window
     # So we need to find this separate from saccades and can set to 0.0 to ignore
     # We will AND this with where eye is NaN because both should be if data are truly missing
-    # is_missing_data = np.isnan(binned_FR) & eye_is_nan
-    binned_FR[eye_is_nan] = 0.0
+    is_missing_data = np.isnan(binned_FR) | eye_is_nan
+    binned_FR[is_missing_data] = 0.0
 
     # Need the means and stds for converting state to input
     pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
@@ -1232,14 +1232,14 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         weights_by_trial[trial_num][:] = W_full # Copy W for this trial, befoe updating at end of loop
         state_trial = state[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt, :] # State for this trial
         y_obs_trial = binned_FR[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Observed FR for this trial
-        eye_is_nan_trial = eye_is_nan[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Nan state points for this trial
+        is_missing_data_trial = is_missing_data[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Nan state points for this trial
         # Convert state to input layer activations
         state_input = af.eye_input_to_PC_gauss_relu(state_trial,
                                         gauss_means, gauss_stds,
                                         n_gaussians_per_dim=n_gaussians_per_dim)
         # Set inputs derived from nan points to 0.0 so that the weights
         # for these states are not affected during nans
-        state_input[eye_is_nan_trial, :] = 0.0
+        state_input[is_missing_data_trial, :] = 0.0
         state_input_pf = state_input[:, 0:n_gaussians]
 
         # Rescaled trial firing rate in proportion to max
