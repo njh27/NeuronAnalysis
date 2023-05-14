@@ -666,10 +666,12 @@ def get_plasticity_data_trial_win(NN_FIT, blocks, trial_sets, time_window,
     Data are only retrieved for trials that are valid for the fitted neuron. """
     trial_sets = NN_FIT.neuron.append_valid_trial_set(trial_sets)
     eye_data_pf, t_inds = get_eye_data_traces_win(NN_FIT, blocks, trial_sets,
-                        NN_FIT.fit_results['gauss_basis_kinematics']['pf_lag'],
-                        return_inds=True)
+                            time_window,
+                            NN_FIT.fit_results['gauss_basis_kinematics']['pf_lag'],
+                            return_inds=True)
     eye_data_mli = get_eye_data_traces_win(NN_FIT, blocks, trial_sets,
-                        NN_FIT.fit_results['gauss_basis_kinematics']['mli_lag'])
+                            time_window,
+                            NN_FIT.fit_results['gauss_basis_kinematics']['mli_lag'])
     eye_data = np.concatenate((eye_data_pf, eye_data_mli), axis=2)
     initial_shape = eye_data.shape
     eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
