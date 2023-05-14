@@ -823,9 +823,11 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     gamma = params[2] / 1e4
     epsilon = params[3] / 1e4
     W_max_pf = params[4]
+    pf_scale = params[5]
+    mli_scale = params[6]
     # Set weights to initial fit values
-    W_pf = np.copy(W_0_pf) * params[5]
-    W_mli = np.copy(W_0_mli) * params[6]
+    W_pf = np.copy(W_0_pf) * pf_scale
+    W_mli = np.copy(W_0_mli) * mli_scale
     # Ensure W_pf values are within range and store in output W_full
     W_pf[(W_pf > W_max_pf).squeeze()] = W_max_pf
     W_pf[(W_pf < W_min_pf).squeeze()] = W_min_pf
