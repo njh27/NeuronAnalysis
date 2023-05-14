@@ -1006,8 +1006,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, bin_width=10, bin_threshold=5
                    "gamma": (1.0, 0, np.inf, 2),
                    "epsilon": (4.0, 0, np.inf, 3),
                    "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 4),
-                   "pf_scale": (1.0, 0.1, 10, 5),
-                   "mli_scale": (1.0, 0.1, 10, 6),
+                   "pf_scale": (.15, 0.1, 10, 5),
+                   "mli_scale": (.15, 0.1, 10, 6),
             }
     if lf_kwargs['UPDATE_MLI_WEIGHTS']:
         raise ValueError("check param nums")
