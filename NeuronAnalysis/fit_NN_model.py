@@ -1048,10 +1048,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     W_0_mli = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:]
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
 
-    lf_kwargs = {'tau_rise_CS': int(np.around(60 /bin_width)),
+    lf_kwargs = {'tau_rise_CS': int(np.around(0 /bin_width)),
                  'tau_decay_CS': int(np.around(0 /bin_width)),
                  'tau_rise_CS_LTP': int(np.around(-40 /bin_width)),
-                 'tau_decay_CS_LTP': int(np.around(100 /bin_width)),
+                 'tau_decay_CS_LTP': int(np.around(160 /bin_width)),
                  'tau_rise_CS_mli_LTP': int(np.around(80 /bin_width)),
                  'tau_decay_CS_mli_LTP': int(np.around(-40 /bin_width)),
                  'tau_rise_CS_mli_LTD': int(np.around(-40 /bin_width)),
@@ -1060,7 +1060,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
                  'UPDATE_MLI_WEIGHTS': False,
                  }
     # Format of p0, upper, lower, index order for each variable to make this legible
-    param_conds = {"alpha": (1.0, 0, np.inf, 0),
+    param_conds = {"alpha": (4.0, 0, np.inf, 0),
                    "beta": (1.0, 0, np.inf, 1),
                    "gamma": (1.0, 0, np.inf, 2),
                    "epsilon": (4.0, 0, np.inf, 3),
