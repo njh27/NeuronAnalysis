@@ -560,6 +560,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     for arg in lf_args:
         all_args.append(arg)
     all_args.extend([p0, lower_bounds, upper_bounds, ftol, xtol, gtol, max_nfev, loss])
+    import pickle
     save_name = "/home/nate/temp/test_NN_fit.pickle"
     with open(save_name, 'wb') as fp:
         pickle.dump(fit_NN, fp, protocol=-1)
