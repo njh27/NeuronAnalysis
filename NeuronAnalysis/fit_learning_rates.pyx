@@ -217,7 +217,7 @@ cdef np.ndarray[double, ndim=1] learning_function(np.ndarray[double, ndim=1] par
     cdef double[:] y_hat = np.zeros(x.shape[0])
     cdef double[:] W_pf = np.copy(W_0_pf)
     cdef double[:] W_mli = np.copy(W_0_mli)
-    cdef double[:] W_full = np.vstack((W_pf, W_mli))
+    cdef double[:] W_full = np.concatenate((W_pf, W_mli))
     cdef int wi
 
     # REMINDER of param definitions
