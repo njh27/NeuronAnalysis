@@ -145,6 +145,7 @@ class FitNNModel(object):
         return eye_data[:, ind_start:ind_stop, :]
 
     def fit_gauss_basis_kinematics(self, pos_means, pos_stds, vel_means, vel_stds,
+                                    activation_out="relu",
                                     bin_width=10, bin_threshold=5,
                                     fit_avg_data=False,
                                     quick_lag_step=10,
@@ -256,11 +257,11 @@ class FitNNModel(object):
         else:
             eye_input_test = []
             val_data = None
-
+        self.activation_out = activation_out
         # Create the neural network model
         model = models.Sequential([
             layers.Input(shape=(n_gaussians + 8,)),
-            layers.Dense(1, activation="linear",
+            layers.Dense(1, activation=activation_out,
                             kernel_constraint=constraints.NonNeg(),
                             bias_initializer=initializers.Constant(0.25*np.nanmedian(binned_FR_train))),
         ])
@@ -431,7 +432,10 @@ class FitNNModel(object):
         # y_hat += self.fit_results['gauss_basis_kinematics']['bias']
         W = self.fit_results['gauss_basis_kinematics']['coeffs']
         b = self.fit_results['gauss_basis_kinematics']['bias']
-        y_hat = np.maximum(0, np.dot(X_input, W) + b)
+        y_hat = np.dot(X_input, W) + b
+        if self.activation_out == "relu":
+            y_hat = np.maximum(0, y_hat)
+
         if return_model:
             y_hat_model = self.fit_results['gauss_basis_kinematics']['model'].predict(X_input).squeeze()
             return y_hat, y_hat_model
@@ -595,9 +599,14 @@ def comp_learning_response(NN_FIT, X_trial, W_trial, return_comp=False):
                                         n_gaussians_per_dim=n_gaussians_per_dim)
         # Each trial update the weights for W
         W[:, 0] = W_trial[t_ind, :]
-        y_hat[t_ind, :] = np.maximum(0., np.dot(X_input, W) + b).squeeze()
-        pf_in[t_ind, :] = np.maximum(0., np.dot(X_input[:, 0:n_gaussians], W[0:n_gaussians, 0]) + b).squeeze()
-        mli_in[t_ind, :] = np.maximum(0., np.dot(X_input[:, n_gaussians:], W[n_gaussians:, 0]) + b).squeeze()
+        y_hat[t_ind, :] = (np.dot(X_input, W) + b).squeeze()
+        pf_in[t_ind, :] = (np.dot(X_input[:, 0:n_gaussians], W[0:n_gaussians, 0]) + b).squeeze()
+        mli_in[t_ind, :] = (np.dot(X_input[:, n_gaussians:], W[n_gaussians:, 0]) + b).squeeze()
+        if NN_FIT.activation_out == "relu":
+            y_hat[t_ind, :] = np.maximum(0., y_hat[t_ind, :])
+            pf_in[t_ind, :] = np.maximum(0., pf_in[t_ind, :])
+            mli_in[t_ind, :] = np.maximum(0., mli_in[t_ind, :])
+
     if return_comp:
         return y_hat, pf_in, mli_in
     else:
@@ -871,6 +880,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     W_min_pf = 0.0
     W_min_mli = 0.0
     FR_MAX = kwargs['FR_MAX']
+    activation_out = kwargs['activation_out']
 
     # Parse parameters to be fit
     alpha = params[0] / 1e4
@@ -910,7 +920,9 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         state_input[is_missing_data_trial, :] = 0.0
         # Expected rate this trial given updated weights
         # Use maximum here because of relu activation of output
-        y_hat_trial = np.maximum(0, np.dot(state_input, W_full) + b).squeeze()
+        y_hat_trial = (np.dot(state_input, W_full) + b).squeeze()
+        if activation_out == "relu":
+            y_hat_trial = np.maximum(0, y_hat_trial)
         # Store prediction for current trial
         y_hat[trial*n_obs_pt:(trial + 1)*n_obs_pt] = y_hat_trial
 
@@ -1058,6 +1070,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
                  'tau_decay_CS_mli_LTD': int(np.around(100 /bin_width)),
                  'FR_MAX': 500,
                  'UPDATE_MLI_WEIGHTS': False,
+                 'activation_out': NN_FIT.activation_out,
                  }
     # Format of p0, upper, lower, index order for each variable to make this legible
     param_conds = {"alpha": (4.0, 0, np.inf, 0),
