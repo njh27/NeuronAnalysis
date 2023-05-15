@@ -151,7 +151,7 @@ cdef double reflected_negative_relu(double x, double c=0.):
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef void eye_input_to_PC_gauss_relu(np.ndarray[double, ndim=2] eye_data,
+cdef void eye_input_to_PC_gauss_relu(double[:, :] eye_data,
                                      np.ndarray[double, ndim=1] gauss_means,
                                      np.ndarray[double, ndim=1] gauss_stds,
                                      np.ndarray[double, ndim=2] eye_transform,
