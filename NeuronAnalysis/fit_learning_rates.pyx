@@ -21,7 +21,7 @@ def py_learning_function(params, x, y, W_0_pf, W_0_mli, b,
 @cython.wraparound(False)
 cdef void f_pf_LTP(np.ndarray[double, ndim=1] pf_LTP,
                    np.ndarray[double, ndim=1] pf_LTP_funs,
-                   np.ndarray[double, ndim=2] state_input_pf,
+                   double[:] state_input_pf,
                    np.ndarray[double, ndim=1] W_pf, double W_max_pf):
     cdef int wi
     # Convert LTP functions to parallel fiber input space
@@ -36,7 +36,7 @@ cdef void f_pf_LTP(np.ndarray[double, ndim=1] pf_LTP,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef void f_pf_FR_LTP(np.ndarray[double, ndim=1] pf_LTP_funs,
-                      np.ndarray[double, ndim=1] PC_FR, double PC_FR_weight_LTP):
+                      double[:] PC_FR, double PC_FR_weight_LTP):
     cdef int t
     if pf_LTP_funs.shape[0] != PC_FR_weight_LTP.shape[0]:
         raise ValueError("Input LTP functions must have same shape as PC FR.")
@@ -56,7 +56,7 @@ cdef void f_pf_static_LTP(np.ndarray[double, ndim=1] pf_LTP_funs,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef void f_pf_CS_LTP(np.ndarray[double, ndim=1] pf_LTP_funs,
-                      np.ndarray[double, ndim=1] CS_trial_bin,
+                      double[:] CS_trial_bin,
                       int tau_1, int tau_2, double scale=1.0):
     box_windows(pf_LTP_funs, CS_trial_bin, tau_1, tau_2, scale)
     return
@@ -65,7 +65,7 @@ cdef void f_pf_CS_LTP(np.ndarray[double, ndim=1] pf_LTP_funs,
 @cython.wraparound(False)
 cdef void f_pf_LTD(np.ndarray[double, ndim=1] pf_LTD,
                    np.ndarray[double, ndim=1] pf_CS_LTD,
-                   np.ndarray[double, ndim=2] state_input_pf,
+                   double[:] state_input_pf,
                    np.ndarray[double, ndim=1] W_pf, double W_min_pf=0.0):
     cdef int wi
     # Sum of pf_CS_LTD weighted by activation for each input unit
@@ -78,29 +78,17 @@ cdef void f_pf_LTD(np.ndarray[double, ndim=1] pf_LTD,
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef void f_pf_CS_LTD(np.ndarray[double, ndim=1] pf_CS_LTD,
+cdef void f_pf_CS_LTD(double[:] pf_CS_LTD,
                       np.ndarray[double, ndim=1] CS_trial_bin,
-                      int tau_1, int tau_2, double scale=1.0, int delay=0):
+                      int tau_1, int tau_2, double scale=1.0):
     # Just CS window plasticity
     box_windows(pf_CS_LTD, CS_trial_bin, tau_1, tau_2, scale)
-    # Shift pf_CS_LTD LTD envelope according to delay_LTD
-    delay = int(delay)
-    if delay == 0:
-        # No delay so we are done
-        return
-    elif delay < 0:
-        pf_CS_LTD[-delay:] = pf_CS_LTD[0:delay]
-        pf_CS_LTD[0:-delay] = 0.0
-    else:
-        # Implies delay > 0
-        pf_CS_LTD[0:-delay] = pf_CS_LTD[delay:]
-        pf_CS_LTD[-delay:] = 0.0
     return
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef void box_windows(np.ndarray[double, ndim=1] window_sig,
-                      np.ndarray[double, ndim=1] spike_train,
+                      double[:] spike_train,
                       int box_pre, int box_post, double scale=1.0):
     if window_sig.shape[0] != spike_train.shape[0]:
         raise ValueError("Input and output arrays must be the same shape!")
@@ -248,8 +236,7 @@ cdef np.ndarray[double, ndim=1] learning_function(np.ndarray[double, ndim=1] par
     cdef np.ndarray[double, ndim=1] pf_LTD = np.zeros((gauss_means.shape[0] + 8, ))
     cdef np.ndarray[double, ndim=1] pf_LTP_funs = np.zeros((n_obs_pt, ))
     cdef np.ndarray[double, ndim=1] pf_LTP = np.zeros((gauss_means.shape[0] + 8, ))
-    cdef int trial
-    cdef int sir, sic
+    cdef int trial, sir, sic, wi
 
     for trial in range(n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :]
@@ -287,6 +274,8 @@ cdef np.ndarray[double, ndim=1] learning_function(np.ndarray[double, ndim=1] par
 
         # Updates weights of W_pf in place
         update_W_pf(W_pf, pf_LTP, pf_LTD, params[4], W_min_pf)
-        W_full[0:n_gaussians] = W_pf
+        # Put updated weights into W_full for next iteration
+        for wi in range(0, n_gaussians):
+            W_full[wi] = W_pf[wi]
 
     return residuals
