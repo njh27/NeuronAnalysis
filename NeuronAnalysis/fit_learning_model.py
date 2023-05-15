@@ -543,6 +543,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
                 n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
                 W_min_pf, FR_MAX, tau_rise_CS, tau_decay_CS, tau_rise_CS_LTP,
                 tau_decay_CS_LTP)
+    print("gauss means", gauss_means.shape, gauss_means.dtype)
+    print("gauss stds", gauss_stds.shape, gauss_stds.dtype)
     print(fit_inputs.shape, binned_FR.shape, W_0_pf.shape, W_0_mli.shape, b.shape)
     for a_ind, arg in enumerate((fit_inputs, binned_FR, W_0_pf, W_0_mli, b)):
         if isinstance(arg, np.ndarray):
