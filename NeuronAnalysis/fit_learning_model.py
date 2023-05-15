@@ -563,7 +563,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     import pickle
     save_name = "/home/nate/temp/test_NN_fit.pickle"
     with open(save_name, 'wb') as fp:
-        pickle.dump(fit_NN, fp, protocol=-1)
+        pickle.dump(all_args, fp, protocol=-1)
     return
     # Fit the learning rates to the data
     result = least_squares(py_learning_function, p0,
