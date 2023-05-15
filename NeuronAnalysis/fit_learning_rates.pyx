@@ -78,8 +78,8 @@ cdef void f_pf_LTD(np.ndarray[double, ndim=1] pf_LTD,
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef void f_pf_CS_LTD(double[:] pf_CS_LTD,
-                      np.ndarray[double, ndim=1] CS_trial_bin,
+cdef void f_pf_CS_LTD(np.ndarray[double, ndim=1] pf_CS_LTD,
+                      double[:] CS_trial_bin,
                       int tau_1, int tau_2, double scale=1.0):
     # Just CS window plasticity
     box_windows(pf_CS_LTD, CS_trial_bin, tau_1, tau_2, scale)
@@ -154,7 +154,7 @@ cdef void eye_input_to_PC_gauss_relu(double[:, :] eye_data,
     cdef int k
     cdef int l
 
-    if gauss_means.shape[0] != len(gauss_stds):
+    if gauss_means.shape[0] != gauss_stds.shape[0]:
         raise ValueError("Must input the same number of means and standard deviations but got {0} means and {1} standard deviations.".format(gauss_means.shape[0], len(gauss_stds)))
 
     n_features = gauss_means.shape[0] + 8 # Total input featur to PC is gaussians + relus
