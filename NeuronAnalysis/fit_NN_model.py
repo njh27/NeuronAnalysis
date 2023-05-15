@@ -260,7 +260,7 @@ class FitNNModel(object):
         # Create the neural network model
         model = models.Sequential([
             layers.Input(shape=(n_gaussians + 8,)),
-            layers.Dense(1, activation="relu",
+            layers.Dense(1, activation="linear",
                             kernel_constraint=constraints.NonNeg(),
                             bias_initializer=initializers.Constant(0.25*np.nanmedian(binned_FR_train))),
         ])
