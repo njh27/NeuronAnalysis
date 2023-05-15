@@ -206,8 +206,6 @@ cdef np.ndarray[double, ndim=1] learning_function(np.ndarray[double, ndim=1] par
     cdef double[:] CS = x[:, -1]
     cdef double[:] y_hat = np.zeros(x.shape[0])
     cdef double[:] W_pf = np.copy(W_0_pf)
-    cdef double[:] W_mli = np.copy(W_0_mli)
-    cdef double[:] W_full = np.concatenate((W_pf, W_mli))
 
     cdef double residuals = 0.0
     cdef double[:] y_hat_trial
@@ -216,11 +214,12 @@ cdef np.ndarray[double, ndim=1] learning_function(np.ndarray[double, ndim=1] par
     cdef int[:] is_missing_data_trial
     cdef double[:] CS_trial_bin
     cdef double[:, :] state_input_pf
-    cdef np.ndarray[double, ndim=2] state_input = np.zeros((n_obs_pt, gauss_means.shape[0] + 8))
+    cdef np.ndarray[double, ndim=1] W_full = np.zeros((n_gaussians + 8, ))
+    cdef np.ndarray[double, ndim=2] state_input = np.zeros((n_obs_pt, n_gaussians + 8))
     cdef np.ndarray[double, ndim=1] pf_CS_LTD = np.zeros((n_obs_pt, ))
-    cdef np.ndarray[double, ndim=1] pf_LTD = np.zeros((gauss_means.shape[0] + 8, ))
+    cdef np.ndarray[double, ndim=1] pf_LTD = np.zeros((n_gaussians + 8, ))
     cdef np.ndarray[double, ndim=1] pf_LTP_funs = np.zeros((n_obs_pt, ))
-    cdef np.ndarray[double, ndim=1] pf_LTP = np.zeros((gauss_means.shape[0] + 8, ))
+    cdef np.ndarray[double, ndim=1] pf_LTP = np.zeros((n_gaussians + 8, ))
     cdef int trial, sir, sic, wi
 
     # REMINDER of param definitions
@@ -237,6 +236,8 @@ cdef np.ndarray[double, ndim=1] learning_function(np.ndarray[double, ndim=1] par
         if W_pf[wi] < W_min_pf:
             W_pf[wi] = W_min_pf
         W_full[wi] = W_pf[wi]
+    for wi in range(0, 8):
+        W_full[n_gaussians + wi] = W_0_mli[wi]
 
     for trial in range(n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :]
