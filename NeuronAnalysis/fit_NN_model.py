@@ -1251,6 +1251,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
 
         # Rescaled trial firing rate in proportion to max
         # y_obs_trial = y_obs_trial / FR_MAX
+        y_hat_trial = (np.dot(state_input, W_full) + b).squeeze()
         y_hat_trial = y_hat_trial / FR_MAX
         # Binary CS for this trial
         CS_trial_bin = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt]
