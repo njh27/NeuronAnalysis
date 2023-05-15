@@ -929,7 +929,8 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         # Update weights for next trial based on activations in this trial
         state_input_pf = state_input[:, 0:n_gaussians]
         # Rescaled trial firing rate in proportion to max
-        y_obs_trial = y_obs_trial / FR_MAX
+        # y_obs_trial = y_obs_trial / FR_MAX
+        y_hat_trial = y_hat_trial / FR_MAX
         # Binary CS for this trial
         CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt]
 
@@ -942,7 +943,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         # Create the LTP function for parallel fibers
         pf_LTP_funs = f_pf_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_LTP'],
                         kwargs['tau_decay_CS_LTP'], alpha)
-        pf_LTP_funs += f_pf_FR_LTP(y_obs_trial, beta)
+        pf_LTP_funs += f_pf_FR_LTP(y_hat_trial, beta)
         pf_LTP_funs += f_pf_static_LTP(pf_CS_LTD, gamma)
         pf_LTP_funs[pf_CS_LTD > 0.0] = 0.0
         # Convert to LTP input for Purkinje cell
@@ -1249,7 +1250,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         state_input_pf = state_input[:, 0:n_gaussians]
 
         # Rescaled trial firing rate in proportion to max
-        y_obs_trial = y_obs_trial / FR_MAX
+        # y_obs_trial = y_obs_trial / FR_MAX
+        y_hat_trial = y_hat_trial / FR_MAX
         # Binary CS for this trial
         CS_trial_bin = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt]
 
@@ -1262,7 +1264,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         # Create the LTP function for parallel fibers
         pf_LTP_funs = f_pf_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_LTP'],
                         kwargs['tau_decay_CS_LTP'], alpha)
-        pf_LTP_funs += f_pf_FR_LTP(y_obs_trial, beta)
+        pf_LTP_funs += f_pf_FR_LTP(y_hat_trial, beta)
         pf_LTP_funs += f_pf_static_LTP(pf_CS_LTD, gamma)
         pf_LTP_funs[pf_CS_LTD > 0.0] = 0.0
         # Convert to LTP input for Purkinje cell
