@@ -1060,14 +1060,14 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     W_0_mli = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:]
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
 
-    lf_kwargs = {'tau_rise_CS': int(np.around(50 /bin_width)),
-                 'tau_decay_CS': int(np.around(50 /bin_width)),
-                 'tau_rise_CS_LTP': int(np.around(-100 /bin_width)),
-                 'tau_decay_CS_LTP': int(np.around(200 /bin_width)),
-                 'tau_rise_CS_mli_LTP': int(np.around(80 /bin_width)),
-                 'tau_decay_CS_mli_LTP': int(np.around(-40 /bin_width)),
-                 'tau_rise_CS_mli_LTD': int(np.around(-40 /bin_width)),
-                 'tau_decay_CS_mli_LTD': int(np.around(100 /bin_width)),
+    lf_kwargs = {'tau_rise_CS': int(np.around(25 /bin_width)),
+                 'tau_decay_CS': int(np.around(-25 /bin_width)),
+                 'tau_rise_CS_LTP': int(np.around(-150 /bin_width)),
+                 'tau_decay_CS_LTP': int(np.around(150 /bin_width)),
+                 # 'tau_rise_CS_mli_LTP': int(np.around(80 /bin_width)),
+                 # 'tau_decay_CS_mli_LTP': int(np.around(-40 /bin_width)),
+                 # 'tau_rise_CS_mli_LTD': int(np.around(-40 /bin_width)),
+                 # 'tau_decay_CS_mli_LTD': int(np.around(100 /bin_width)),
                  'FR_MAX': 500,
                  'UPDATE_MLI_WEIGHTS': False,
                  'activation_out': NN_FIT.activation_out,

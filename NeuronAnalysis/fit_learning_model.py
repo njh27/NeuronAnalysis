@@ -2,6 +2,7 @@ import numpy as np
 from scipy.optimize import least_squares
 from NeuronAnalysis.general import postsynaptic_decay_FR, assymetric_CS_LTD, boxcar_convolve
 import NeuronAnalysis.activation_functions as af
+from NeuronAnalysis.fit_NN_model import bin_data
 
 
 
