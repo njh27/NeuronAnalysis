@@ -470,14 +470,14 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     # Firing rate data is only NaN where data for a trial does not cover NN_FIT.time_window
     # So we need to find this separate from saccades and can set to 0.0 to ignore
     # We will AND this with where eye is NaN because both should be if data are truly missing
-    is_missing_data = np.int64(np.isnan(binned_FR) | eye_is_nan)
+    is_missing_data = np.int32(np.isnan(binned_FR) | eye_is_nan)
     binned_FR[is_missing_data] = 0.0
 
     # Need the means and stds for converting state to input
     pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
     vel_means = NN_FIT.fit_results['gauss_basis_kinematics']['vel_means']
     n_gaussians_per_dim = np.array([len(pos_means), len(pos_means),
-                           len(vel_means), len(vel_means)], dtype=np.float64)
+                           len(vel_means), len(vel_means)], dtype=np.int32)
     gauss_means = np.hstack([pos_means,
                              pos_means,
                              vel_means,
