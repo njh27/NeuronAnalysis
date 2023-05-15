@@ -548,12 +548,12 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
         if isinstance(arg, np.ndarray):
             print(a_ind, arg.shape, arg.dtype)
         else:
-            print(type(arg))
+            print(a_ind, type(arg))
     for a_ind, arg in enumerate(lf_args):
         if isinstance(arg, np.ndarray):
             print(a_ind, arg.shape, arg.dtype)
         else:
-            print(type(arg))
+            print(a_ind, type(arg))
     # Fit the learning rates to the data
     result = least_squares(py_learning_function, p0,
                             args=(fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
