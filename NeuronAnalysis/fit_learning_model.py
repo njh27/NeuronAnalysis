@@ -458,8 +458,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     # Use bin smoothing on data before fitting
     bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
     # Observations defined after binning
-    n_trials = bin_eye_data.shape[0] # Total number of trials to fit
-    n_obs_pt = bin_eye_data.shape[1] # Number of observations per trial
+    n_trials = np.int32(bin_eye_data.shape[0]) # Total number of trials to fit
+    n_obs_pt = np.int32(bin_eye_data.shape[1]) # Number of observations per trial
     # Reshape to 2D matrix
     bin_eye_data = bin_eye_data.reshape(
                             bin_eye_data.shape[0]*bin_eye_data.shape[1],
@@ -488,7 +488,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
                             pos_stds,
                             vel_stds,
                             vel_stds])
-    n_gaussians = len(gauss_means)
+    n_gaussians = np.int32(len(gauss_means))
 
     # Defining learning function within scope so we have access to "NN_FIT"
     # and specifically the weights. Get here to save space
