@@ -163,6 +163,8 @@ cdef void eye_input_to_PC_gauss_relu(double[:, :] eye_data,
     cdef int first_relu_ind
     cdef int dim_start = 0
     cdef int dim_stop = 0
+    cdef int k
+    cdef int l
 
     if gauss_means.shape[0] != len(gauss_stds):
         raise ValueError("Must input the same number of means and standard deviations but got {0} means and {1} standard deviations.".format(gauss_means.shape[0], len(gauss_stds)))
@@ -176,9 +178,9 @@ cdef void eye_input_to_PC_gauss_relu(double[:, :] eye_data,
         eye_transform[:, dim_start:dim_stop] = gaussian_activation(eye_data[:, k], gauss_means[dim_start:dim_stop], gauss_stds[dim_start:dim_stop])
         dim_start = dim_stop
         # Then relu activation on second 4 eye dims
-        eye_transform[:, (first_relu_ind + 2 * k)] = negative_relu(eye_data[:, n_eye_dims + k], c=0.0)
-        eye_transform[:, (first_relu_ind + (2 * k + 1))] = reflected_negative_relu(eye_data[:, n_eye_dims + k], c=0.0)
-
+        for l in range(0, eye_data.shape[0]):
+            eye_transform[i, (first_relu_ind + 2 * k)] = negative_relu(eye_data[i, n_eye_dims + k], c=0.0)
+            eye_transform[i, (first_relu_ind + (2 * k + 1))] = negative_relu(eye_data[i, n_eye_dims + k], c=0.0)
     return
 
 @cython.boundscheck(False)
