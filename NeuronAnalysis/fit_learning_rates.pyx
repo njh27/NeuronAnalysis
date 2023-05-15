@@ -205,7 +205,7 @@ cdef np.ndarray[double, ndim=1] learning_function(np.ndarray[double, ndim=1] par
     cdef double[:, :] state = x[:, 0:-1]
     cdef double[:] CS = x[:, -1]
     cdef double[:] y_hat = np.zeros(x.shape[0])
-    cdef double[:] W_pf = np.copy(W_0_pf)
+    cdef np.ndarray[double, ndim=1] W_pf = np.copy(W_0_pf)
 
     cdef double residuals = 0.0
     cdef double[:] y_hat_trial
