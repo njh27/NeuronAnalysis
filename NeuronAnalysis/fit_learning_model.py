@@ -482,8 +482,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
                              pos_means,
                              vel_means,
                              vel_means], dtype=np.float64)
-    pos_stds = NN_FIT.fit_results['gauss_basis_kinematics']['pos_stds']
-    vel_stds = NN_FIT.fit_results['gauss_basis_kinematics']['vel_stds']
+    pos_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['pos_stds'])
+    vel_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['vel_stds'])
     gauss_stds = np.hstack([pos_stds,
                             pos_stds,
                             vel_stds,
