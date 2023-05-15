@@ -211,6 +211,21 @@ def boxcar_convolve(spike_train, box_pre, box_post, scale=1.0):
     filtered_sig = np.convolve(spike_train, kernel, mode='same')
     return filtered_sig
 
+def box_windows(spike_train, box_pre, box_post, scale=1.0):
+    """Same as convolve but just does loops instead of convolution"""
+    window_sig = np.zeros_like(spike_train)
+    for t in range(0, spike_train.shape[0]):
+        if spike_train[t] > 0:
+            w_start = max(0, t-box_pre)
+            if w_start >= window_sig.shape[0]:
+                continue
+            w_stop = min(window_sig.shape[0], t+box_post+1)
+            if w_stop < 0:
+                continue
+            for w_t in range(w_start, w_stop):
+                window_sig[w_t] = scale
+    return window_sig
+
 def gaussian(x, mu, sigma):
     return (1 / (np.sqrt(2 * np.pi * sigma ** 2))) * np.exp(-0.5 * ((x - mu) / sigma) ** 2)
 

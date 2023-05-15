@@ -5,7 +5,7 @@ from tensorflow.keras import layers, models, constraints, initializers
 from tensorflow.keras.optimizers import SGD
 import warnings
 from NeuronAnalysis.fit_neuron_to_eye import FitNeuronToEye
-from NeuronAnalysis.general import postsynaptic_decay_FR, assymetric_CS_LTD, boxcar_convolve
+from NeuronAnalysis.general import box_windows
 import NeuronAnalysis.activation_functions as af
 
 
@@ -263,7 +263,7 @@ class FitNNModel(object):
             layers.Input(shape=(n_gaussians + 8,)),
             layers.Dense(1, activation=activation_out,
                             kernel_constraint=constraints.NonNeg(),
-                            bias_initializer=initializers.Constant(np.nanmedian(binned_FR_train))),
+                            bias_initializer=initializers.Constant(0.5*np.nanmedian(binned_FR_train))),
         ])
         clip_value = None
         optimizer = SGD(learning_rate=learning_rate, clipvalue=clip_value)
@@ -702,9 +702,7 @@ def f_pf_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0, delay=0):
     spike input f_CS with a kernel scaled from tau_1 to tau_2 with peak equal to
     scale and with CSs shifted by an amoutn of time "delay" INDICES (not time!). """
     # Just CS point plasticity
-    pf_CS_LTD = boxcar_convolve(CS_trial_bin, tau_1, tau_2)
-    # Rescale to binary scale
-    pf_CS_LTD[pf_CS_LTD > 0] = scale
+    pf_CS_LTD = box_windows(CS_trial_bin, tau_1, tau_2, scale=scale)
     # Shift pf_CS_LTD LTD envelope according to delay_LTD
     delay = int(delay)
     if delay == 0:
@@ -741,16 +739,15 @@ def f_pf_CS_LTP(CS_trial_bin, tau_1, tau_2, scale=1.0):
     """
     # Inverts the CS function
     # pf_CS_LTP = np.mod(CS_trial_bin + 1, 2)
-    pf_CS_LTP = boxcar_convolve(CS_trial_bin, tau_1, tau_2)
-    pf_CS_LTP[pf_CS_LTP > 0] = scale
+    pf_CS_LTP = box_windows(CS_trial_bin, tau_1, tau_2, scale=scale)
     return pf_CS_LTP
 
 def f_pf_static_LTP(pf_CS_LTD, static_weight_LTP):
-    """ Inverts the input pf_CS_LTD fun so that it is opposite.
+    """
     """
     # Inverts the CS function
-    pf_static_LTP = np.zeros_like(pf_CS_LTD)
-    pf_static_LTP[pf_CS_LTD == 0.0] = static_weight_LTP
+    pf_static_LTP = np.full(pf_CS_LTD.shape, static_weight_LTP)
+    # pf_static_LTP[pf_CS_LTD == 0.0] = static_weight_LTP
     return pf_static_LTP
 
 def f_pf_FR_LTP(PC_FR, PC_FR_weight_LTP):
@@ -758,7 +755,7 @@ def f_pf_FR_LTP(PC_FR, PC_FR_weight_LTP):
     """
     # Add a term with firing rate times weight of constant LTP
     pf_FR_LTP = PC_FR * PC_FR_weight_LTP
-    return np.zeros_like(pf_FR_LTP)
+    return pf_FR_LTP
 
 def f_pf_LTP(pf_LTP_funs, state_input_pf, W_pf=None, W_max_pf=None):
     """ Updates the parallel fiber LTP function of time "pf_CS_LTP" to be scaled
@@ -781,9 +778,7 @@ def f_mli_CS_LTP(CS_trial_bin, tau_1, tau_2, scale=1.0, delay=0):
     spike input f_CS with a kernel scaled from tau_1 to tau_2 with peak equal to
     scale and with CSs shifted by an amoutn of time "delay" INDICES (not time!). """
     # Just CS point plasticity
-    mli_CS_LTP = boxcar_convolve(CS_trial_bin, tau_1, tau_2)
-    # Rescale to binary scale
-    mli_CS_LTP[mli_CS_LTP > 0] = scale
+    mli_CS_LTP = box_windows(CS_trial_bin, tau_1, tau_2, scale=scale)
     # Shift mli_CS_LTP LTP envelope according to delay
     delay = int(delay)
     if delay == 0:
@@ -816,8 +811,7 @@ def f_mli_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0):
     CS is taking place and 0's indicate no CS related LTD. This function
     will then invert the CS train and form windows of LTD where CS is absent.
     """
-    mli_CS_LTD = boxcar_convolve(CS_trial_bin, tau_1, tau_2)
-    mli_CS_LTD[mli_CS_LTD > 0] = scale
+    mli_CS_LTD = box_windows(CS_trial_bin, tau_1, tau_2, scale=scale)
     return mli_CS_LTD
 
 def f_mli_FR_LTD(PC_FR, PC_FR_weight_LTD_mli):
@@ -944,7 +938,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
                         kwargs['tau_decay_CS_LTP'], alpha)
         pf_LTP_funs += f_pf_FR_LTP(y_obs_trial, beta)
         pf_LTP_funs += f_pf_static_LTP(pf_CS_LTD, gamma)
-        pf_LTP_funs[pf_CS_LTD > 0.0] = 0.0
+        # pf_LTP_funs[pf_CS_LTD > 0.0] = 0.0
         # Convert to LTP input for Purkinje cell
         pf_LTP = f_pf_LTP(pf_LTP_funs, state_input_pf, W_pf=W_pf, W_max_pf=W_max_pf)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
@@ -978,9 +972,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             W_mli[(W_mli < W_min_mli).squeeze()] = W_min_mli
             W_full[n_gaussians:] = W_mli
 
-    # missing_y_hat = np.isnan(y_hat)
-    # residuals = (y[~missing_y_hat] - y_hat[~missing_y_hat]) ** 2
-    residuals = (y - y_hat) ** 2
+    residuals = np.sum((y - y_hat) ** 2)
     return residuals
 
 def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=10, bin_threshold=5):
@@ -1061,9 +1053,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
 
     lf_kwargs = {'tau_rise_CS': int(np.around(25 /bin_width)),
-                 'tau_decay_CS': int(np.around(-25 /bin_width)),
-                 'tau_rise_CS_LTP': int(np.around(-150 /bin_width)),
-                 'tau_decay_CS_LTP': int(np.around(150 /bin_width)),
+                 'tau_decay_CS': int(np.around(0 /bin_width)),
+                 'tau_rise_CS_LTP': int(np.around(-100 /bin_width)),
+                 'tau_decay_CS_LTP': int(np.around(200 /bin_width)),
                  # 'tau_rise_CS_mli_LTP': int(np.around(80 /bin_width)),
                  # 'tau_decay_CS_mli_LTP': int(np.around(-40 /bin_width)),
                  # 'tau_rise_CS_mli_LTD': int(np.around(-40 /bin_width)),
@@ -1264,7 +1256,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
                         kwargs['tau_decay_CS_LTP'], alpha)
         pf_LTP_funs += f_pf_FR_LTP(y_obs_trial, beta)
         pf_LTP_funs += f_pf_static_LTP(pf_CS_LTD, gamma)
-        pf_LTP_funs[pf_CS_LTD > 0.0] = 0.0
+        # pf_LTP_funs[pf_CS_LTD > 0.0] = 0.0
         # Convert to LTP input for Purkinje cell
         pf_LTP = f_pf_LTP(pf_LTP_funs, state_input_pf, W_pf=W_pf, W_max_pf=W_max_pf)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
