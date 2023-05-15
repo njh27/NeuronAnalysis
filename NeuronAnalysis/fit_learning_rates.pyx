@@ -21,7 +21,7 @@ def py_learning_function(params, x, y, W_0_pf, W_0_mli, b,
 @cython.wraparound(False)
 cdef void f_pf_LTP(np.ndarray[double, ndim=1] pf_LTP,
                    np.ndarray[double, ndim=1] pf_LTP_funs,
-                   double[:] state_input_pf,
+                   double[:, :] state_input_pf,
                    np.ndarray[double, ndim=1] W_pf, double W_max_pf):
     cdef int wi
     # Convert LTP functions to parallel fiber input space
@@ -65,7 +65,7 @@ cdef void f_pf_CS_LTP(np.ndarray[double, ndim=1] pf_LTP_funs,
 @cython.wraparound(False)
 cdef void f_pf_LTD(np.ndarray[double, ndim=1] pf_LTD,
                    np.ndarray[double, ndim=1] pf_CS_LTD,
-                   double[:] state_input_pf,
+                   double[:, :] state_input_pf,
                    np.ndarray[double, ndim=1] W_pf, double W_min_pf=0.0):
     cdef int wi
     # Sum of pf_CS_LTD weighted by activation for each input unit
@@ -208,7 +208,6 @@ cdef np.ndarray[double, ndim=1] learning_function(np.ndarray[double, ndim=1] par
     cdef double[:] W_pf = np.copy(W_0_pf)
     cdef double[:] W_mli = np.copy(W_0_mli)
     cdef double[:] W_full = np.concatenate((W_pf, W_mli))
-    cdef int wi
 
     # REMINDER of param definitions
     # alpha = params[0]
@@ -263,7 +262,7 @@ cdef np.ndarray[double, ndim=1] learning_function(np.ndarray[double, ndim=1] par
         CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt]
 
         # Call to box_windows inside here resets pf_CS_LTD to zeros!
-        f_pf_CS_LTD(pf_CS_LTD, CS_trial_bin, tau_rise_CS, tau_decay_CS, params[3], 0)
+        f_pf_CS_LTD(pf_CS_LTD, CS_trial_bin, tau_rise_CS, tau_decay_CS, params[3])
         f_pf_LTD(pf_LTD, pf_CS_LTD, state_input_pf, W_pf=W_pf, W_min_pf=W_min_pf)
 
         # Call to box_windows inside here resets pf_LTP_funs to zeros!
