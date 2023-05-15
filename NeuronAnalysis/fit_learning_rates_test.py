@@ -110,7 +110,6 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     gauss_stds = args[6]
     n_gaussians = args[7]
     W_min_pf = 0.0
-    W_min_mli = 0.0
     FR_MAX = kwargs['FR_MAX']
 
     # Parse parameters to be fit
@@ -119,28 +118,18 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     gamma = params[2] / 1e4
     epsilon = params[3] / 1e4
     W_max_pf = params[4]
-    pf_scale = 1 #params[5]
-    mli_scale = 1 #params[6]
     # Set weights to initial fit values
-    W_pf = np.copy(W_0_pf) * pf_scale
-    W_mli = np.copy(W_0_mli) * mli_scale
+    W_pf = np.copy(W_0_pf)
+    W_mli = np.copy(W_0_mli)
     # Ensure W_pf values are within range and store in output W_full
     W_pf[(W_pf > W_max_pf).squeeze()] = W_max_pf
     W_pf[(W_pf < W_min_pf).squeeze()] = W_min_pf
-    W_mli[(W_mli < W_min_mli).squeeze()] = W_min_mli
-    if kwargs['UPDATE_MLI_WEIGHTS']:
-        omega = params[5] / 1e4
-        psi = params[6] / 1e4
-        chi = params[7] / 1e4
-        phi = params[8] / 1e4
-        W_max_mli = params[9]
-        W_mli[(W_mli > W_max_mli).squeeze()] = W_max_mli
     W_full = np.vstack((W_pf, W_mli))
 
     for trial in range(0, n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
         y_obs_trial = y[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Observed FR for this trial
-        is_missing_data_trial = is_missing_data[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Nan state points for this trial
+        is_missing_data_trial = is_missing_data[trial*n_obs_pt:(trial + 1)*n_obs_pt]
 
         # Convert state to input layer activations
         state_input = af.eye_input_to_PC_gauss_relu(state_trial,
@@ -184,30 +173,51 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         W_pf[(W_pf < W_min_pf).squeeze()] = W_min_pf
         W_full[0:n_gaussians] = W_pf
 
-        if kwargs['UPDATE_MLI_WEIGHTS']:
-            # MLI state input is all <= 0, so need to multiply by -1 here
-            state_input_mli = -1.0 * state_input[:, n_gaussians:]
-            # Create the MLI LTP weighting function
-            mli_CS_LTP = f_mli_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_mli_LTP'],
-                              kwargs['tau_decay_CS_mli_LTP'], omega, 0.0)
-            # Convert to LTP input for Purkinje cell MLI weights
-            mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli, W_max_mli)
-
-            # Create the LTD function for MLIs
-            # mli_LTD_funs = f_mli_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS_mli_LTD'],
-            #                 kwargs['tau_decay_CS_mli_LTD'], psi)
-            # mli_LTD_funs = f_mli_FR_LTD(y_obs_trial, chi)
-            mli_LTD_funs = f_mli_static_LTD(mli_CS_LTP, phi)
-            mli_LTD_funs[mli_CS_LTP > 0.0] = 0.0
-            # Convert to LTD input for MLI
-            mli_LTD = f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli, W_min_mli)
-            # Ensure W_mli values are within range and store in output W_full
-            W_mli += ( mli_LTP[:, None] + mli_LTD[:, None] )
-            W_mli[(W_mli > W_max_mli).squeeze()] = W_max_mli
-            W_mli[(W_mli < W_min_mli).squeeze()] = W_min_mli
-            W_full[n_gaussians:] = W_mli
-
     # missing_y_hat = np.isnan(y_hat)
     # residuals = (y[~missing_y_hat] - y_hat[~missing_y_hat]) ** 2
     residuals = (y - y_hat) ** 2
     return residuals
+
+def eye_input_to_PC_gauss_relu(eye_data, gauss_means, gauss_stds,
+                                n_gaussians_per_dim=None):
+    """ Takes the total 8 dimensional eye data input (x,y position, and
+    velocity times 2 lags) and converts it into the n_gaussians by 4 + 8 relu
+    function input model of PC input. Done point by point for n x 4
+    input "eye_data". n_gaussians_per_dim is a list/array of how many
+    gaussians are used to represent each dim so it must either match dims
+    or be equal to 1 in which case the same number of gaussians is assumed
+    for each dimension. """
+    # Currently hard coded but could change in future
+    n_eye_dims = 4
+    n_eye_lags = 2
+    n_total_eye_dims = n_eye_dims * n_eye_lags
+    if len(gauss_means) != len(gauss_stds):
+        raise ValueError("Must input the same number of means and standard deviations but got {0} means and {1} standard deviations.".format(len(gauss_means), len(gauss_stds)))
+    n_features = len(gauss_means) + 8 # Total input featur to PC is gaussians + relus
+    first_relu_ind = len(gauss_means)
+
+    # Transform data into "input" n_gaussians dimensional format
+    # This is effectively like taking our 4 input data features and passing
+    # them through n_guassians number of hidden layer units using a
+    # Gaussian activation function and fixed weights plus some relu units
+    eye_transform = np.zeros((eye_data.shape[0], n_features))
+    dim_start = 0
+    dim_stop = 0
+    for k in range(0, n_eye_dims):
+        dim_stop += n_gaussians_per_dim[k]
+        # First do Gaussian activation on first 4 eye dims
+        dim_means = gauss_means[dim_start:dim_stop]
+        dim_stds = gauss_stds[dim_start:dim_stop]
+        eye_transform[:, dim_start:dim_stop] = gaussian_activation(
+                                                                    eye_data[:, k],
+                                                                    dim_means,
+                                                                    dim_stds)
+        dim_start = dim_stop
+        # Then relu activation on second 4 eye dims
+        eye_transform[:, (first_relu_ind + 2 * k)] = negative_relu(
+                                                            eye_data[:, n_eye_dims + k],
+                                                            c=0.0)
+        eye_transform[:, (first_relu_ind + (2 * k + 1))] = reflected_negative_relu(
+                                                            eye_data[:, n_eye_dims + k],
+                                                            c=0.0)
+    return eye_transform
