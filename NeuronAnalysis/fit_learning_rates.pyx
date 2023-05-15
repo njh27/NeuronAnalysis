@@ -179,8 +179,8 @@ cdef void eye_input_to_PC_gauss_relu(double[:, :] eye_data,
         dim_start = dim_stop
         # Then relu activation on second 4 eye dims
         for l in range(0, eye_data.shape[0]):
-            eye_transform[i, (first_relu_ind + 2 * k)] = negative_relu(eye_data[i, n_eye_dims + k], c=0.0)
-            eye_transform[i, (first_relu_ind + (2 * k + 1))] = negative_relu(eye_data[i, n_eye_dims + k], c=0.0)
+            eye_transform[l, (first_relu_ind + 2 * k)] = negative_relu(eye_data[l, n_eye_dims + k], c=0.0)
+            eye_transform[l, (first_relu_ind + (2 * k + 1))] = negative_relu(eye_data[l, n_eye_dims + k], c=0.0)
     return
 
 @cython.boundscheck(False)
