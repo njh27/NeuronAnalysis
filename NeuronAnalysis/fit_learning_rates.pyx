@@ -242,7 +242,7 @@ cdef np.ndarray[double, ndim=1] learning_function(np.ndarray[double, ndim=1] par
     cdef double[:] y_obs_trial
     cdef int[:] is_missing_data_trial
     cdef double[:] CS_trial_bin
-    cdef double[:] state_input_pf
+    cdef double[:, :] state_input_pf
     cdef np.ndarray[double, ndim=2] state_input = np.zeros((n_obs_pt, gauss_means.shape[0] + 8))
     cdef np.ndarray[double, ndim=1] pf_CS_LTD = np.zeros((n_obs_pt, ))
     cdef np.ndarray[double, ndim=1] pf_LTD = np.zeros((gauss_means.shape[0] + 8, ))
