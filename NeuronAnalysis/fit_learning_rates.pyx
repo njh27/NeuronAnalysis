@@ -184,7 +184,7 @@ cdef void update_W_pf(np.ndarray[double, ndim=1] W_pf,
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef double[:, :] learning_function(np.ndarray[double, ndim=1] params,
+cdef double learning_function(np.ndarray[double, ndim=1] params,
                                                   np.ndarray[double, ndim=2] x,
                                                   np.ndarray[double, ndim=1] y,
                                                   np.ndarray[double, ndim=1] W_0_pf,
@@ -268,4 +268,4 @@ cdef double[:, :] learning_function(np.ndarray[double, ndim=1] params,
         for wi in range(0, n_gaussians):
             W_full[wi] = W_pf[wi]
 
-    return state_input_pf
+    return residuals
