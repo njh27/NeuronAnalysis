@@ -933,7 +933,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
 
         # Update weights for next trial based on activations in this trial
         state_input_pf = state_input[:, 0:n_gaussians]
-        # Rescaled trial firing rate in proportion to max
+        # Rescaled trial firing rate in proportion to max OVERWRITES y_obs_trial!
         y_obs_trial = y_obs_trial / FR_MAX
         # Binary CS for this trial
         CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt]

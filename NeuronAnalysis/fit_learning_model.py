@@ -506,7 +506,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
                  'tau_decay_CS_mli_LTP': int(np.around(-40 /bin_width)),
                  'tau_rise_CS_mli_LTD': int(np.around(-40 /bin_width)),
                  'tau_decay_CS_mli_LTD': int(np.around(100 /bin_width)),
-                 'FR_MAX': 500,
+                 'FR_MAX': 500.0,
                  'UPDATE_MLI_WEIGHTS': False,
                  'activation_out': NN_FIT.activation_out,
                  }
@@ -534,7 +534,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     lower_bounds = [x[1][1] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
     upper_bounds = [x[1][2] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
     W_min_pf = np.float64(0.0)
-    FR_MAX = np.int32(lf_kwargs['FR_MAX'])
+    FR_MAX = np.float64(lf_kwargs['FR_MAX'])
     tau_rise_CS = np.int32(lf_kwargs['tau_rise_CS'])
     tau_decay_CS = np.int32(lf_kwargs['tau_decay_CS'])
     tau_rise_CS_LTP = np.int32(lf_kwargs['tau_rise_CS_LTP'])

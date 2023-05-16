@@ -45,11 +45,11 @@ cdef void f_pf_LTP(np.ndarray[double, ndim=1] pf_LTP,
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef void f_pf_FR_LTP(double[::1] pf_LTP_funs,
-                      double[::1] PC_FR, double PC_FR_weight_LTP) nogil:
+cdef void f_pf_FR_LTP(double[::1] pf_LTP_funs, double[::1] PC_FR,
+                      double PC_FR_weight_LTP, double FR_MAX) nogil:
     cdef Py_ssize_t t
     for t in range(pf_LTP_funs.shape[0]):
-        pf_LTP_funs[t] += (PC_FR[t] * PC_FR_weight_LTP)
+        pf_LTP_funs[t] += ((PC_FR[t] / FR_MAX) * PC_FR_weight_LTP)
     return
 
 @cython.boundscheck(False)
@@ -237,8 +237,6 @@ cdef double learning_function(np.ndarray[double, ndim=1] params,
         y_hat_trial = np.maximum(0, np.dot(state_input, W_full) + b)
         for t_i in range(0, n_obs_pt):
           residuals += sqrt((y_obs_trial[t_i] - y_hat_trial[t_i]) ** 2)
-          # While we are looping NORMALIZE y_obs_trial firing rate
-          y_obs_trial[t_i] = y_obs_trial[t_i] / FR_MAX
 
         state_input_pf = state_input[:, 0:n_gaussians]
         CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt]
@@ -249,7 +247,7 @@ cdef double learning_function(np.ndarray[double, ndim=1] params,
 
         # Call to box_windows inside here resets pf_LTP_funs to zeros!
         f_pf_CS_LTP(pf_LTP_funs, CS_trial_bin, tau_rise_CS_LTP, tau_decay_CS_LTP, alpha)
-        f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta)
+        f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta, FR_MAX)
         f_pf_static_LTP(pf_LTP_funs, gamma)
         f_pf_LTP(pf_LTP, pf_LTP_funs, state_input_pf, W_pf, W_max_pf)
 
