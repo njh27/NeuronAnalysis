@@ -1,7 +1,7 @@
 import numpy as np
 cimport numpy as np
 cimport cython
-from libc.math cimport exp
+from libc.math cimport exp, sqrt
 
 
 
@@ -246,7 +246,7 @@ cdef double learning_function(np.ndarray[double, ndim=1] params,
         y_hat_trial = np.maximum(0, np.dot(state_input, W_full) + b)
         y_hat[trial*n_obs_pt:(trial + 1)*n_obs_pt] = y_hat_trial
         for t_i in range(0, n_obs_pt):
-          residuals += (y_obs_trial[t_i] - y_hat_trial[t_i]) ** 2
+          residuals += sqrt((y_obs_trial[t_i] - y_hat_trial[t_i]) ** 2)
           # While we are looping NORMALIZE y_obs_trial firing rate
           y_obs_trial[t_i] = y_obs_trial[t_i] / FR_MAX
 
