@@ -20,7 +20,7 @@ def py_learning_function(params, x, y, W_0_pf, W_0_mli, b,
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef void f_pf_LTP(np.ndarray[double, ndim=2] pf_LTP,
+cdef void f_pf_LTP(np.ndarray[double, ndim=1] pf_LTP,
                    np.ndarray[double, ndim=1] pf_LTP_funs,
                    double[:, :] state_input_pf,
                    np.ndarray[double, ndim=1] W_pf, double W_max_pf):
@@ -64,11 +64,15 @@ cdef void f_pf_CS_LTP(np.ndarray[double, ndim=1] pf_LTP_funs,
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef void f_pf_LTD(np.ndarray[double, ndim=2] pf_LTD,
+cdef void f_pf_LTD(np.ndarray[double, ndim=1] pf_LTD,
                    np.ndarray[double, ndim=1] pf_CS_LTD,
                    double[:, :] state_input_pf,
                    np.ndarray[double, ndim=1] W_pf, double W_min_pf=0.0):
     cdef int wi
+    if pf_LTD.shape[0] != state_input_pf.shape[1]:
+      raise ValueError("What the heck")
+      if pf_CS_LTD.shape[0] != state_input_pf.shape[0]:
+        raise ValueError("Is even going on")
     # Sum of pf_CS_LTD weighted by activation for each input unit
     pf_LTD = np.dot(pf_CS_LTD, state_input_pf, out=pf_LTD)
     # Set state modification scaling according to current weight
@@ -170,11 +174,11 @@ cdef void eye_input_to_PC_gauss_relu(double[:, :] eye_data,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef void update_W_pf(np.ndarray[double, ndim=1] W_pf,
-                      np.ndarray[double, ndim=2] pf_LTP,
-                      np.ndarray[double, ndim=2] pf_LTD, W_max_pf, W_min_pf):
+                      np.ndarray[double, ndim=1] pf_LTP,
+                      np.ndarray[double, ndim=1] pf_LTD, W_max_pf, W_min_pf):
     cdef int wi
     for wi in range(0, W_pf.shape[0]):
-        W_pf[wi] += (pf_LTP[0, wi] + pf_LTD[0, wi])
+        W_pf[wi] += (pf_LTP[wi] + pf_LTD[wi])
         if W_pf[wi] > W_max_pf:
             W_pf[wi] = W_max_pf
         if W_pf[wi] < W_min_pf:
@@ -213,9 +217,9 @@ cdef np.ndarray[double, ndim=1] learning_function(np.ndarray[double, ndim=1] par
     cdef np.ndarray[double, ndim=1] W_full = np.zeros((n_gaussians + 8, ))
     cdef np.ndarray[double, ndim=2] state_input = np.zeros((n_obs_pt, n_gaussians + 8))
     cdef np.ndarray[double, ndim=1] pf_CS_LTD = np.zeros((n_obs_pt, ))
-    cdef np.ndarray[double, ndim=2] pf_LTD = np.zeros((1, n_gaussians + 8))
+    cdef np.ndarray[double, ndim=1] pf_LTD = np.zeros((n_gaussians + 8, ))
     cdef np.ndarray[double, ndim=1] pf_LTP_funs = np.zeros((n_obs_pt, ))
-    cdef np.ndarray[double, ndim=2] pf_LTP = np.zeros((1, n_gaussians + 8))
+    cdef np.ndarray[double, ndim=1] pf_LTP = np.zeros((n_gaussians + 8, ))
     cdef int trial, sir, sic, wi
 
     # REMINDER of param definitions
