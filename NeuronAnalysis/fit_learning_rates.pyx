@@ -1,6 +1,7 @@
 import numpy as np
 cimport numpy as np
 cimport cython
+from libc.math cimport exp
 
 
 
@@ -113,17 +114,14 @@ cdef void box_windows(np.ndarray[double, ndim=1] window_sig,
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef double gaussian(double[:] x, double mu, double sigma, double scale):
-    return scale * np.exp(-( ((x - mu) ** 2) / (2*(sigma**2))) )
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-cdef np.ndarray[double, ndim=2] gaussian_activation(double[:] x,
+cdef void gaussian_activation(double[:] x,
                                   double[:] fixed_means, double[:] fixed_sigmas,
                                   double[:, :] x_transform):
+    cdef int k, t
     for k in range(fixed_means.shape[0]):
-        x_transform[:, k] = gaussian(x, fixed_means[k], fixed_sigmas[k], scale=1.0)
-    return x_transform
+        for t in range(x.shape[0]):
+            x_transform[t, k] = exp(-( ((x[t] - fixed_means[k]) ** 2) / (2*(fixed_sigmas[k]**2))) )
+    return
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
