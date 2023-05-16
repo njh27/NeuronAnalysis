@@ -333,8 +333,6 @@ def eye_input_to_PC_gauss_relu(eye_data, gauss_means, gauss_stds,
     for each dimension. """
     # Currently hard coded but could change in future
     n_eye_dims = 4
-    n_eye_lags = 2
-    n_total_eye_dims = n_eye_dims * n_eye_lags
     if n_gaussians_per_dim is None:
         n_gaussians_per_dim = int(len(gauss_means) / n_eye_dims)
         if n_gaussians_per_dim < 1:

@@ -726,8 +726,7 @@ def f_pf_LTD(pf_CS_LTD, state_input_pf, W_pf=None, W_min_pf=0.0):
     pf_LTD = np.dot(pf_CS_LTD, state_input_pf)
     # Set state modification scaling according to current weight
     if W_pf is not None:
-        W_min_pf = np.full(W_pf.shape, W_min_pf)
-        pf_LTD *= (W_min_pf - W_pf).squeeze() # Will all be negative values
+        pf_LTD *= (W_min_pf - W_pf) # Will all be negative values
     else:
         pf_LTD *= -1.0
     return pf_LTD
@@ -769,8 +768,7 @@ def f_pf_LTP(pf_LTP_funs, state_input_pf, W_pf=None, W_max_pf=None):
     if W_pf is not None:
         if ( (W_max_pf is None) or (W_max_pf <= 0) ):
             raise ValueError("If updating weights by inputting values for W_pf, a W_max_pf > 0 must also be specified.")
-        W_max_pf = np.full(W_pf.shape, W_max_pf)
-        pf_LTP *= (W_max_pf - W_pf).squeeze()
+        pf_LTP *= (W_max_pf - W_pf)
     return pf_LTP
 
 def f_mli_CS_LTP(CS_trial_bin, tau_1, tau_2, scale=1.0, delay=0):
@@ -802,8 +800,7 @@ def f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli=None, W_max_mli=None):
     if W_mli is not None:
         if ( (W_max_mli is None) or (W_max_mli <= 0) ):
             raise ValueError("If updating weights by inputting values for W_mli, a W_max_mli > 0 must also be specified.")
-        W_max_mli = np.full(W_mli.shape, W_max_mli)
-        mli_LTP *= (W_max_mli - W_mli).squeeze()
+        mli_LTP *= (W_max_mli - W_mli)
     return mli_LTP
 
 def f_mli_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0):
@@ -848,8 +845,7 @@ def f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli=None, W_min_mli=0.0):
     # Convert LTD functions to MLI input space
     mli_LTD = np.dot(mli_LTD_funs, state_input_mli)
     if W_mli is not None:
-        W_min_mli = np.full(W_mli.shape, W_min_mli)
-        mli_LTD *= (W_min_mli - W_mli).squeeze() # Will all be negative values
+        mli_LTD *= (W_min_mli - W_mli) # Will all be negative values
     else:
         mli_LTD *= -1.0
     return mli_LTD
@@ -888,18 +884,19 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     W_pf = np.copy(W_0_pf) * pf_scale
     W_mli = np.copy(W_0_mli) * mli_scale
     # Ensure W_pf values are within range and store in output W_full
-    W_pf[(W_pf > W_max_pf).squeeze()] = W_max_pf
-    W_pf[(W_pf < W_min_pf).squeeze()] = W_min_pf
-    W_mli[(W_mli < W_min_mli).squeeze()] = W_min_mli
+    W_pf[(W_pf > W_max_pf)] = W_max_pf
+    W_pf[(W_pf < W_min_pf)] = W_min_pf
+    W_mli[(W_mli < W_min_mli)] = W_min_mli
     if kwargs['UPDATE_MLI_WEIGHTS']:
-        omega = params[5] / 1e4
-        psi = params[6] / 1e4
-        chi = params[7] / 1e4
-        phi = params[8] / 1e4
+        omega = params[5]
+        psi = params[6]
+        chi = params[7]
+        phi = params[8]
         W_max_mli = params[9]
-        W_mli[(W_mli > W_max_mli).squeeze()] = W_max_mli
-    W_full = np.vstack((W_pf, W_mli))
+        W_mli[(W_mli > W_max_mli)] = W_max_mli
+    W_full = np.concatenate((W_pf, W_mli))
 
+    iter_residuals = 0.0
     for trial in range(0, n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
         y_obs_trial = y[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Observed FR for this trial
@@ -914,11 +911,13 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         state_input[is_missing_data_trial, :] = 0.0
         # Expected rate this trial given updated weights
         # Use maximum here because of relu activation of output
-        y_hat_trial = (np.dot(state_input, W_full) + b).squeeze()
+        y_hat_trial = (np.dot(state_input, W_full) + b)
         if activation_out == "relu":
             y_hat_trial = np.maximum(0, y_hat_trial)
         # Store prediction for current trial
         y_hat[trial*n_obs_pt:(trial + 1)*n_obs_pt] = y_hat_trial
+        for t_i in range(0, n_obs_pt):
+            iter_residuals += np.sqrt((y_obs_trial[t_i] - y_hat_trial[t_i]) ** 2)
 
         # Update weights for next trial based on activations in this trial
         state_input_pf = state_input[:, 0:n_gaussians]
@@ -938,15 +937,14 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
                         kwargs['tau_decay_CS_LTP'], alpha)
         pf_LTP_funs += f_pf_FR_LTP(y_obs_trial, beta)
         pf_LTP_funs += f_pf_static_LTP(pf_CS_LTD, gamma)
-        # pf_LTP_funs[pf_CS_LTD > 0.0] = 0.0
         # Convert to LTP input for Purkinje cell
         pf_LTP = f_pf_LTP(pf_LTP_funs, state_input_pf, W_pf=W_pf, W_max_pf=W_max_pf)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
-        W_pf += ( pf_LTP[:, None] + pf_LTD[:, None] )
+        W_pf += ( pf_LTP + pf_LTD )
 
         # Ensure W_pf values are within range and store in output W_full
-        W_pf[(W_pf > W_max_pf).squeeze()] = W_max_pf
-        W_pf[(W_pf < W_min_pf).squeeze()] = W_min_pf
+        W_pf[(W_pf > W_max_pf)] = W_max_pf
+        W_pf[(W_pf < W_min_pf)] = W_min_pf
         W_full[0:n_gaussians] = W_pf
 
         if kwargs['UPDATE_MLI_WEIGHTS']:
@@ -968,12 +966,12 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             mli_LTD = f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli, W_min_mli)
             # Ensure W_mli values are within range and store in output W_full
             W_mli += ( mli_LTP[:, None] + mli_LTD[:, None] )
-            W_mli[(W_mli > W_max_mli).squeeze()] = W_max_mli
-            W_mli[(W_mli < W_min_mli).squeeze()] = W_min_mli
+            W_mli[(W_mli > W_max_mli)] = W_max_mli
+            W_mli[(W_mli < W_min_mli)] = W_min_mli
             W_full[n_gaussians:] = W_mli
 
-    residuals = np.sum((y - y_hat) ** 2)
-    return residuals
+    residuals = np.sum(np.sqrt((y - y_hat) ** 2))
+    return iter_residuals
 
 def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=10, bin_threshold=5):
     """ Need the trials from blocks and trial_sets to be ORDERED! Weights will
@@ -1048,8 +1046,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
 
     # Defining learning function within scope so we have access to "NN_FIT"
     # and specifically the weights. Get here to save space
-    W_0_pf = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][0:n_gaussians]
-    W_0_mli = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:]
+    W_0_pf = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][0:n_gaussians].squeeze()
+    W_0_mli = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:].squeeze()
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
 
     lf_kwargs = {'tau_rise_CS': int(np.around(25 /bin_width)),
@@ -1061,7 +1059,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
                  # 'tau_rise_CS_mli_LTD': int(np.around(-40 /bin_width)),
                  # 'tau_decay_CS_mli_LTD': int(np.around(100 /bin_width)),
                  'FR_MAX': 500,
-                 'UPDATE_MLI_WEIGHTS': False,
+                 'UPDATE_MLI_WEIGHTS': FalW_mlise,
                  'activation_out': NN_FIT.activation_out,
                  }
     # Format of p0, upper, lower, index order for each variable to make this legible

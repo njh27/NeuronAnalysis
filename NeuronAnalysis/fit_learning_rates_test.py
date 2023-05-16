@@ -1,17 +1,21 @@
 
 
-def boxcar_convolve(spike_train, box_pre, box_post, scale=1.0):
-    """ Converts events in spike train to box shape windows of duration pre-event
-    equal to box_pre and duration after event box_post. Negative box indices
-    will shift the window away from events. If box indices overlap positive/
-    negative in the wrong way this will return all zeros. e.g. if box_pre > 0
-    and box_post < 0 and abs(box_post) > box_pre. pre == post == 0 returns
-    single point values where spike_train == 1"""
-    center_ind = max(abs(box_pre), abs(box_post)) + 1 # plus 1 for cushion on ends
-    kernel = np.zeros(2*center_ind + 1)
-    kernel[center_ind-box_pre:center_ind+box_post+1] = scale
-    filtered_sig = np.convolve(spike_train, kernel, mode='same')
-    return filtered_sig
+
+
+def box_windows(spike_train, box_pre, box_post, scale=1.0):
+    """Same as convolve but just does loops instead of convolution"""
+    window_sig = np.zeros_like(spike_train)
+    for t in range(0, spike_train.shape[0]):
+        if spike_train[t] > 0:
+            w_start = max(0, t-box_pre)
+            if w_start >= window_sig.shape[0]:
+                continue
+            w_stop = min(window_sig.shape[0], t+box_post+1)
+            if w_stop < 0:
+                continue
+            for w_t in range(w_start, w_stop):
+                window_sig[w_t] = scale
+    return window_sig
 
 
 def f_pf_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0, delay=0):
@@ -19,7 +23,7 @@ def f_pf_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0, delay=0):
     spike input f_CS with a kernel scaled from tau_1 to tau_2 with peak equal to
     scale and with CSs shifted by an amoutn of time "delay" INDICES (not time!). """
     # Just CS point plasticity
-    pf_CS_LTD = boxcar_convolve(CS_trial_bin, tau_1, tau_2)
+    pf_CS_LTD = box_windows(CS_trial_bin, tau_1, tau_2)
     # Rescale to binary scale
     pf_CS_LTD[pf_CS_LTD > 0] = scale
     # Shift pf_CS_LTD LTD envelope according to delay_LTD
@@ -58,7 +62,7 @@ def f_pf_CS_LTP(CS_trial_bin, tau_1, tau_2, scale=1.0):
     """
     # Inverts the CS function
     # pf_CS_LTP = np.mod(CS_trial_bin + 1, 2)
-    pf_CS_LTP = boxcar_convolve(CS_trial_bin, tau_1, tau_2)
+    pf_CS_LTP = box_windows(CS_trial_bin, tau_1, tau_2)
     pf_CS_LTP[pf_CS_LTP > 0] = scale
     return pf_CS_LTP
 
