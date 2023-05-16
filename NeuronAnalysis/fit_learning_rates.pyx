@@ -18,6 +18,18 @@ def py_learning_function(params, x, y, W_0_pf, W_0_mli, b,
                              tau_decay_CS, tau_rise_CS_LTP, tau_decay_CS_LTP)
     return residuals
 
+cdef double d_max(double x, double y) nogil:
+    return x if (x > y) else y
+
+cdef double d_min(double x, double y) nogil:
+    return x if (x < y) else y
+
+cdef Py_ssize_t py_max(Py_ssize_t x, Py_ssize_t y) nogil:
+    return x if (x > y) else y
+
+cdef Py_ssize_t py_min(Py_ssize_t x, Py_ssize_t y) nogil:
+    return x if (x < y) else y
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef void f_pf_LTP(np.ndarray[double, ndim=1] pf_LTP,
@@ -59,8 +71,8 @@ cdef void box_windows(double[::1] window_sig, double[::1] spike_train,
 
     for t in range(spike_train.shape[0]):
         if spike_train[t] > 0.0:
-            w_start = max(0, t-box_pre)
-            w_stop = min(window_sig.shape[0], t+box_post+1)
+            w_start = py_max(0, t-box_pre)
+            w_stop = py_min(window_sig.shape[0], t+box_post+1)
             for w_t in range(w_start, w_stop):
                 window_sig[w_t] = scale
     return
@@ -78,13 +90,13 @@ cdef void f_pf_CS_LTP(double[::1] pf_LTP_funs,
 cdef void f_pf_LTD(np.ndarray[double, ndim=1] pf_LTD,
                    np.ndarray[double, ndim=1] pf_CS_LTD,
                    double[:, :] state_input_pf,
-                   np.ndarray[double, ndim=1] W_pf, double W_min_pf=0.0):
-    cdef int wi
+                   np.ndarray[double, ndim=1] W_pf, double W_min_pf):
+    cdef Py_ssize_t wi
     # Sum of pf_CS_LTD weighted by activation for each input unit
     pf_LTD = np.dot(pf_CS_LTD, state_input_pf, out=pf_LTD)
     # Set state modification scaling according to current weight
     # Will all be negative values
-    for wi in range(0, W_pf.shape[0]):
+    for wi in range(W_pf.shape[0]):
         pf_LTD[wi] *= (W_min_pf - W_pf[wi])
     return
 
@@ -100,9 +112,9 @@ cdef void f_pf_CS_LTD(double[::1] pf_CS_LTD,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef void gaussian_activation(double[:] x,
-                                  double[:] fixed_means, double[:] fixed_sigmas,
-                                  double[:, :] x_transform):
-    cdef int k, t
+                              double[:] fixed_means, double[:] fixed_sigmas,
+                              double[:, :] x_transform) nogil:
+    cdef Py_ssize_t k, t
     for k in range(fixed_means.shape[0]):
         for t in range(x.shape[0]):
             x_transform[t, k] = exp(-( ((x[t] - fixed_means[k]) ** 2) / (2*(fixed_sigmas[k]**2))) )
@@ -110,15 +122,15 @@ cdef void gaussian_activation(double[:] x,
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef double negative_relu(double x, double c=0.):
+cdef inline double negative_relu(double x, double c=0.) nogil:
     """ Basic relu function but returns negative result. """
-    return -1 * max(0., x-c)
+    return -1 * d_max(0., x-c)
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef double reflected_negative_relu(double x, double c=0.):
+cdef inline double reflected_negative_relu(double x, double c=0.) nogil:
     """ Basic relu function but returns negative result, reflected about y axis. """
-    return min(0., x-c)
+    return d_min(0., x-c)
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -199,16 +211,16 @@ cdef double learning_function(np.ndarray[double, ndim=1] params,
     cdef int trial, wi, t_i
 
     # REMINDER of param definitions
-    # alpha = params[0]
-    # beta = params[1]
-    # gamma = params[2]
-    # epsilon = params[3]
-    # W_max_pf = params[4]
+    cdef double alpha = params[0] / 1e4
+    cdef double beta = params[1] / 1e4
+    cdef double gamma = params[2] / 1e4
+    cdef double epsilon = params[3] / 1e4
+    cdef double W_max_pf = params[4]
 
     # Ensure W_pf values are within range and store in output W_full
     for wi in range(0, W_pf.shape[0]):
-        if W_pf[wi] > params[4]:
-            W_pf[wi] = params[4]
+        if W_pf[wi] > W_max_pf:
+            W_pf[wi] = W_max_pf
         if W_pf[wi] < W_min_pf:
             W_pf[wi] = W_min_pf
         W_full[wi] = W_pf[wi]
@@ -232,17 +244,17 @@ cdef double learning_function(np.ndarray[double, ndim=1] params,
         CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt]
 
         # Call to box_windows inside here resets pf_CS_LTD to zeros!
-        f_pf_CS_LTD(pf_CS_LTD[:], CS_trial_bin, tau_rise_CS, tau_decay_CS, params[3] / 1e4)
-        f_pf_LTD(pf_LTD, pf_CS_LTD[:], state_input_pf, W_pf=W_pf, W_min_pf=W_min_pf)
+        f_pf_CS_LTD(pf_CS_LTD[:], CS_trial_bin, tau_rise_CS, tau_decay_CS, epsilon)
+        f_pf_LTD(pf_LTD, pf_CS_LTD[:], state_input_pf, W_pf, W_min_pf)
 
         # Call to box_windows inside here resets pf_LTP_funs to zeros!
-        f_pf_CS_LTP(pf_LTP_funs, CS_trial_bin, tau_rise_CS_LTP, tau_decay_CS_LTP, params[0] / 1e4)
-        f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, params[1] / 1e4)
-        f_pf_static_LTP(pf_LTP_funs, params[2] / 1e4)
-        f_pf_LTP(pf_LTP, pf_LTP_funs, state_input_pf, W_pf=W_pf, W_max_pf=params[4])
+        f_pf_CS_LTP(pf_LTP_funs, CS_trial_bin, tau_rise_CS_LTP, tau_decay_CS_LTP, alpha)
+        f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta)
+        f_pf_static_LTP(pf_LTP_funs, gamma)
+        f_pf_LTP(pf_LTP, pf_LTP_funs, state_input_pf, W_pf, W_max_pf)
 
         # Updates weights of W_pf in place
-        update_W_pf(W_pf, pf_LTP, pf_LTD, params[4], W_min_pf)
+        update_W_pf(W_pf, pf_LTP, pf_LTD, W_max_pf, W_min_pf)
         # Put updated weights into W_full for next iteration
         for wi in range(0, n_gaussians):
             W_full[wi] = W_pf[wi]

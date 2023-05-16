@@ -971,7 +971,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             W_full[n_gaussians:] = W_mli
 
     residuals = np.sum(np.sqrt((y - y_hat) ** 2))
-    return iter_residuals
+    return residuals
 
 def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=10, bin_threshold=5):
     """ Need the trials from blocks and trial_sets to be ORDERED! Weights will
