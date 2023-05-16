@@ -323,8 +323,9 @@ def gen_randuniform_gaussians(mean_max_min, std_max_min, n_gaussians):
     return means_gaussians, stds_gaussians
 
 def eye_input_to_PC_gauss_relu(eye_data, gauss_means, gauss_stds,
-                                n_gaussians_per_dim=None):
-    """ Takes the total 8 dimensional eye data input (x,y position, and
+                                n_gaussians_per_dim, eye_transform=None):
+    """ Now modifies the input eye_transform IN PLACE! if not None
+    Takes the total 8 dimensional eye data input (x,y position, and
     velocity times 2 lags) and converts it into the n_gaussians by 4 + 8 relu
     function input model of PC input. Done point by point for n x 4
     input "eye_data". n_gaussians_per_dim is a list/array of how many
@@ -333,28 +334,19 @@ def eye_input_to_PC_gauss_relu(eye_data, gauss_means, gauss_stds,
     for each dimension. """
     # Currently hard coded but could change in future
     n_eye_dims = 4
-    if n_gaussians_per_dim is None:
-        n_gaussians_per_dim = int(len(gauss_means) / n_eye_dims)
-        if n_gaussians_per_dim < 1:
-            raise ValueError("Not enough gaussian means input to cover {0} dimensions of eye data.".format(n_eye_dims))
-        n_gaussians_per_dim = np.full((n_eye_dims, ), n_gaussians_per_dim)
-    else:
-        if len(n_gaussians_per_dim) != n_eye_dims:
-            raise ValueError("Must specify the number of gaussians representing dimensions for each of {0} eye dimensions.".format(n_eye_dims))
-        for nd in n_gaussians_per_dim:
-            if nd < 1:
-                raise ValueError("Not enough gaussian means input to cover {0} dimensions of eye data.".format(n_eye_dims))
-
     if len(gauss_means) != len(gauss_stds):
         raise ValueError("Must input the same number of means and standard deviations but got {0} means and {1} standard deviations.".format(len(gauss_means), len(gauss_stds)))
     n_features = len(gauss_means) + 8 # Total input featur to PC is gaussians + relus
+    if eye_transform is None:
+        eye_transform = np.zeros((eye_data.shape[0], n_features))
+    if (eye_transform.shape[0] != eye_data.shape[0]) or (eye_transform.shape[1] != n_features):
+        raise ValueError("eye_transform is not the correct shape!")
     first_relu_ind = len(gauss_means)
 
     # Transform data into "input" n_gaussians dimensional format
     # This is effectively like taking our 4 input data features and passing
     # them through n_guassians number of hidden layer units using a
     # Gaussian activation function and fixed weights plus some relu units
-    eye_transform = np.zeros((eye_data.shape[0], n_features))
     dim_start = 0
     dim_stop = 0
     for k in range(0, n_eye_dims):

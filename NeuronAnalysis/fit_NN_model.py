@@ -718,13 +718,13 @@ def f_pf_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0, delay=0):
         pf_CS_LTD[-delay:] = 0.0
     return pf_CS_LTD
 
-def f_pf_LTD(pf_CS_LTD, state_input_pf, W_pf=None, W_min_pf=0.0):
+def f_pf_LTD(pf_CS_LTD, state_input_pf, pf_LTD, W_pf=None, W_min_pf=0.0):
     """ Updates the parallel fiber LTD function of time "pf_CS_LTD" to be scaled
     by PC firing rate if input, then scales by the pf state input and finally
     weights by the current weight function. pf_CS_LTD is MODIFIED IN PLACE!
     The output contains NEGATIVE values in pf_LTD. """
     # Sum of pf_CS_LTD weighted by activation for each input unit
-    pf_LTD = np.dot(pf_CS_LTD, state_input_pf)
+    pf_LTD = np.dot(pf_CS_LTD, state_input_pf, out=pf_LTD)
     # Set state modification scaling according to current weight
     if W_pf is not None:
         pf_LTD *= (W_min_pf - W_pf) # Will all be negative values
@@ -742,13 +742,12 @@ def f_pf_CS_LTP(CS_trial_bin, tau_1, tau_2, scale=1.0):
     pf_CS_LTP = box_windows(CS_trial_bin, tau_1, tau_2, scale=scale)
     return pf_CS_LTP
 
-def f_pf_static_LTP(pf_CS_LTD, static_weight_LTP):
+def f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, static_weight_LTP):
     """
     """
-    # Inverts the CS function
-    pf_static_LTP = np.full(pf_CS_LTD.shape, static_weight_LTP)
-    # pf_static_LTP[pf_CS_LTD == 0.0] = static_weight_LTP
-    return pf_static_LTP
+    pf_LTP_funs += static_weight_LTP
+    pf_LTP_funs[pf_CS_LTD > 0.0] = 0.0
+    return pf_LTP_funs
 
 def f_pf_FR_LTP(PC_FR, PC_FR_weight_LTP):
     """
@@ -757,7 +756,7 @@ def f_pf_FR_LTP(PC_FR, PC_FR_weight_LTP):
     pf_FR_LTP = PC_FR * PC_FR_weight_LTP
     return pf_FR_LTP
 
-def f_pf_LTP(pf_LTP_funs, state_input_pf, W_pf=None, W_max_pf=None):
+def f_pf_LTP(pf_LTP_funs, state_input_pf, pf_LTP, W_pf=None, W_max_pf=None):
     """ Updates the parallel fiber LTP function of time "pf_CS_LTP" to be scaled
     by PC firing rate if input, then scales by the pf state input and finally
     weights by the current weight function. pf_LTP is MODIFIED IN PLACE!
@@ -765,7 +764,7 @@ def f_pf_LTP(pf_LTP_funs, state_input_pf, W_pf=None, W_max_pf=None):
     critical if using weight updates. Same for PC_FR_weight_LTP.
     """
     # Convert LTP functions to parallel fiber input space
-    pf_LTP = np.dot(pf_LTP_funs, state_input_pf)
+    pf_LTP = np.dot(pf_LTP_funs, state_input_pf, out=pf_LTP)
     if W_pf is not None:
         if ( (W_max_pf is None) or (W_max_pf <= 0) ):
             raise ValueError("If updating weights by inputting values for W_pf, a W_max_pf > 0 must also be specified.")
@@ -868,26 +867,13 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     gauss_means = args[5]
     gauss_stds = args[6]
     n_gaussians = args[7]
+    W_full = args[8]
+    state_input = args[9]
+    y_hat_trial = args[10]
+    pf_LTD = args[11]
+    pf_LTP = args[12]
     W_min_pf = 0.0
     W_min_mli = 0.0
-    FR_MAX = kwargs['FR_MAX']
-    activation_out = kwargs['activation_out']
-
-
-
-    # W_min_pf = np.float64(0.0)
-    # FR_MAX = np.float64(kwargs['FR_MAX'])
-    # tau_rise_CS = np.int32(kwargs['tau_rise_CS'])
-    # tau_decay_CS = np.int32(kwargs['tau_decay_CS'])
-    # tau_rise_CS_LTP = np.int32(kwargs['tau_rise_CS_LTP'])
-    # tau_decay_CS_LTP = np.int32(kwargs['tau_decay_CS_LTP'])
-    # lf_args = (n_trials, n_obs_pt,
-    #             n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
-    #             W_min_pf, FR_MAX, tau_rise_CS, tau_decay_CS, tau_rise_CS_LTP,
-    #             tau_decay_CS_LTP)
-    # cy_residuals = py_learning_function(params, x, y, W_0_pf, W_0_mli, b, *lf_args)
-
-
 
     # Parse parameters to be fit
     alpha = params[0] / 1e4
@@ -905,47 +891,45 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     W_pf[(W_pf < W_min_pf)] = W_min_pf
     W_mli[(W_mli < W_min_mli)] = W_min_mli
     if kwargs['UPDATE_MLI_WEIGHTS']:
-        omega = params[5]
-        psi = params[6]
-        chi = params[7]
-        phi = params[8]
+        omega = params[5] / 1e4
+        psi = params[6] / 1e4
+        chi = params[7] / 1e4
+        phi = params[8] / 1e4
         W_max_mli = params[9]
         W_mli[(W_mli > W_max_mli)] = W_max_mli
-    W_full = np.concatenate((W_pf, W_mli))
+    W_full[0:n_gaussians] = W_pf
+    W_full[n_gaussians:] = W_mli
 
     iter_residuals = 0.0
     for trial in range(0, n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
-        y_obs_trial = y[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Observed FR for this trial
-        # is_missing_data_trial = is_missing_data[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Nan state points for this trial
+        y_obs_trial = np.copy(y[trial*n_obs_pt:(trial + 1)*n_obs_pt]) # Observed FR for this trial
+        is_missing_data_trial = is_missing_data[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Nan state points for this trial
 
         # Convert state to input layer activations
         state_input = af.eye_input_to_PC_gauss_relu(state_trial,
                                         gauss_means, gauss_stds,
-                                        n_gaussians_per_dim=n_gaussians_per_dim)
+                                        n_gaussians_per_dim, state_input)
         # Set inputs derived from nan points to 0.0 so that the weights
         # for these states are not affected during nans
-        # state_input[is_missing_data_trial, :] = 0.0
+        state_input[is_missing_data_trial, :] = 0.0
         # Expected rate this trial given updated weights
         # Use maximum here because of relu activation of output
-        y_hat_trial = (np.dot(state_input, W_full) + b)
-        if activation_out == "relu":
-            y_hat_trial = np.maximum(0, y_hat_trial)
+        y_hat_trial = np.dot(state_input, W_full, out=y_hat_trial)
+        y_hat_trial += b # Add the bias term
+        if kwargs['activation_out'] == "relu":
+            y_hat_trial[y_hat_trial < 0.0] = 0.0
+        # Now we can convert any nans to 0.0 so they don't affect residuals
+        y_hat_trial[is_missing_data_trial] = 0.0
+        y_obs_trial[is_missing_data_trial] = 0.0
         # Store prediction for current trial
         y_hat[trial*n_obs_pt:(trial + 1)*n_obs_pt] = y_hat_trial
-
-
-
-        # for t_i in range(0, n_obs_pt):
-        #     iter_residuals += np.sqrt((y_obs_trial[t_i] - y_hat_trial[t_i]) ** 2)
-
-
-        
+        iter_residuals += np.sum((y_obs_trial - y_hat_trial)**2)
 
         # Update weights for next trial based on activations in this trial
         state_input_pf = state_input[:, 0:n_gaussians]
         # Rescaled trial firing rate in proportion to max OVERWRITES y_obs_trial!
-        y_obs_trial = y_obs_trial / FR_MAX
+        y_obs_trial = y_obs_trial / kwargs['FR_MAX']
         # Binary CS for this trial
         CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt]
 
@@ -953,15 +937,16 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS'],
                           kwargs['tau_decay_CS'], epsilon, 0.0)
         # Convert to LTD input for Purkinje cell
-        pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, W_pf=W_pf, W_min_pf=W_min_pf)
+        pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, pf_LTD, W_pf=W_pf, W_min_pf=W_min_pf)
 
         # Create the LTP function for parallel fibers
         pf_LTP_funs = f_pf_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_LTP'],
                         kwargs['tau_decay_CS_LTP'], alpha)
         pf_LTP_funs += f_pf_FR_LTP(y_obs_trial, beta)
-        pf_LTP_funs += f_pf_static_LTP(pf_CS_LTD, gamma)
+        # This function adds on to pf_LTP_funs in place
+        pf_LTP_funs = f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, gamma)
         # Convert to LTP input for Purkinje cell
-        pf_LTP = f_pf_LTP(pf_LTP_funs, state_input_pf, W_pf=W_pf, W_max_pf=W_max_pf)
+        pf_LTP = f_pf_LTP(pf_LTP_funs, state_input_pf, pf_LTP, W_pf=W_pf, W_max_pf=W_max_pf)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
         W_pf += ( pf_LTP + pf_LTD )
 
@@ -993,10 +978,9 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             W_mli[(W_mli < W_min_mli)] = W_min_mli
             W_full[n_gaussians:] = W_mli
 
-    # if cy_residuals != iter_residuals:
-    #     print("Residual misatch: ", cy_residuals, iter_residuals, np.abs(cy_residuals - iter_residuals))
-    #     print("With params: ", params)
-    residuals = np.sum(np.sqrt((y - y_hat) ** 2))
+    residuals = np.nansum(np.sqrt((y - y_hat) ** 2))
+    print("DIff with new resids", np.abs(iter_residuals - residuals))
+    print("SO delete y_hat")
     return residuals
 
 def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=10, bin_threshold=5):
@@ -1051,9 +1035,6 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     # So we need to find this separate from saccades and can set to 0.0 to ignore
     # We will AND this with where eye is NaN because both should be if data are truly missing
     is_missing_data = np.isnan(binned_FR) | eye_is_nan
-    bin_eye_data[is_missing_data, :] = 0.0
-    binned_FR[is_missing_data] = 0.0
-    binned_CS[is_missing_data] = 0.0
 
     # Need the means and stds for converting state to input
     pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
@@ -1077,6 +1058,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     W_0_pf = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][0:n_gaussians].squeeze())
     W_0_mli = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:].squeeze())
     b = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['bias'])
+    # Initialize W_full to pass to objective function
+    W_full = np.zeros((n_gaussians+8, ), dtype=np.float64)
 
     lf_kwargs = {'tau_rise_CS': int(np.around(25 /bin_width)),
                  'tau_decay_CS': int(np.around(0 /bin_width)),
@@ -1101,14 +1084,14 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
             }
     if lf_kwargs['UPDATE_MLI_WEIGHTS']:
         raise ValueError("check param nums")
-        param_conds.update({"omega": (0.01, 0, np.inf, 5),
-                            "psi": (0.01, 0, np.inf, 6),
-                            "chi": (0.01, 0, np.inf, 7),
-                            "phi": (0.01, 0, np.inf, 8),
+        param_conds.update({"omega": (1.0, 0, np.inf, 5),
+                            "psi": (1.0, 0, np.inf, 6),
+                            "chi": (1.0, 0, np.inf, 7),
+                            "phi": (1.0, 0, np.inf, 8),
                             "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 9),
                             })
     rescale_1e4 = ["alpha", "beta", "gamma", "epsilon"]
-                   # "omega", "psi", "chi", "phi"]
+                   "omega", "psi", "chi", "phi"]
 
     # Make sure params are in correct order and saved for input to least_squares
     p0 = [x[1][0] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
@@ -1117,47 +1100,13 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
 
     # Finally append CS to inputs and get other args needed for learning function
     fit_inputs = np.hstack([bin_eye_data, binned_CS[:, None]])
+    state_input = np.zeros((n_obs_pt, n_gaussians+8))
+    y_hat_trial = np.zeros((n_obs_pt, ))
+    pf_LTD = np.zeros((n_gaussians+8))
+    pf_LTP = np.zeros((n_gaussians+8))
     lf_args = (bin_width, n_trials, n_obs_pt, is_missing_data,
-                n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians)
-
-
-    # W_min_pf = np.float64(0.0)
-    # FR_MAX = np.int32(lf_kwargs['FR_MAX'])
-    # tau_rise_CS = np.int32(lf_kwargs['tau_rise_CS'])
-    # tau_decay_CS = np.int32(lf_kwargs['tau_decay_CS'])
-    # tau_rise_CS_LTP = np.int32(lf_kwargs['tau_rise_CS_LTP'])
-    # tau_decay_CS_LTP = np.int32(lf_kwargs['tau_decay_CS_LTP'])
-    # lf_args = (n_trials, n_obs_pt, is_missing_data,
-    #             n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
-    #             W_min_pf, FR_MAX, tau_rise_CS, tau_decay_CS, tau_rise_CS_LTP,
-    #             tau_decay_CS_LTP)
-    # print("gauss means", gauss_means.shape, gauss_means.dtype)
-    # print("gauss stds", gauss_stds.shape, gauss_stds.dtype)
-    # print(fit_inputs.shape, binned_FR.shape, W_0_pf.shape, W_0_mli.shape, b.shape)
-    # for a_ind, arg in enumerate((fit_inputs, binned_FR, W_0_pf, W_0_mli, b)):
-    #     if isinstance(arg, np.ndarray):
-    #         print(a_ind, arg.shape, arg.dtype)
-    #     else:
-    #         print(a_ind, type(arg))
-    # for a_ind, arg in enumerate(lf_args):
-    #     if isinstance(arg, np.ndarray):
-    #         print(a_ind, arg.shape, arg.dtype)
-    #     else:
-    #         print(a_ind, type(arg))
-    # all_args = [fit_inputs, binned_FR, W_0_pf, W_0_mli, b]
-    # for arg in lf_args:
-    #     all_args.append(arg)
-    # all_args.extend([p0, lower_bounds, upper_bounds, ftol, xtol, gtol, max_nfev, loss])
-
-
-
-    # import pickle
-    # save_name = "/home/nate/temp/test_NN_fit.pickle"
-    # with open(save_name, 'wb') as fp:
-    #     pickle.dump(all_args, fp, protocol=-1)
-    # return
-
-
+                n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
+                W_full, state_input, y_hat_trial, pf_LTD, pf_LTP)
 
     # Fit the learning rates to the data
     result = least_squares(learning_function, p0,
