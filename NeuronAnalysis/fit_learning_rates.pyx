@@ -38,7 +38,7 @@ cdef void f_pf_LTP(np.ndarray[double, ndim=1] pf_LTP,
 cdef void f_pf_FR_LTP(np.ndarray[double, ndim=1] pf_LTP_funs,
                       double[:] PC_FR, double PC_FR_weight_LTP):
     cdef int t
-    if pf_LTP_funs.shape[0] != PC_FR_weight_LTP.shape[0]:
+    if pf_LTP_funs.shape[0] != PC_FR.shape[0]:
         raise ValueError("Input LTP functions must have same shape as PC FR.")
     for t in range(0, pf_LTP_funs.shape[0]):
         pf_LTP_funs[t] += (PC_FR[t] * PC_FR_weight_LTP)
@@ -113,15 +113,15 @@ cdef void box_windows(np.ndarray[double, ndim=1] window_sig,
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef double gaussian(double x, double mu, double sigma, double scale):
+cdef double gaussian(double[:] x, double mu, double sigma, double scale):
     return scale * np.exp(-( ((x - mu) ** 2) / (2*(sigma**2))) )
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef np.ndarray[double, ndim=2] gaussian_activation(np.ndarray[double, ndim=1] x, np.ndarray[double, ndim=1] fixed_means, np.ndarray[double, ndim=1] fixed_sigmas):
-    cdef int num_gaussians = len(fixed_means)
-    cdef np.ndarray[double, ndim=2] x_transform = np.zeros((x.size, num_gaussians))
-    for k in range(num_gaussians):
+cdef np.ndarray[double, ndim=2] gaussian_activation(double[:] x,
+                                  double[:] fixed_means, double[:] fixed_sigmas,
+                                  double[:, :] x_transform):
+    for k in range(fixed_means.shape[0]):
         x_transform[:, k] = gaussian(x, fixed_means[k], fixed_sigmas[k], scale=1.0)
     return x_transform
 
@@ -147,23 +147,21 @@ cdef void eye_input_to_PC_gauss_relu(double[:, :] eye_data,
     cdef int n_eye_dims = 4
     cdef int n_eye_lags = 2
     cdef int n_total_eye_dims = n_eye_dims * n_eye_lags
-    cdef int n_features
     cdef int first_relu_ind
     cdef int dim_start = 0
     cdef int dim_stop = 0
-    cdef int k
-    cdef int l
+    cdef int k, l
 
     if gauss_means.shape[0] != gauss_stds.shape[0]:
         raise ValueError("Must input the same number of means and standard deviations but got {0} means and {1} standard deviations.".format(gauss_means.shape[0], len(gauss_stds)))
 
-    n_features = gauss_means.shape[0] + 8 # Total input featur to PC is gaussians + relus
     first_relu_ind = gauss_means.shape[0]
-
     for k in range(0, n_eye_dims):
         dim_stop += n_gaussians_per_dim[k]
         # First do Gaussian activation on first 4 eye dims
-        eye_transform[:, dim_start:dim_stop] = gaussian_activation(eye_data[:, k], gauss_means[dim_start:dim_stop], gauss_stds[dim_start:dim_stop])
+        gaussian_activation(eye_data[:, k], gauss_means[dim_start:dim_stop],
+                              gauss_stds[dim_start:dim_stop],
+                              eye_transform[:, dim_start:dim_stop])
         dim_start = dim_stop
         # Then relu activation on second 4 eye dims
         for l in range(0, eye_data.shape[0]):
