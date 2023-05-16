@@ -873,18 +873,21 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     FR_MAX = kwargs['FR_MAX']
     activation_out = kwargs['activation_out']
 
-    W_min_pf = np.float64(0.0)
-    FR_MAX = np.float64(kwargs['FR_MAX'])
-    tau_rise_CS = np.int32(kwargs['tau_rise_CS'])
-    tau_decay_CS = np.int32(kwargs['tau_decay_CS'])
-    tau_rise_CS_LTP = np.int32(kwargs['tau_rise_CS_LTP'])
-    tau_decay_CS_LTP = np.int32(kwargs['tau_decay_CS_LTP'])
-    lf_args = (n_trials, n_obs_pt,
-                n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
-                W_min_pf, FR_MAX, tau_rise_CS, tau_decay_CS, tau_rise_CS_LTP,
-                tau_decay_CS_LTP)
-    cy_residuals = 6
+
+
+    # W_min_pf = np.float64(0.0)
+    # FR_MAX = np.float64(kwargs['FR_MAX'])
+    # tau_rise_CS = np.int32(kwargs['tau_rise_CS'])
+    # tau_decay_CS = np.int32(kwargs['tau_decay_CS'])
+    # tau_rise_CS_LTP = np.int32(kwargs['tau_rise_CS_LTP'])
+    # tau_decay_CS_LTP = np.int32(kwargs['tau_decay_CS_LTP'])
+    # lf_args = (n_trials, n_obs_pt,
+    #             n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
+    #             W_min_pf, FR_MAX, tau_rise_CS, tau_decay_CS, tau_rise_CS_LTP,
+    #             tau_decay_CS_LTP)
     # cy_residuals = py_learning_function(params, x, y, W_0_pf, W_0_mli, b, *lf_args)
+
+
 
     # Parse parameters to be fit
     alpha = params[0] / 1e4
@@ -930,8 +933,14 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             y_hat_trial = np.maximum(0, y_hat_trial)
         # Store prediction for current trial
         y_hat[trial*n_obs_pt:(trial + 1)*n_obs_pt] = y_hat_trial
-        for t_i in range(0, n_obs_pt):
-            iter_residuals += np.sqrt((y_obs_trial[t_i] - y_hat_trial[t_i]) ** 2)
+
+
+
+        # for t_i in range(0, n_obs_pt):
+        #     iter_residuals += np.sqrt((y_obs_trial[t_i] - y_hat_trial[t_i]) ** 2)
+
+
+        
 
         # Update weights for next trial based on activations in this trial
         state_input_pf = state_input[:, 0:n_gaussians]
@@ -984,9 +993,9 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             W_mli[(W_mli < W_min_mli)] = W_min_mli
             W_full[n_gaussians:] = W_mli
 
-    if cy_residuals != iter_residuals:
-        print("Residual misatch: ", cy_residuals, iter_residuals, np.abs(cy_residuals - iter_residuals))
-        print("With params: ", params)
+    # if cy_residuals != iter_residuals:
+    #     print("Residual misatch: ", cy_residuals, iter_residuals, np.abs(cy_residuals - iter_residuals))
+    #     print("With params: ", params)
     residuals = np.sum(np.sqrt((y - y_hat) ** 2))
     return residuals
 
