@@ -877,11 +877,11 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     tau_decay_CS = kwargs['tau_decay_CS']
     tau_rise_CS_LTP = kwargs['tau_rise_CS_LTP']
     tau_decay_CS_LTP = kwargs['tau_decay_CS_LTP']
-    lf_args = (np.int32(n_trials), np.int32(n_obs_pt),
-                np.int32(n_gaussians_per_dim), np.float64(gauss_means), np.float64(gauss_stds), np.int32(n_gaussians),
-                W_min_pf, np.int32(FR_MAX), np.int32(tau_rise_CS), np.int32(tau_decay_CS), np.int32(tau_rise_CS_LTP),
-                np.int32(tau_decay_CS_LTP))
-    cy_residuals = py_learning_function(params, x, y, np.float64(W_0_pf.squeeze()), np.float64(W_0_mli.squeeze()), np.float64(b), *lf_args)
+    lf_args = (n_trials, n_obs_pt,
+                n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
+                W_min_pf, FR_MAX, tau_rise_CS, tau_decay_CS, tau_rise_CS_LTP,
+                tau_decay_CS_LTP)
+    cy_residuals = py_learning_function(params, x, y, W_0_pf, W_0_mli, b, *lf_args)
 
     # Parse parameters to be fit
     alpha = params[0] / 1e4
@@ -982,7 +982,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             W_full[n_gaussians:] = W_mli
 
     if cy_residuals != iter_residuals:
-        print("Residual misatch: ", cy_residuals, iter_residuals)
+        print("Residual misatch: ", cy_residuals, iter_residuals, np.abs(cy_residuals - iter_residuals))
         print("With params: ", params)
     residuals = np.sum(np.sqrt((y - y_hat) ** 2))
     return residuals
@@ -1046,25 +1046,25 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     # Need the means and stds for converting state to input
     pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
     vel_means = NN_FIT.fit_results['gauss_basis_kinematics']['vel_means']
-    n_gaussians_per_dim = [len(pos_means), len(pos_means),
-                           len(vel_means), len(vel_means)]
+    n_gaussians_per_dim = np.array([len(pos_means), len(pos_means),
+                           len(vel_means), len(vel_means)], dtype=np.int32)
     gauss_means = np.hstack([pos_means,
                              pos_means,
                              vel_means,
-                             vel_means])
-    pos_stds = NN_FIT.fit_results['gauss_basis_kinematics']['pos_stds']
-    vel_stds = NN_FIT.fit_results['gauss_basis_kinematics']['vel_stds']
+                             vel_means], dtype=np.float64)
+    pos_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['pos_stds'])
+    vel_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['vel_stds'])
     gauss_stds = np.hstack([pos_stds,
                             pos_stds,
                             vel_stds,
-                            vel_stds])
-    n_gaussians = len(gauss_means)
+                            vel_stds], dtype=np.float64)
+    n_gaussians = np.int32(len(gauss_means))
 
     # Defining learning function within scope so we have access to "NN_FIT"
     # and specifically the weights. Get here to save space
-    W_0_pf = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][0:n_gaussians].squeeze()
-    W_0_mli = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:].squeeze()
-    b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
+    W_0_pf = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][0:n_gaussians].squeeze())
+    W_0_mli = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:].squeeze())
+    b = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['bias'])
 
     lf_kwargs = {'tau_rise_CS': int(np.around(25 /bin_width)),
                  'tau_decay_CS': int(np.around(0 /bin_width)),
@@ -1107,6 +1107,43 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     fit_inputs = np.hstack([bin_eye_data, binned_CS[:, None]])
     lf_args = (bin_width, n_trials, n_obs_pt, is_missing_data,
                 n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians)
+
+
+    W_min_pf = np.float64(0.0)
+    FR_MAX = np.int32(lf_kwargs['FR_MAX'])
+    tau_rise_CS = np.int32(lf_kwargs['tau_rise_CS'])
+    tau_decay_CS = np.int32(lf_kwargs['tau_decay_CS'])
+    tau_rise_CS_LTP = np.int32(lf_kwargs['tau_rise_CS_LTP'])
+    tau_decay_CS_LTP = np.int32(lf_kwargs['tau_decay_CS_LTP'])
+    lf_args = (n_trials, n_obs_pt, is_missing_data,
+                n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
+                W_min_pf, FR_MAX, tau_rise_CS, tau_decay_CS, tau_rise_CS_LTP,
+                tau_decay_CS_LTP)
+    print("gauss means", gauss_means.shape, gauss_means.dtype)
+    print("gauss stds", gauss_stds.shape, gauss_stds.dtype)
+    print(fit_inputs.shape, binned_FR.shape, W_0_pf.shape, W_0_mli.shape, b.shape)
+    for a_ind, arg in enumerate((fit_inputs, binned_FR, W_0_pf, W_0_mli, b)):
+        if isinstance(arg, np.ndarray):
+            print(a_ind, arg.shape, arg.dtype)
+        else:
+            print(a_ind, type(arg))
+    for a_ind, arg in enumerate(lf_args):
+        if isinstance(arg, np.ndarray):
+            print(a_ind, arg.shape, arg.dtype)
+        else:
+            print(a_ind, type(arg))
+    all_args = [fit_inputs, binned_FR, W_0_pf, W_0_mli, W_0_mli, b]
+    for arg in lf_args:
+        all_args.append(arg)
+    all_args.extend([p0, lower_bounds, upper_bounds, ftol, xtol, gtol, max_nfev, loss])
+    import pickle
+    save_name = "/home/nate/temp/test_NN_fit.pickle"
+    with open(save_name, 'wb') as fp:
+        pickle.dump(all_args, fp, protocol=-1)
+    return
+
+
+
     # Fit the learning rates to the data
     result = least_squares(learning_function, p0,
                             args=(fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),

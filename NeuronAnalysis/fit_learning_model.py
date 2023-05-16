@@ -489,7 +489,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     gauss_stds = np.hstack([pos_stds,
                             pos_stds,
                             vel_stds,
-                            vel_stds])
+                            vel_stds], dtype=np.float64)
     n_gaussians = np.int32(len(gauss_means))
 
     # Defining learning function within scope so we have access to "NN_FIT"
