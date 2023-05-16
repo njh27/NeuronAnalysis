@@ -69,10 +69,6 @@ cdef void f_pf_LTD(np.ndarray[double, ndim=1] pf_LTD,
                    double[:, :] state_input_pf,
                    np.ndarray[double, ndim=1] W_pf, double W_min_pf=0.0):
     cdef int wi
-    if pf_LTD.shape[0] != state_input_pf.shape[1]:
-      raise ValueError("What the heck")
-    if pf_CS_LTD.shape[0] != state_input_pf.shape[0]:
-      raise ValueError("Is even going on")
     # Sum of pf_CS_LTD weighted by activation for each input unit
     pf_LTD = np.dot(pf_CS_LTD, state_input_pf, out=pf_LTD)
     # Set state modification scaling according to current weight
@@ -217,9 +213,9 @@ cdef np.ndarray[double, ndim=1] learning_function(np.ndarray[double, ndim=1] par
     cdef np.ndarray[double, ndim=1] W_full = np.zeros((n_gaussians + 8, ))
     cdef np.ndarray[double, ndim=2] state_input = np.zeros((n_obs_pt, n_gaussians + 8))
     cdef np.ndarray[double, ndim=1] pf_CS_LTD = np.zeros((n_obs_pt, ))
-    cdef np.ndarray[double, ndim=1] pf_LTD = np.zeros((n_gaussians + 8, ))
+    cdef np.ndarray[double, ndim=1] pf_LTD = np.zeros((n_gaussians, ))
     cdef np.ndarray[double, ndim=1] pf_LTP_funs = np.zeros((n_obs_pt, ))
-    cdef np.ndarray[double, ndim=1] pf_LTP = np.zeros((n_gaussians + 8, ))
+    cdef np.ndarray[double, ndim=1] pf_LTP = np.zeros((n_gaussians, ))
     cdef int trial, sir, sic, wi
 
     # REMINDER of param definitions
