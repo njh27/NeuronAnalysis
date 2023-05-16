@@ -11,11 +11,13 @@ def py_learning_function(params, x, y, W_0_pf, W_0_mli, b,
                          n_gaussians_per_dim, gauss_means, gauss_stds,
                          n_gaussians, W_min_pf, FR_MAX, tau_rise_CS,
                          tau_decay_CS, tau_rise_CS_LTP, tau_decay_CS_LTP):
-    return learning_function(params, x, y, W_0_pf, W_0_mli, b,
+    residuals = learning_function(params, x, y, W_0_pf, W_0_mli, b,
                              n_trials, n_obs_pt,
                              n_gaussians_per_dim, gauss_means, gauss_stds,
                              n_gaussians, W_min_pf, FR_MAX, tau_rise_CS,
                              tau_decay_CS, tau_rise_CS_LTP, tau_decay_CS_LTP)
+    print("RESIDUALS", residuals)
+    return residuals
 
 
 @cython.boundscheck(False)
