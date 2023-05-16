@@ -7,12 +7,12 @@ from libc.math cimport exp
 
 # Python wrapper function for calling objective function
 def py_learning_function(params, x, y, W_0_pf, W_0_mli, b,
-                         n_trials, n_obs_pt, is_missing_data,
+                         n_trials, n_obs_pt,
                          n_gaussians_per_dim, gauss_means, gauss_stds,
                          n_gaussians, W_min_pf, FR_MAX, tau_rise_CS,
                          tau_decay_CS, tau_rise_CS_LTP, tau_decay_CS_LTP):
     return learning_function(params, x, y, W_0_pf, W_0_mli, b,
-                             n_trials, n_obs_pt, is_missing_data,
+                             n_trials, n_obs_pt,
                              n_gaussians_per_dim, gauss_means, gauss_stds,
                              n_gaussians, W_min_pf, FR_MAX, tau_rise_CS,
                              tau_decay_CS, tau_rise_CS_LTP, tau_decay_CS_LTP)
@@ -189,7 +189,6 @@ cdef double learning_function(np.ndarray[double, ndim=1] params,
                                                   np.ndarray[double, ndim=1] W_0_pf,
                                                   np.ndarray[double, ndim=1] W_0_mli,
                                                   double b, int n_trials, int n_obs_pt,
-                                                  np.ndarray[int, ndim=1] is_missing_data,
                                                   np.ndarray[int, ndim=1] n_gaussians_per_dim,
                                                   np.ndarray[double, ndim=1] gauss_means,
                                                   np.ndarray[double, ndim=1] gauss_stds,
@@ -216,7 +215,7 @@ cdef double learning_function(np.ndarray[double, ndim=1] params,
     cdef np.ndarray[double, ndim=1] pf_LTD = np.zeros((n_gaussians, ))
     cdef np.ndarray[double, ndim=1] pf_LTP_funs = np.zeros((n_obs_pt, ))
     cdef np.ndarray[double, ndim=1] pf_LTP = np.zeros((n_gaussians, ))
-    cdef int trial, sir, sic, wi
+    cdef int trial, wi
 
     # REMINDER of param definitions
     # alpha = params[0]
@@ -238,17 +237,10 @@ cdef double learning_function(np.ndarray[double, ndim=1] params,
     for trial in range(n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :]
         y_obs_trial = y[trial*n_obs_pt:(trial + 1)*n_obs_pt]
-        is_missing_data_trial = is_missing_data[trial*n_obs_pt:(trial + 1)*n_obs_pt]
 
         # Convert state to input layer activations
         # Modifies "state_input" IN PLACE
         eye_input_to_PC_gauss_relu(state_trial, gauss_means, gauss_stds, state_input, n_gaussians_per_dim)
-        # Set missing trial data to 0.0
-        for sir in range(0, state_input.shape[0]):
-            if is_missing_data_trial[sir] == 0:
-                continue
-            for sic in range(0, state_input.shape[1]):
-                state_input[sir, sic] = 0.0
         y_hat_trial = np.maximum(0, np.dot(state_input, W_full) + b)
         y_hat[trial*n_obs_pt:(trial + 1)*n_obs_pt] = y_hat_trial
         for t_i in range(0, n_obs_pt):
