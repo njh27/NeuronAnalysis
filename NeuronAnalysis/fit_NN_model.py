@@ -881,7 +881,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
                 n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
                 W_min_pf, FR_MAX, tau_rise_CS, tau_decay_CS, tau_rise_CS_LTP,
                 tau_decay_CS_LTP)
-    cy_residuals = py_learning_function(params, x, y, W_0_pf, W_0_mli, b, *lf_args)
+    # cy_residuals = py_learning_function(params, x, y, W_0_pf, W_0_mli, b, *lf_args)
 
     # Parse parameters to be fit
     alpha = params[0] / 1e4
@@ -911,7 +911,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     for trial in range(0, n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
         y_obs_trial = y[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Observed FR for this trial
-        is_missing_data_trial = is_missing_data[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Nan state points for this trial
+        # is_missing_data_trial = is_missing_data[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Nan state points for this trial
 
         # Convert state to input layer activations
         state_input = af.eye_input_to_PC_gauss_relu(state_trial,
@@ -919,7 +919,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
                                         n_gaussians_per_dim=n_gaussians_per_dim)
         # Set inputs derived from nan points to 0.0 so that the weights
         # for these states are not affected during nans
-        state_input[is_missing_data_trial, :] = 0.0
+        # state_input[is_missing_data_trial, :] = 0.0
         # Expected rate this trial given updated weights
         # Use maximum here because of relu activation of output
         y_hat_trial = (np.dot(state_input, W_full) + b)
@@ -984,6 +984,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     if cy_residuals != iter_residuals:
         print("Residual misatch: ", cy_residuals, iter_residuals, np.abs(cy_residuals - iter_residuals))
         print("With params: ", params)
+    print("DID THIS FIX IT OR WHAT")
     residuals = np.sum(np.sqrt((y - y_hat) ** 2))
     return residuals
 
@@ -1132,7 +1133,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
             print(a_ind, arg.shape, arg.dtype)
         else:
             print(a_ind, type(arg))
-    all_args = [fit_inputs, binned_FR, W_0_pf, W_0_mli, W_0_mli, b]
+    all_args = [fit_inputs, binned_FR, W_0_pf, W_0_mli, b]
     for arg in lf_args:
         all_args.append(arg)
     all_args.extend([p0, lower_bounds, upper_bounds, ftol, xtol, gtol, max_nfev, loss])
