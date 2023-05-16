@@ -873,10 +873,12 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     FR_MAX = kwargs['FR_MAX']
     activation_out = kwargs['activation_out']
 
-    tau_rise_CS = kwargs['tau_decay_CS_LTP']
-    tau_decay_CS = kwargs['tau_decay_CS']
-    tau_rise_CS_LTP = kwargs['tau_rise_CS_LTP']
-    tau_decay_CS_LTP = kwargs['tau_decay_CS_LTP']
+    W_min_pf = np.float64(0.0)
+    FR_MAX = np.float64(lf_kwargs['FR_MAX'])
+    tau_rise_CS = np.int32(lf_kwargs['tau_rise_CS'])
+    tau_decay_CS = np.int32(lf_kwargs['tau_decay_CS'])
+    tau_rise_CS_LTP = np.int32(lf_kwargs['tau_rise_CS_LTP'])
+    tau_decay_CS_LTP = np.int32(lf_kwargs['tau_decay_CS_LTP'])
     lf_args = (n_trials, n_obs_pt,
                 n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
                 W_min_pf, FR_MAX, tau_rise_CS, tau_decay_CS, tau_rise_CS_LTP,
@@ -1109,36 +1111,36 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
                 n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians)
 
 
-    W_min_pf = np.float64(0.0)
-    FR_MAX = np.int32(lf_kwargs['FR_MAX'])
-    tau_rise_CS = np.int32(lf_kwargs['tau_rise_CS'])
-    tau_decay_CS = np.int32(lf_kwargs['tau_decay_CS'])
-    tau_rise_CS_LTP = np.int32(lf_kwargs['tau_rise_CS_LTP'])
-    tau_decay_CS_LTP = np.int32(lf_kwargs['tau_decay_CS_LTP'])
-    lf_args = (n_trials, n_obs_pt, is_missing_data,
-                n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
-                W_min_pf, FR_MAX, tau_rise_CS, tau_decay_CS, tau_rise_CS_LTP,
-                tau_decay_CS_LTP)
-    print("gauss means", gauss_means.shape, gauss_means.dtype)
-    print("gauss stds", gauss_stds.shape, gauss_stds.dtype)
-    print(fit_inputs.shape, binned_FR.shape, W_0_pf.shape, W_0_mli.shape, b.shape)
-    for a_ind, arg in enumerate((fit_inputs, binned_FR, W_0_pf, W_0_mli, b)):
-        if isinstance(arg, np.ndarray):
-            print(a_ind, arg.shape, arg.dtype)
-        else:
-            print(a_ind, type(arg))
-    for a_ind, arg in enumerate(lf_args):
-        if isinstance(arg, np.ndarray):
-            print(a_ind, arg.shape, arg.dtype)
-        else:
-            print(a_ind, type(arg))
-    all_args = [fit_inputs, binned_FR, W_0_pf, W_0_mli, b]
-    for arg in lf_args:
-        all_args.append(arg)
-    all_args.extend([p0, lower_bounds, upper_bounds, ftol, xtol, gtol, max_nfev, loss])
+    # W_min_pf = np.float64(0.0)
+    # FR_MAX = np.int32(lf_kwargs['FR_MAX'])
+    # tau_rise_CS = np.int32(lf_kwargs['tau_rise_CS'])
+    # tau_decay_CS = np.int32(lf_kwargs['tau_decay_CS'])
+    # tau_rise_CS_LTP = np.int32(lf_kwargs['tau_rise_CS_LTP'])
+    # tau_decay_CS_LTP = np.int32(lf_kwargs['tau_decay_CS_LTP'])
+    # lf_args = (n_trials, n_obs_pt, is_missing_data,
+    #             n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
+    #             W_min_pf, FR_MAX, tau_rise_CS, tau_decay_CS, tau_rise_CS_LTP,
+    #             tau_decay_CS_LTP)
+    # print("gauss means", gauss_means.shape, gauss_means.dtype)
+    # print("gauss stds", gauss_stds.shape, gauss_stds.dtype)
+    # print(fit_inputs.shape, binned_FR.shape, W_0_pf.shape, W_0_mli.shape, b.shape)
+    # for a_ind, arg in enumerate((fit_inputs, binned_FR, W_0_pf, W_0_mli, b)):
+    #     if isinstance(arg, np.ndarray):
+    #         print(a_ind, arg.shape, arg.dtype)
+    #     else:
+    #         print(a_ind, type(arg))
+    # for a_ind, arg in enumerate(lf_args):
+    #     if isinstance(arg, np.ndarray):
+    #         print(a_ind, arg.shape, arg.dtype)
+    #     else:
+    #         print(a_ind, type(arg))
+    # all_args = [fit_inputs, binned_FR, W_0_pf, W_0_mli, b]
+    # for arg in lf_args:
+    #     all_args.append(arg)
+    # all_args.extend([p0, lower_bounds, upper_bounds, ftol, xtol, gtol, max_nfev, loss])
 
 
-    
+
     # import pickle
     # save_name = "/home/nate/temp/test_NN_fit.pickle"
     # with open(save_name, 'wb') as fp:
