@@ -874,11 +874,11 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     activation_out = kwargs['activation_out']
 
     W_min_pf = np.float64(0.0)
-    FR_MAX = np.float64(lf_kwargs['FR_MAX'])
-    tau_rise_CS = np.int32(lf_kwargs['tau_rise_CS'])
-    tau_decay_CS = np.int32(lf_kwargs['tau_decay_CS'])
-    tau_rise_CS_LTP = np.int32(lf_kwargs['tau_rise_CS_LTP'])
-    tau_decay_CS_LTP = np.int32(lf_kwargs['tau_decay_CS_LTP'])
+    FR_MAX = np.float64(kwargs['FR_MAX'])
+    tau_rise_CS = np.int32(kwargs['tau_rise_CS'])
+    tau_decay_CS = np.int32(kwargs['tau_decay_CS'])
+    tau_rise_CS_LTP = np.int32(kwargs['tau_rise_CS_LTP'])
+    tau_decay_CS_LTP = np.int32(kwargs['tau_decay_CS_LTP'])
     lf_args = (n_trials, n_obs_pt,
                 n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
                 W_min_pf, FR_MAX, tau_rise_CS, tau_decay_CS, tau_rise_CS_LTP,
