@@ -71,8 +71,8 @@ cdef void f_pf_LTD(np.ndarray[double, ndim=1] pf_LTD,
     cdef int wi
     if pf_LTD.shape[0] != state_input_pf.shape[1]:
       raise ValueError("What the heck")
-      if pf_CS_LTD.shape[0] != state_input_pf.shape[0]:
-        raise ValueError("Is even going on")
+    if pf_CS_LTD.shape[0] != state_input_pf.shape[0]:
+      raise ValueError("Is even going on")
     # Sum of pf_CS_LTD weighted by activation for each input unit
     pf_LTD = np.dot(pf_CS_LTD, state_input_pf, out=pf_LTD)
     # Set state modification scaling according to current weight
