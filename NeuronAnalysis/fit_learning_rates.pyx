@@ -18,7 +18,7 @@ def py_learning_function(params, x, y, W_0_pf, W_0_mli, b,
                              tau_decay_CS, tau_rise_CS_LTP, tau_decay_CS_LTP)
     print("RESIDUALS", residuals)
     print("params", params)
-    return residuals
+    return 0.1
 
 
 @cython.boundscheck(False)
@@ -270,4 +270,4 @@ cdef double learning_function(np.ndarray[double, ndim=1] params,
         for wi in range(0, n_gaussians):
             W_full[wi] = W_pf[wi]
 
-    return residuals
+    return state_input_pf
