@@ -473,6 +473,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     is_missing_data = np.isnan(binned_FR) | eye_is_nan
     bin_eye_data[is_missing_data, :] = 0.0
     binned_FR[is_missing_data] = 0.0
+    binned_CS[is_missing_data] = 0.0
 
     # Need the means and stds for converting state to input
     pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
@@ -526,6 +527,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
                             "phi": (0.01, 0, np.inf, 8),
                             "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 9),
                             })
+    rescale_1e4 = ["alpha", "beta", "gamma", "epsilon"]
 
     # Make sure params are in correct order and saved for input to least_squares
     p0 = [x[1][0] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
@@ -540,32 +542,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     # Finally append CS to inputs and get other args needed for learning function
     fit_inputs = np.hstack([bin_eye_data, binned_CS[:, None]])
 
-    lf_args = (n_trials, n_obs_pt, is_missing_data,
+    lf_args = (n_trials, n_obs_pt,
                 n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
                 W_min_pf, FR_MAX, tau_rise_CS, tau_decay_CS, tau_rise_CS_LTP,
                 tau_decay_CS_LTP)
-    print("gauss means", gauss_means.shape, gauss_means.dtype)
-    print("gauss stds", gauss_stds.shape, gauss_stds.dtype)
-    print(fit_inputs.shape, binned_FR.shape, W_0_pf.shape, W_0_mli.shape, b.shape)
-    for a_ind, arg in enumerate((fit_inputs, binned_FR, W_0_pf, W_0_mli, b)):
-        if isinstance(arg, np.ndarray):
-            print(a_ind, arg.shape, arg.dtype)
-        else:
-            print(a_ind, type(arg))
-    for a_ind, arg in enumerate(lf_args):
-        if isinstance(arg, np.ndarray):
-            print(a_ind, arg.shape, arg.dtype)
-        else:
-            print(a_ind, type(arg))
-    all_args = [fit_inputs, binned_FR, W_0_pf, W_0_mli, W_0_mli, b]
-    for arg in lf_args:
-        all_args.append(arg)
-    all_args.extend([p0, lower_bounds, upper_bounds, ftol, xtol, gtol, max_nfev, loss])
-    import pickle
-    save_name = "/home/nate/temp/test_NN_fit.pickle"
-    with open(save_name, 'wb') as fp:
-        pickle.dump(all_args, fp, protocol=-1)
-    return
     # Fit the learning rates to the data
     result = least_squares(py_learning_function, p0,
                             args=(fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
@@ -578,6 +558,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     for key in param_conds.keys():
         param_ind = param_conds[key][3]
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = result.x[param_ind]
+        if key in rescale_1e4:
+            NN_FIT.fit_results['gauss_basis_kinematics'][key] /= 1e4
     for key in lf_kwargs.keys():
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = lf_kwargs[key]
 

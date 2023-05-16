@@ -7,6 +7,7 @@ import warnings
 from NeuronAnalysis.fit_neuron_to_eye import FitNeuronToEye
 from NeuronAnalysis.general import box_windows
 import NeuronAnalysis.activation_functions as af
+from NeuronAnalysis.fit_learning_rates import py_learning_function
 
 
 
@@ -872,6 +873,16 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     FR_MAX = kwargs['FR_MAX']
     activation_out = kwargs['activation_out']
 
+    tau_rise_CS = kwargs['tau_decay_CS_LTP']
+    tau_decay_CS = kwargs['tau_decay_CS']
+    tau_rise_CS_LTP = kwargs['tau_rise_CS_LTP']
+    tau_decay_CS_LTP = kwargs['tau_decay_CS_LTP']
+    lf_args = (np.int32(n_trials), np.int32(n_obs_pt),
+                np.int32(n_gaussians_per_dim), np.float64(gauss_means), np.float64(gauss_stds), np.int32(n_gaussians),
+                W_min_pf, np.int32(FR_MAX), np.int32(tau_rise_CS), np.int32(tau_decay_CS), np.int32(tau_rise_CS_LTP),
+                np.int32(tau_decay_CS_LTP))
+    cy_residuals = py_learning_function(params, x, y, np.float64(W_0_pf.squeeze()), np.float64(W_0_mli.squeeze()), np.float64(b), *lf_args)
+
     # Parse parameters to be fit
     alpha = params[0] / 1e4
     beta = params[1] / 1e4
@@ -970,6 +981,9 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             W_mli[(W_mli < W_min_mli)] = W_min_mli
             W_full[n_gaussians:] = W_mli
 
+    if cy_residuals != iter_residuals:
+        print("Residual misatch: ", cy_residuals, iter_residuals)
+        print("With params: ", params)
     residuals = np.sum(np.sqrt((y - y_hat) ** 2))
     return residuals
 
@@ -1025,7 +1039,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     # So we need to find this separate from saccades and can set to 0.0 to ignore
     # We will AND this with where eye is NaN because both should be if data are truly missing
     is_missing_data = np.isnan(binned_FR) | eye_is_nan
+    bin_eye_data[is_missing_data, :] = 0.0
     binned_FR[is_missing_data] = 0.0
+    binned_CS[is_missing_data] = 0.0
 
     # Need the means and stds for converting state to input
     pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
@@ -1059,7 +1075,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
                  # 'tau_rise_CS_mli_LTD': int(np.around(-40 /bin_width)),
                  # 'tau_decay_CS_mli_LTD': int(np.around(100 /bin_width)),
                  'FR_MAX': 500,
-                 'UPDATE_MLI_WEIGHTS': FalW_mlise,
+                 'UPDATE_MLI_WEIGHTS': False,
                  'activation_out': NN_FIT.activation_out,
                  }
     # Format of p0, upper, lower, index order for each variable to make this legible
