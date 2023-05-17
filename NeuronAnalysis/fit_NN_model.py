@@ -259,12 +259,13 @@ class FitNNModel(object):
             eye_input_test = []
             val_data = None
         self.activation_out = activation_out
+        intrinsic_rate0 = min(0.5*np.nanmedian(binned_FR_train), 25)
         # Create the neural network model
         model = models.Sequential([
             layers.Input(shape=(n_gaussians + 8,)),
             layers.Dense(1, activation=activation_out,
                             kernel_constraint=constraints.NonNeg(),
-                            bias_initializer=initializers.Constant(0.1*np.nanmedian(binned_FR_train))),
+                            bias_initializer=initializers.Constant(intrinsic_rate0)),
         ])
         clip_value = None
         optimizer = SGD(learning_rate=learning_rate, clipvalue=clip_value)
