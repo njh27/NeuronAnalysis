@@ -768,7 +768,7 @@ def f_pf_move_LTP(pf_LTP_funs, move_m_trial, move_LTP_scale):
     """
     """
     # Add a term with movement magnitude times weight
-    # pf_LTP_funs *= np.sqrt(move_m_trial * move_LTP_scale + 1)
+    pf_LTP_funs *= np.sqrt(move_m_trial * move_LTP_scale + 1)
     return pf_LTP_funs
 
 def f_pf_LTP(pf_LTP_funs, state_input_pf, pf_LTP, W_pf=None, W_max_pf=None):
@@ -1084,10 +1084,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None,
     # Initialize W_full to pass to objective function
     W_full = np.zeros((n_gaussians+8, ), dtype=np.float64)
 
-    lf_kwargs = {'tau_rise_CS': int(np.around(25 /bin_width)),
-                 'tau_decay_CS': int(np.around(0 /bin_width)),
-                 'tau_rise_CS_LTP': int(np.around(-100 /bin_width)),
-                 'tau_decay_CS_LTP': int(np.around(200 /bin_width)),
+    lf_kwargs = {'tau_rise_CS': int(np.around(-50 /bin_width)),
+                 'tau_decay_CS': int(np.around(150 /bin_width)),
+                 'tau_rise_CS_LTP': int(np.around(-200 /bin_width)),
+                 'tau_decay_CS_LTP': int(np.around(300 /bin_width)),
                  # 'tau_rise_CS_mli_LTP': int(np.around(80 /bin_width)),
                  # 'tau_decay_CS_mli_LTP': int(np.around(-40 /bin_width)),
                  # 'tau_rise_CS_mli_LTD': int(np.around(-40 /bin_width)),
