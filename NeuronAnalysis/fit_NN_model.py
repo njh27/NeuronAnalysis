@@ -1188,14 +1188,14 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     n_gaussians = len(gauss_means)
 
     if W_0_pf is None:
-        W_0_pf = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][0:n_gaussians]
+        W_0_pf = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][0:n_gaussians].squeeze()
     if W_0_pf.shape[0] != n_gaussians:
         raise ValueError("Input W_0_pf must have match the fit coefficients shape of {0}.".format(n_gaussians))
     if W_0_mli is None:
-        W_0_mli = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:]
+        W_0_mli = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:].squeeze()
     if W_0_mli.shape[0] != 8:
         raise ValueError("Input W_0_mli must have match the MLI coefficients shape of 8.")
-    b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
+    b = NN_FIT.fit_results['gauss_basis_kinematics']['bias'].squeeze()
     W_min_pf = 0.0
     W_min_mli = 0.0
 
@@ -1223,16 +1223,16 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     W_mli = np.zeros(W_0_mli.shape) # Place to store updating result and copy to output
     W_mli[:] = mli_scale * W_0_mli # Initialize storage to start values
     # Ensure W_pf values are within range and store in output W_full
-    W_pf[(W_pf > W_max_pf).squeeze()] = W_max_pf
-    W_pf[(W_pf < W_min_pf).squeeze()] = W_min_pf
-    W_mli[(W_mli < W_min_mli).squeeze()] = W_min_mli
+    W_pf[(W_pf > W_max_pf)] = W_max_pf
+    W_pf[(W_pf < W_min_pf)] = W_min_pf
+    W_mli[(W_mli < W_min_mli)] = W_min_mli
     if kwargs['UPDATE_MLI_WEIGHTS']:
         omega = NN_FIT.fit_results['gauss_basis_kinematics']['omega']
         psi = NN_FIT.fit_results['gauss_basis_kinematics']['psi']
         chi = NN_FIT.fit_results['gauss_basis_kinematics']['chi']
         phi = NN_FIT.fit_results['gauss_basis_kinematics']['phi']
         W_max_mli = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_mli']
-        W_mli[(W_mli > W_max_mli).squeeze()] = W_max_mli
+        W_mli[(W_mli > W_max_mli)] = W_max_mli
     W_full = np.vstack((W_pf, W_mli))
     state_input = np.zeros((n_obs_pt, n_gaussians+8))
     y_hat_trial = np.zeros((n_obs_pt, ))
