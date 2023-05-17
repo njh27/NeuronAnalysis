@@ -631,7 +631,7 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
         try:
             W_trial[t_i, :] = weights_by_trial[t].squeeze()
         except KeyError:
-            raise ValueError("weights by trial does not contain weights for requested trial number {0}.".format(t))
+            print("weights by trial does not contain weights for requested trial number {0}.".format(t))
     if return_comp:
         y_hat, pf_in, mli_in = comp_learning_response(NN_FIT, X_trial, W_trial,
                                         return_comp=return_comp)
