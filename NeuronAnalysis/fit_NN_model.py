@@ -765,9 +765,9 @@ def f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, static_weight_LTP, zeta_f_move=None)
     """
     """
     pf_LTP_funs += static_weight_LTP
-    pf_LTP_funs[pf_CS_LTD > 0.0] = 0.0
+    # pf_LTP_funs[pf_CS_LTD > 0.0] = 0.0
     if zeta_f_move is not None:
-        pf_LTP_funs += ( zeta_f_move)
+        pf_LTP_funs += (zeta_f_move)
     return pf_LTP_funs
 
 def f_pf_FR_LTP(pf_LTP_funs, PC_FR, PC_FR_weight_LTP, zeta_f_move=None):
