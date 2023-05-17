@@ -718,6 +718,13 @@ def f_pf_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0, delay=0):
         pf_CS_LTD[-delay:] = 0.0
     return pf_CS_LTD
 
+def f_pf_move_LTD(pf_CS_LTD, move_m_trial, move_LTD_scale):
+    """
+    """
+    # Add a term with movement magnitude times weight
+    # pf_CS_LTD *= (np.sqrt(move_m_trial) * move_LTD_scale + 1)
+    return pf_CS_LTD
+
 def f_pf_LTD(pf_CS_LTD, state_input_pf, pf_LTD, W_pf=None, W_min_pf=0.0):
     """ Updates the parallel fiber LTD function of time "pf_CS_LTD" to be scaled
     by PC firing rate if input, then scales by the pf state input and finally
@@ -749,12 +756,19 @@ def f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, static_weight_LTP):
     pf_LTP_funs[pf_CS_LTD > 0.0] = 0.0
     return pf_LTP_funs
 
-def f_pf_FR_LTP(PC_FR, PC_FR_weight_LTP):
+def f_pf_FR_LTP(pf_LTP_funs, PC_FR, PC_FR_weight_LTP):
     """
     """
     # Add a term with firing rate times weight of constant LTP
-    pf_FR_LTP = PC_FR * PC_FR_weight_LTP
-    return pf_FR_LTP
+    pf_LTP_funs += (PC_FR * PC_FR_weight_LTP)
+    return pf_LTP_funs
+
+def f_pf_move_LTP(pf_LTP_funs, move_m_trial, move_LTP_scale):
+    """
+    """
+    # Add a term with movement magnitude times weight
+    pf_LTP_funs *= np.sqrt(move_m_trial * move_LTP_scale + 1)
+    return pf_LTP_funs
 
 def f_pf_LTP(pf_LTP_funs, state_input_pf, pf_LTP, W_pf=None, W_max_pf=None):
     """ Updates the parallel fiber LTP function of time "pf_CS_LTP" to be scaled
@@ -880,11 +894,16 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     gamma = params[2] / 1e4
     epsilon = params[3] / 1e4
     W_max_pf = params[4]
+    move_LTD_scale = params[5]
+    move_LTP_scale = params[6]
+    move_magn = np.linalg.norm(x[:, 2:4], axis=1)
     pf_scale = 1 #params[5]
     mli_scale = 1 #params[6]
     # Set weights to initial fit values
-    W_pf = np.copy(W_0_pf) * pf_scale
-    W_mli = np.copy(W_0_mli) * mli_scale
+    W_pf = np.copy(W_0_pf)
+    W_pf *= pf_scale
+    W_mli = np.copy(W_0_mli)
+    W_mli *= mli_scale
     # Ensure W_pf values are within range and store in output W_full
     W_pf[(W_pf > W_max_pf)] = W_max_pf
     W_pf[(W_pf < W_min_pf)] = W_min_pf
@@ -902,6 +921,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     residuals = 0.0
     for trial in range(0, n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
+        move_m_trial = move_magn[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Movement for this trial
         y_obs_trial = np.copy(y[trial*n_obs_pt:(trial + 1)*n_obs_pt]) # Observed FR for this trial
         is_missing_data_trial = is_missing_data[trial*n_obs_pt:(trial + 1)*n_obs_pt] # Nan state points for this trial
 
@@ -912,6 +932,8 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         # Set inputs derived from nan points to 0.0 so that the weights
         # for these states are not affected during nans
         state_input[is_missing_data_trial, :] = 0.0
+        # No movement weight to missing/saccade data
+        move_m_trial[is_missing_data_trial] = 0.0
         # Expected rate this trial given updated weights
         # Use maximum here because of relu activation of output
         y_hat_trial = np.dot(state_input, W_full, out=y_hat_trial)
@@ -934,15 +956,18 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         # Get LTD function for parallel fibers
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS'],
                           kwargs['tau_decay_CS'], epsilon, 0.0)
+        # Add to pf_CS_LTD in place
+        pf_CS_LTD = f_pf_move_LTD(pf_CS_LTD, move_m_trial, move_LTD_scale)
         # Convert to LTD input for Purkinje cell
         pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, pf_LTD, W_pf=W_pf, W_min_pf=W_min_pf)
 
         # Create the LTP function for parallel fibers
         pf_LTP_funs = f_pf_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_LTP'],
                         kwargs['tau_decay_CS_LTP'], alpha)
-        pf_LTP_funs += f_pf_FR_LTP(y_obs_trial, beta)
-        # This function adds on to pf_LTP_funs in place
+        # These functions add on to pf_LTP_funs in place
+        pf_LTP_funs = f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta)
         pf_LTP_funs = f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, gamma)
+        pf_LTP_funs = f_pf_move_LTP(pf_LTP_funs, move_m_trial, move_LTP_scale)
         # Convert to LTP input for Purkinje cell
         pf_LTP = f_pf_LTP(pf_LTP_funs, state_input_pf, pf_LTP, W_pf=W_pf, W_max_pf=W_max_pf)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
@@ -978,12 +1003,13 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
 
     return residuals
 
-def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=10, bin_threshold=5):
+def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None,
+                        bin_width=10, bin_threshold=5):
     """ Need the trials from blocks and trial_sets to be ORDERED! Weights will
     be updated from one trial to the next as if they are ordered and will
     not check if the numbers are correct because it could fail for various
     reasons like aborted trials. """
-    ftol=1e-6
+    ftol=1e-2
     xtol=1e-8
     gtol=1e-8
     max_nfev=200000
@@ -1029,8 +1055,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     # Firing rate data is only NaN where data for a trial does not cover NN_FIT.time_window
     # So we need to find this separate from saccades and can set to 0.0 to ignore
     # We will AND this with where eye is NaN because both should be if data are truly missing
+    print("What the shapes?", binned_FR.shape, eye_is_nan.shape, bin_eye_data.shape)
     is_missing_data = np.isnan(binned_FR) | eye_is_nan
-
+    return
     # Need the means and stds for converting state to input
     pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
     vel_means = NN_FIT.fit_results['gauss_basis_kinematics']['vel_means']
@@ -1074,8 +1101,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
                    "gamma": (1.0, 0, np.inf, 2),
                    "epsilon": (4.0, 0, np.inf, 3),
                    "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 4),
-                   # "pf_scale": (1.05, 0.9, 1.15, 5),
-                   # "mli_scale": (1.05, 0.9, 1.15, 6),
+                   "move_LTD_scale": (1.0, 0.0, np.inf, 5),
+                   "move_LTP_scale": (1.0, 0.0, np.inf, 6),
+                   # "pf_scale": (1.0, 0.9, 1.15, 5),
+                   # "mli_scale": (1.0, 0.9, 1.15, 6),
             }
     if lf_kwargs['UPDATE_MLI_WEIGHTS']:
         raise ValueError("check param nums")
@@ -1133,11 +1162,13 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     CS_bin_evts = NN_FIT.neuron.get_CS_dataseries_by_trial(
                                 NN_FIT.learn_rates_time_window,
                                 blocks, trial_sets, nan_sacc=False)
-
+    print("RAW RATES", firing_rate.shape)
     """ Here we have to do some work to get all the data in the correct format """
     # First get all firing rate data, bin and format
     binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
+    print("BINNED RATES", binned_FR.shape)
     binned_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
+    print("RESHAPED RATES", binned_FR.shape)
 
     # And for CSs
     binned_CS = bin_data(CS_bin_evts, bin_width, bin_threshold)
@@ -1150,9 +1181,12 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
                                     blocks, trial_sets,
                                     NN_FIT.learn_rates_time_window,
                                     return_shape=True)
+    print("Raw EYE", eye_data.shape)
     eye_data = eye_data.reshape(initial_shape)
+    print("RESHAPE EYE", eye_data.shape)
     # Use bin smoothing on data before fitting
     bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
+    print("BINNED EYE", eye_data.shape)
     # Observations defined after binning
     n_trials = bin_eye_data.shape[0] # Total number of trials to fit
     n_obs_pt = bin_eye_data.shape[1] # Number of observations per trial
@@ -1160,6 +1194,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     bin_eye_data = bin_eye_data.reshape(
                             bin_eye_data.shape[0]*bin_eye_data.shape[1],
                             bin_eye_data.shape[2], order='C')
+    print("RESHAPED EYE", eye_data.shape)
     fit_inputs = np.hstack([bin_eye_data, binned_CS[:, None]])
     # Make an index of all nans that we can use in objective function to set
     # the unit activations to 0.0
@@ -1167,8 +1202,10 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     # Firing rate data is only NaN where data for a trial does not cover NN_FIT.time_window
     # So we need to find this separate from saccades and can set to 0.0 to ignore
     # We will AND this with where eye is NaN because both should be if data are truly missing
+    print("What the shapes?", binned_FR.shape, eye_is_nan.shape, bin_eye_data.shape)
+    print(bin_width, bin_threshold)
     is_missing_data = np.isnan(binned_FR) | eye_is_nan
-    binned_FR[is_missing_data] = 0.0
+    return
 
     # Need the means and stds for converting state to input
     pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
@@ -1216,8 +1253,11 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     gamma = NN_FIT.fit_results['gauss_basis_kinematics']['gamma']
     epsilon = NN_FIT.fit_results['gauss_basis_kinematics']['epsilon']
     W_max_pf = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_pf']
-    pf_scale = 1. #NN_FIT.fit_results['gauss_basis_kinematics']['pf_scale']
-    mli_scale = 1. #NN_FIT.fit_results['gauss_basis_kinematics']['mli_scale']
+    move_LTD_scale = NN_FIT.fit_results['gauss_basis_kinematics']['move_LTD_scale']
+    move_LTP_scale = NN_FIT.fit_results['gauss_basis_kinematics']['move_LTP_scale']
+    move_magn = np.linalg.norm(bin_eye_data[:, 2:4], axis=1)
+    pf_scale = 1 #NN_FIT.fit_results['gauss_basis_kinematics']['pf_scale']
+    mli_scale = 1 #NN_FIT.fit_results['gauss_basis_kinematics']['mli_scale']
     W_pf = np.zeros(W_0_pf.shape) # Place to store updating result and copy to output
     W_pf[:] = pf_scale * W_0_pf # Initialize storage to start values
     W_mli = np.zeros(W_0_mli.shape) # Place to store updating result and copy to output
@@ -1243,6 +1283,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     for trial_ind, trial_num in zip(range(0, n_trials), all_t_inds):
         weights_by_trial[trial_num][:] = W_full # Copy W for this trial, befoe updating at end of loop
         state_trial = state[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt, :] # State for this trial
+        move_m_trial = move_magn[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Movement for this trial
         y_obs_trial = binned_FR[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Observed FR for this trial
         is_missing_data_trial = is_missing_data[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Nan state points for this trial
         # Convert state to input layer activations
@@ -1252,6 +1293,9 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         # Set inputs derived from nan points to 0.0 so t hat the weights
         # for these states are not affected during nans
         state_input[is_missing_data_trial, :] = 0.0
+        # No movement weight to missing/saccade data
+        move_m_trial[is_missing_data_trial] = 0.0
+        y_obs_trial[is_missing_data_trial] = 0.0
         state_input_pf = state_input[:, 0:n_gaussians]
 
         # Rescaled trial firing rate in proportion to max
@@ -1262,15 +1306,18 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         # Get LTD function for parallel fibers
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS'],
                           kwargs['tau_decay_CS'], epsilon, 0.0)
+        # Add to pf_CS_LTD in place
+        pf_CS_LTD = f_pf_move_LTD(pf_CS_LTD, move_m_trial, move_LTD_scale)
         # Convert to LTD input for Purkinje cell
         pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, pf_LTD, W_pf=W_pf, W_min_pf=W_min_pf)
 
         # Create the LTP function for parallel fibers
         pf_LTP_funs = f_pf_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_LTP'],
                         kwargs['tau_decay_CS_LTP'], alpha)
-        pf_LTP_funs += f_pf_FR_LTP(y_obs_trial, beta)
-        # This function adds on to pf_LTP_funs in place
+        # These functions add on to pf_LTP_funs in place
+        pf_LTP_funs = f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta)
         pf_LTP_funs = f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, gamma)
+        pf_LTP_funs = f_pf_move_LTP(pf_LTP_funs, move_m_trial, move_LTP_scale)
         # Convert to LTP input for Purkinje cell
         pf_LTP = f_pf_LTP(pf_LTP_funs, state_input_pf, pf_LTP, W_pf=W_pf, W_max_pf=W_max_pf)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
