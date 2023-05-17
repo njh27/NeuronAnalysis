@@ -972,7 +972,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         zeta_f_move = np.sqrt(move_m_trial) * move_LTD_scale
         # Get LTD function for parallel fibers
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS'],
-                          kwargs['tau_decay_CS'], epsilon, 0.0, zeta_f_move)
+                          kwargs['tau_decay_CS'], epsilon, 0.0, zeta_f_move=None)
         # Add to pf_CS_LTD in place
         # pf_CS_LTD = f_pf_move_LTD(pf_CS_LTD, move_m_trial, move_LTD_scale)
         # Convert to LTD input for Purkinje cell
@@ -1315,7 +1315,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         zeta_f_move = np.sqrt(move_m_trial) * move_LTD_scale
         # Get LTD function for parallel fibers
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS'],
-                          kwargs['tau_decay_CS'], epsilon, 0.0, zeta_f_move)
+                          kwargs['tau_decay_CS'], epsilon, 0.0, zeta_f_move=None)
         # Add to pf_CS_LTD in place
         # pf_CS_LTD = f_pf_move_LTD(pf_CS_LTD, move_m_trial, move_LTD_scale)
         # Convert to LTD input for Purkinje cell
