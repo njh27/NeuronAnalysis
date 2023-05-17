@@ -746,11 +746,13 @@ def f_pf_CS_LTP(CS_trial_bin, tau_1, tau_2, scale=1.0, zeta_f_move=None):
     CS LTD is taking place and 0's indicate no CS related LTD. This function
     will then invert the CS train and form windows of LTP where LTD is absent.
     """
-    # Inverts the CS function
-    # pf_CS_LTP = np.mod(CS_trial_bin + 1, 2)
-    pf_CS_LTP = box_windows(CS_trial_bin, tau_1, tau_2, scale=scale)
-    if zeta_f_move is not None:
-        pf_CS_LTP += (pf_CS_LTP * zeta_f_move)
+    if zeta_f_move is None:
+        pf_CS_LTP = box_windows(CS_trial_bin, tau_1, tau_2, scale=scale)
+    else:
+        pf_CS_LTP = box_windows(CS_trial_bin, tau_1, tau_2, scale=1.0)
+        add_zeta = (pf_CS_LTP * zeta_f_move)
+        pf_CS_LTP *= scale
+        pf_CS_LTP += add_zeta
     return pf_CS_LTP
 
 def f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, static_weight_LTP, zeta_f_move=None):
