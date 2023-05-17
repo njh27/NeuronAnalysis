@@ -1056,9 +1056,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None,
     # Firing rate data is only NaN where data for a trial does not cover NN_FIT.time_window
     # So we need to find this separate from saccades and can set to 0.0 to ignore
     # We will AND this with where eye is NaN because both should be if data are truly missing
-    print("What the shapes?", binned_FR.shape, eye_is_nan.shape, bin_eye_data.shape)
     is_missing_data = np.isnan(binned_FR) | eye_is_nan
-    return
+
     # Need the means and stds for converting state to input
     pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
     vel_means = NN_FIT.fit_results['gauss_basis_kinematics']['vel_means']
@@ -1164,13 +1163,10 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     CS_bin_evts = NN_FIT.neuron.get_CS_dataseries_by_trial(
                                 NN_FIT.learn_rates_time_window,
                                 blocks, all_t_inds, nan_sacc=False)
-    print("RAW RATES", firing_rate.shape)
     """ Here we have to do some work to get all the data in the correct format """
     # First get all firing rate data, bin and format
     binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
-    print("BINNED RATES", binned_FR.shape)
     binned_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-    print("RESHAPED RATES", binned_FR.shape)
 
     # And for CSs
     binned_CS = bin_data(CS_bin_evts, bin_width, bin_threshold)
@@ -1183,12 +1179,9 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
                                     blocks, all_t_inds,
                                     NN_FIT.learn_rates_time_window,
                                     return_shape=True)
-    print("Raw EYE", eye_data.shape)
     eye_data = eye_data.reshape(initial_shape)
-    print("RESHAPE EYE", eye_data.shape)
     # Use bin smoothing on data before fitting
     bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-    print("BINNED EYE", eye_data.shape)
     # Observations defined after binning
     n_trials = bin_eye_data.shape[0] # Total number of trials to fit
     n_obs_pt = bin_eye_data.shape[1] # Number of observations per trial
@@ -1196,7 +1189,6 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     bin_eye_data = bin_eye_data.reshape(
                             bin_eye_data.shape[0]*bin_eye_data.shape[1],
                             bin_eye_data.shape[2], order='C')
-    print("RESHAPED EYE", eye_data.shape)
     fit_inputs = np.hstack([bin_eye_data, binned_CS[:, None]])
     # Make an index of all nans that we can use in objective function to set
     # the unit activations to 0.0
@@ -1204,10 +1196,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     # Firing rate data is only NaN where data for a trial does not cover NN_FIT.time_window
     # So we need to find this separate from saccades and can set to 0.0 to ignore
     # We will AND this with where eye is NaN because both should be if data are truly missing
-    print("What the shapes?", binned_FR.shape, eye_is_nan.shape, bin_eye_data.shape)
-    print(bin_width, bin_threshold)
     is_missing_data = np.isnan(binned_FR) | eye_is_nan
-    return
 
     # Need the means and stds for converting state to input
     pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
