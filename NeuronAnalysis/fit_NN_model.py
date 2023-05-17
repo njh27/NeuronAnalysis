@@ -1102,8 +1102,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     fit_inputs = np.hstack([bin_eye_data, binned_CS[:, None]])
     state_input = np.zeros((n_obs_pt, n_gaussians+8))
     y_hat_trial = np.zeros((n_obs_pt, ))
-    pf_LTD = np.zeros((n_gaussians+8))
-    pf_LTP = np.zeros((n_gaussians+8))
+    pf_LTD = np.zeros((n_gaussians))
+    pf_LTP = np.zeros((n_gaussians))
     lf_args = (bin_width, n_trials, n_obs_pt, is_missing_data,
                 n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
                 W_full, state_input, y_hat_trial, pf_LTD, pf_LTP)
@@ -1241,8 +1241,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     W_full = np.vstack((W_pf, W_mli))
     state_input = np.zeros((n_obs_pt, n_gaussians+8))
     y_hat_trial = np.zeros((n_obs_pt, ))
-    pf_LTD = np.zeros((n_gaussians+8))
-    pf_LTP = np.zeros((n_gaussians+8))
+    pf_LTD = np.zeros((n_gaussians))
+    pf_LTP = np.zeros((n_gaussians))
     weights_by_trial = {t_num: np.zeros(W_full.shape) for t_num in all_t_inds}
 
     for trial_ind, trial_num in zip(range(0, n_trials), all_t_inds):
