@@ -264,7 +264,7 @@ class FitNNModel(object):
             layers.Input(shape=(n_gaussians + 8,)),
             layers.Dense(1, activation=activation_out,
                             kernel_constraint=constraints.NonNeg(),
-                            bias_initializer=initializers.Constant(0.5*np.nanmedian(binned_FR_train))),
+                            bias_initializer=initializers.Constant(0.1*np.nanmedian(binned_FR_train))),
         ])
         clip_value = None
         optimizer = SGD(learning_rate=learning_rate, clipvalue=clip_value)
@@ -1084,10 +1084,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None,
     # Initialize W_full to pass to objective function
     W_full = np.zeros((n_gaussians+8, ), dtype=np.float64)
 
-    lf_kwargs = {'tau_rise_CS': int(np.around(-50 /bin_width)),
-                 'tau_decay_CS': int(np.around(150 /bin_width)),
-                 'tau_rise_CS_LTP': int(np.around(-200 /bin_width)),
-                 'tau_decay_CS_LTP': int(np.around(300 /bin_width)),
+    lf_kwargs = {'tau_rise_CS': int(np.around(25 /bin_width)),
+                 'tau_decay_CS': int(np.around(0 /bin_width)),
+                 'tau_rise_CS_LTP': int(np.around(-100 /bin_width)),
+                 'tau_decay_CS_LTP': int(np.around(200 /bin_width)),
                  # 'tau_rise_CS_mli_LTP': int(np.around(80 /bin_width)),
                  # 'tau_decay_CS_mli_LTP': int(np.around(-40 /bin_width)),
                  # 'tau_rise_CS_mli_LTD': int(np.around(-40 /bin_width)),
