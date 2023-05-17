@@ -259,7 +259,7 @@ class FitNNModel(object):
             eye_input_test = []
             val_data = None
         self.activation_out = activation_out
-        intrinsic_rate0 = 20 #max(np.nanmedian(binned_FR_train), 40)
+        intrinsic_rate0 = 50 #max(np.nanmedian(binned_FR_train), 40)
         # Create the neural network model
         model = models.Sequential([
             layers.Input(shape=(n_gaussians + 8,)),
