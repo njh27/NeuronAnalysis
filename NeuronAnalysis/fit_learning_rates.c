@@ -2394,7 +2394,7 @@ static double __pyx_f_18fit_learning_rates_d_min(double, double); /*proto*/
 static Py_ssize_t __pyx_f_18fit_learning_rates_py_max(Py_ssize_t, Py_ssize_t); /*proto*/
 static Py_ssize_t __pyx_f_18fit_learning_rates_py_min(Py_ssize_t, Py_ssize_t); /*proto*/
 static void __pyx_f_18fit_learning_rates_f_pf_LTP(PyArrayObject *, PyArrayObject *, __Pyx_memviewslice, PyArrayObject *, double); /*proto*/
-static void __pyx_f_18fit_learning_rates_f_pf_FR_LTP(__Pyx_memviewslice, __Pyx_memviewslice, double); /*proto*/
+static void __pyx_f_18fit_learning_rates_f_pf_FR_LTP(__Pyx_memviewslice, __Pyx_memviewslice, double, double); /*proto*/
 static void __pyx_f_18fit_learning_rates_f_pf_static_LTP(__Pyx_memviewslice, double); /*proto*/
 static void __pyx_f_18fit_learning_rates_box_windows(__Pyx_memviewslice, __Pyx_memviewslice, int, int, struct __pyx_opt_args_18fit_learning_rates_box_windows *__pyx_optional_args); /*proto*/
 static void __pyx_f_18fit_learning_rates_f_pf_CS_LTP(__Pyx_memviewslice, __Pyx_memviewslice, int, int, struct __pyx_opt_args_18fit_learning_rates_f_pf_CS_LTP *__pyx_optional_args); /*proto*/
@@ -3468,24 +3468,27 @@ static void __pyx_f_18fit_learning_rates_f_pf_LTP(PyArrayObject *__pyx_v_pf_LTP,
 /* "fit_learning_rates.pyx":48
  * @cython.boundscheck(False)
  * @cython.wraparound(False)
- * cdef void f_pf_FR_LTP(double[::1] pf_LTP_funs,             # <<<<<<<<<<<<<<
- *                       double[::1] PC_FR, double PC_FR_weight_LTP) nogil:
+ * cdef void f_pf_FR_LTP(double[::1] pf_LTP_funs, double[::1] PC_FR,             # <<<<<<<<<<<<<<
+ *                       double PC_FR_weight_LTP, double FR_MAX) nogil:
  *     cdef Py_ssize_t t
  */
 
-static void __pyx_f_18fit_learning_rates_f_pf_FR_LTP(__Pyx_memviewslice __pyx_v_pf_LTP_funs, __Pyx_memviewslice __pyx_v_PC_FR, double __pyx_v_PC_FR_weight_LTP) {
+static void __pyx_f_18fit_learning_rates_f_pf_FR_LTP(__Pyx_memviewslice __pyx_v_pf_LTP_funs, __Pyx_memviewslice __pyx_v_PC_FR, double __pyx_v_PC_FR_weight_LTP, double __pyx_v_FR_MAX) {
   Py_ssize_t __pyx_v_t;
   Py_ssize_t __pyx_t_1;
   Py_ssize_t __pyx_t_2;
   Py_ssize_t __pyx_t_3;
   Py_ssize_t __pyx_t_4;
-  Py_ssize_t __pyx_t_5;
+  double __pyx_t_5;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
 
   /* "fit_learning_rates.pyx":51
- *                       double[::1] PC_FR, double PC_FR_weight_LTP) nogil:
+ *                       double PC_FR_weight_LTP, double FR_MAX) nogil:
  *     cdef Py_ssize_t t
  *     for t in range(pf_LTP_funs.shape[0]):             # <<<<<<<<<<<<<<
- *         pf_LTP_funs[t] += (PC_FR[t] * PC_FR_weight_LTP)
+ *         pf_LTP_funs[t] += ((PC_FR[t] / FR_MAX) * PC_FR_weight_LTP)
  *     return
  */
   __pyx_t_1 = (__pyx_v_pf_LTP_funs.shape[0]);
@@ -3496,18 +3499,29 @@ static void __pyx_f_18fit_learning_rates_f_pf_FR_LTP(__Pyx_memviewslice __pyx_v_
     /* "fit_learning_rates.pyx":52
  *     cdef Py_ssize_t t
  *     for t in range(pf_LTP_funs.shape[0]):
- *         pf_LTP_funs[t] += (PC_FR[t] * PC_FR_weight_LTP)             # <<<<<<<<<<<<<<
+ *         pf_LTP_funs[t] += ((PC_FR[t] / FR_MAX) * PC_FR_weight_LTP)             # <<<<<<<<<<<<<<
  *     return
  * 
  */
     __pyx_t_4 = __pyx_v_t;
-    __pyx_t_5 = __pyx_v_t;
-    *((double *) ( /* dim=0 */ ((char *) (((double *) __pyx_v_pf_LTP_funs.data) + __pyx_t_5)) )) += ((*((double *) ( /* dim=0 */ ((char *) (((double *) __pyx_v_PC_FR.data) + __pyx_t_4)) ))) * __pyx_v_PC_FR_weight_LTP);
+    __pyx_t_5 = (*((double *) ( /* dim=0 */ ((char *) (((double *) __pyx_v_PC_FR.data) + __pyx_t_4)) )));
+    if (unlikely(__pyx_v_FR_MAX == 0)) {
+      #ifdef WITH_THREAD
+      PyGILState_STATE __pyx_gilstate_save = __Pyx_PyGILState_Ensure();
+      #endif
+      PyErr_SetString(PyExc_ZeroDivisionError, "float division");
+      #ifdef WITH_THREAD
+      __Pyx_PyGILState_Release(__pyx_gilstate_save);
+      #endif
+      __PYX_ERR(0, 52, __pyx_L1_error)
+    }
+    __pyx_t_4 = __pyx_v_t;
+    *((double *) ( /* dim=0 */ ((char *) (((double *) __pyx_v_pf_LTP_funs.data) + __pyx_t_4)) )) += ((__pyx_t_5 / __pyx_v_FR_MAX) * __pyx_v_PC_FR_weight_LTP);
   }
 
   /* "fit_learning_rates.pyx":53
  *     for t in range(pf_LTP_funs.shape[0]):
- *         pf_LTP_funs[t] += (PC_FR[t] * PC_FR_weight_LTP)
+ *         pf_LTP_funs[t] += ((PC_FR[t] / FR_MAX) * PC_FR_weight_LTP)
  *     return             # <<<<<<<<<<<<<<
  * 
  * @cython.boundscheck(False)
@@ -3517,12 +3531,14 @@ static void __pyx_f_18fit_learning_rates_f_pf_FR_LTP(__Pyx_memviewslice __pyx_v_
   /* "fit_learning_rates.pyx":48
  * @cython.boundscheck(False)
  * @cython.wraparound(False)
- * cdef void f_pf_FR_LTP(double[::1] pf_LTP_funs,             # <<<<<<<<<<<<<<
- *                       double[::1] PC_FR, double PC_FR_weight_LTP) nogil:
+ * cdef void f_pf_FR_LTP(double[::1] pf_LTP_funs, double[::1] PC_FR,             # <<<<<<<<<<<<<<
+ *                       double PC_FR_weight_LTP, double FR_MAX) nogil:
  *     cdef Py_ssize_t t
  */
 
   /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_WriteUnraisable("fit_learning_rates.f_pf_FR_LTP", __pyx_clineno, __pyx_lineno, __pyx_filename, 1, 1);
   __pyx_L0:;
 }
 
@@ -4927,9 +4943,8 @@ static double __pyx_f_18fit_learning_rates_learning_function(PyArrayObject *__py
   __Pyx_memviewslice __pyx_t_25 = { 0, 0, { 0 }, { 0 }, { 0 } };
   int __pyx_t_26;
   int __pyx_t_27;
-  double __pyx_t_28;
-  struct __pyx_opt_args_18fit_learning_rates_f_pf_CS_LTD __pyx_t_29;
-  struct __pyx_opt_args_18fit_learning_rates_f_pf_CS_LTP __pyx_t_30;
+  struct __pyx_opt_args_18fit_learning_rates_f_pf_CS_LTD __pyx_t_28;
+  struct __pyx_opt_args_18fit_learning_rates_f_pf_CS_LTP __pyx_t_29;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
@@ -5801,7 +5816,7 @@ __PYX_XDEC_MEMVIEW(&__pyx_v_state_trial, 1);
  *         y_hat_trial = np.maximum(0, np.dot(state_input, W_full) + b)
  *         for t_i in range(0, n_obs_pt):             # <<<<<<<<<<<<<<
  *           residuals += sqrt((y_obs_trial[t_i] - y_hat_trial[t_i]) ** 2)
- *           # While we are looping NORMALIZE y_obs_trial firing rate
+ * 
  */
     __pyx_t_23 = __pyx_v_n_obs_pt;
     __pyx_t_26 = __pyx_t_23;
@@ -5812,43 +5827,27 @@ __PYX_XDEC_MEMVIEW(&__pyx_v_state_trial, 1);
  *         y_hat_trial = np.maximum(0, np.dot(state_input, W_full) + b)
  *         for t_i in range(0, n_obs_pt):
  *           residuals += sqrt((y_obs_trial[t_i] - y_hat_trial[t_i]) ** 2)             # <<<<<<<<<<<<<<
- *           # While we are looping NORMALIZE y_obs_trial firing rate
- *           y_obs_trial[t_i] = y_obs_trial[t_i] / FR_MAX
+ * 
+ *         state_input_pf = state_input[:, 0:n_gaussians]
  */
       __pyx_t_15 = __pyx_v_t_i;
       __pyx_t_20 = __pyx_v_t_i;
       __pyx_v_residuals = (__pyx_v_residuals + sqrt(pow(((*((double *) ( /* dim=0 */ ((char *) (((double *) __pyx_v_y_obs_trial.data) + __pyx_t_15)) ))) - (*((double *) ( /* dim=0 */ (__pyx_v_y_hat_trial.data + __pyx_t_20 * __pyx_v_y_hat_trial.strides[0]) )))), 2.0)));
-
-      /* "fit_learning_rates.pyx":241
- *           residuals += sqrt((y_obs_trial[t_i] - y_hat_trial[t_i]) ** 2)
- *           # While we are looping NORMALIZE y_obs_trial firing rate
- *           y_obs_trial[t_i] = y_obs_trial[t_i] / FR_MAX             # <<<<<<<<<<<<<<
- * 
- *         state_input_pf = state_input[:, 0:n_gaussians]
- */
-      __pyx_t_20 = __pyx_v_t_i;
-      __pyx_t_28 = (*((double *) ( /* dim=0 */ ((char *) (((double *) __pyx_v_y_obs_trial.data) + __pyx_t_20)) )));
-      if (unlikely(__pyx_v_FR_MAX == 0)) {
-        PyErr_SetString(PyExc_ZeroDivisionError, "float division");
-        __PYX_ERR(0, 241, __pyx_L1_error)
-      }
-      __pyx_t_20 = __pyx_v_t_i;
-      *((double *) ( /* dim=0 */ ((char *) (((double *) __pyx_v_y_obs_trial.data) + __pyx_t_20)) )) = (__pyx_t_28 / __pyx_v_FR_MAX);
     }
 
-    /* "fit_learning_rates.pyx":243
- *           y_obs_trial[t_i] = y_obs_trial[t_i] / FR_MAX
+    /* "fit_learning_rates.pyx":241
+ *           residuals += sqrt((y_obs_trial[t_i] - y_hat_trial[t_i]) ** 2)
  * 
  *         state_input_pf = state_input[:, 0:n_gaussians]             # <<<<<<<<<<<<<<
  *         CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt]
  * 
  */
-    __pyx_t_9 = __Pyx_PyInt_From_int(__pyx_v_n_gaussians); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 243, __pyx_L1_error)
+    __pyx_t_9 = __Pyx_PyInt_From_int(__pyx_v_n_gaussians); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 241, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_9);
-    __pyx_t_1 = PySlice_New(__pyx_int_0, __pyx_t_9, Py_None); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 243, __pyx_L1_error)
+    __pyx_t_1 = PySlice_New(__pyx_int_0, __pyx_t_9, Py_None); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 241, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-    __pyx_t_9 = PyTuple_New(2); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 243, __pyx_L1_error)
+    __pyx_t_9 = PyTuple_New(2); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 241, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_9);
     __Pyx_INCREF(__pyx_slice_);
     __Pyx_GIVEREF(__pyx_slice_);
@@ -5856,17 +5855,17 @@ __PYX_XDEC_MEMVIEW(&__pyx_v_state_trial, 1);
     __Pyx_GIVEREF(__pyx_t_1);
     PyTuple_SET_ITEM(__pyx_t_9, 1, __pyx_t_1);
     __pyx_t_1 = 0;
-    __pyx_t_1 = __Pyx_PyObject_GetItem(((PyObject *)__pyx_v_state_input), __pyx_t_9); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 243, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetItem(((PyObject *)__pyx_v_state_input), __pyx_t_9); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 241, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-    __pyx_t_2 = __Pyx_PyObject_to_MemoryviewSlice_dsds_double(__pyx_t_1, PyBUF_WRITABLE); if (unlikely(!__pyx_t_2.memview)) __PYX_ERR(0, 243, __pyx_L1_error)
+    __pyx_t_2 = __Pyx_PyObject_to_MemoryviewSlice_dsds_double(__pyx_t_1, PyBUF_WRITABLE); if (unlikely(!__pyx_t_2.memview)) __PYX_ERR(0, 241, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     __PYX_XDEC_MEMVIEW(&__pyx_v_state_input_pf, 1);
     __pyx_v_state_input_pf = __pyx_t_2;
     __pyx_t_2.memview = NULL;
     __pyx_t_2.data = NULL;
 
-    /* "fit_learning_rates.pyx":244
+    /* "fit_learning_rates.pyx":242
  * 
  *         state_input_pf = state_input[:, 0:n_gaussians]
  *         CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt]             # <<<<<<<<<<<<<<
@@ -5891,7 +5890,7 @@ __PYX_XDEC_MEMVIEW(&__pyx_v_state_trial, 1);
     0,
     1) < 0))
 {
-    __PYX_ERR(0, 244, __pyx_L1_error)
+    __PYX_ERR(0, 242, __pyx_L1_error)
 }
 
 __PYX_XDEC_MEMVIEW(&__pyx_v_CS_trial_bin, 1);
@@ -5899,80 +5898,80 @@ __PYX_XDEC_MEMVIEW(&__pyx_v_CS_trial_bin, 1);
     __pyx_t_6.memview = NULL;
     __pyx_t_6.data = NULL;
 
-    /* "fit_learning_rates.pyx":247
+    /* "fit_learning_rates.pyx":245
  * 
  *         # Call to box_windows inside here resets pf_CS_LTD to zeros!
  *         f_pf_CS_LTD(pf_CS_LTD[:], CS_trial_bin, tau_rise_CS, tau_decay_CS, epsilon)             # <<<<<<<<<<<<<<
  *         f_pf_LTD(pf_LTD, pf_CS_LTD[:], state_input_pf, W_pf, W_min_pf)
  * 
  */
-    __pyx_t_1 = __Pyx_PyObject_GetItem(((PyObject *)__pyx_v_pf_CS_LTD), __pyx_slice_); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 247, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetItem(((PyObject *)__pyx_v_pf_CS_LTD), __pyx_slice_); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 245, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_6 = __Pyx_PyObject_to_MemoryviewSlice_dc_double(__pyx_t_1, PyBUF_WRITABLE); if (unlikely(!__pyx_t_6.memview)) __PYX_ERR(0, 247, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyObject_to_MemoryviewSlice_dc_double(__pyx_t_1, PyBUF_WRITABLE); if (unlikely(!__pyx_t_6.memview)) __PYX_ERR(0, 245, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_29.__pyx_n = 1;
-    __pyx_t_29.scale = __pyx_v_epsilon;
-    __pyx_f_18fit_learning_rates_f_pf_CS_LTD(__pyx_t_6, __pyx_v_CS_trial_bin, __pyx_v_tau_rise_CS, __pyx_v_tau_decay_CS, &__pyx_t_29); 
+    __pyx_t_28.__pyx_n = 1;
+    __pyx_t_28.scale = __pyx_v_epsilon;
+    __pyx_f_18fit_learning_rates_f_pf_CS_LTD(__pyx_t_6, __pyx_v_CS_trial_bin, __pyx_v_tau_rise_CS, __pyx_v_tau_decay_CS, &__pyx_t_28); 
     __PYX_XDEC_MEMVIEW(&__pyx_t_6, 1);
     __pyx_t_6.memview = NULL;
     __pyx_t_6.data = NULL;
 
-    /* "fit_learning_rates.pyx":248
+    /* "fit_learning_rates.pyx":246
  *         # Call to box_windows inside here resets pf_CS_LTD to zeros!
  *         f_pf_CS_LTD(pf_CS_LTD[:], CS_trial_bin, tau_rise_CS, tau_decay_CS, epsilon)
  *         f_pf_LTD(pf_LTD, pf_CS_LTD[:], state_input_pf, W_pf, W_min_pf)             # <<<<<<<<<<<<<<
  * 
  *         # Call to box_windows inside here resets pf_LTP_funs to zeros!
  */
-    __pyx_t_1 = __Pyx_PyObject_GetItem(((PyObject *)__pyx_v_pf_CS_LTD), __pyx_slice_); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 248, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetItem(((PyObject *)__pyx_v_pf_CS_LTD), __pyx_slice_); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 246, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    if (!(likely(((__pyx_t_1) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_1, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 248, __pyx_L1_error)
+    if (!(likely(((__pyx_t_1) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_1, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 246, __pyx_L1_error)
     __pyx_f_18fit_learning_rates_f_pf_LTD(((PyArrayObject *)__pyx_v_pf_LTD), ((PyArrayObject *)__pyx_t_1), __pyx_v_state_input_pf, ((PyArrayObject *)__pyx_v_W_pf), __pyx_v_W_min_pf);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-    /* "fit_learning_rates.pyx":251
+    /* "fit_learning_rates.pyx":249
  * 
  *         # Call to box_windows inside here resets pf_LTP_funs to zeros!
  *         f_pf_CS_LTP(pf_LTP_funs, CS_trial_bin, tau_rise_CS_LTP, tau_decay_CS_LTP, alpha)             # <<<<<<<<<<<<<<
- *         f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta)
+ *         f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta, FR_MAX)
  *         f_pf_static_LTP(pf_LTP_funs, gamma)
  */
-    __pyx_t_6 = __Pyx_PyObject_to_MemoryviewSlice_dc_double(((PyObject *)__pyx_v_pf_LTP_funs), PyBUF_WRITABLE); if (unlikely(!__pyx_t_6.memview)) __PYX_ERR(0, 251, __pyx_L1_error)
-    __pyx_t_30.__pyx_n = 1;
-    __pyx_t_30.scale = __pyx_v_alpha;
-    __pyx_f_18fit_learning_rates_f_pf_CS_LTP(__pyx_t_6, __pyx_v_CS_trial_bin, __pyx_v_tau_rise_CS_LTP, __pyx_v_tau_decay_CS_LTP, &__pyx_t_30); 
+    __pyx_t_6 = __Pyx_PyObject_to_MemoryviewSlice_dc_double(((PyObject *)__pyx_v_pf_LTP_funs), PyBUF_WRITABLE); if (unlikely(!__pyx_t_6.memview)) __PYX_ERR(0, 249, __pyx_L1_error)
+    __pyx_t_29.__pyx_n = 1;
+    __pyx_t_29.scale = __pyx_v_alpha;
+    __pyx_f_18fit_learning_rates_f_pf_CS_LTP(__pyx_t_6, __pyx_v_CS_trial_bin, __pyx_v_tau_rise_CS_LTP, __pyx_v_tau_decay_CS_LTP, &__pyx_t_29); 
     __PYX_XDEC_MEMVIEW(&__pyx_t_6, 1);
     __pyx_t_6.memview = NULL;
     __pyx_t_6.data = NULL;
 
-    /* "fit_learning_rates.pyx":252
+    /* "fit_learning_rates.pyx":250
  *         # Call to box_windows inside here resets pf_LTP_funs to zeros!
  *         f_pf_CS_LTP(pf_LTP_funs, CS_trial_bin, tau_rise_CS_LTP, tau_decay_CS_LTP, alpha)
- *         f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta)             # <<<<<<<<<<<<<<
+ *         f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta, FR_MAX)             # <<<<<<<<<<<<<<
  *         f_pf_static_LTP(pf_LTP_funs, gamma)
  *         f_pf_LTP(pf_LTP, pf_LTP_funs, state_input_pf, W_pf, W_max_pf)
  */
-    __pyx_t_6 = __Pyx_PyObject_to_MemoryviewSlice_dc_double(((PyObject *)__pyx_v_pf_LTP_funs), PyBUF_WRITABLE); if (unlikely(!__pyx_t_6.memview)) __PYX_ERR(0, 252, __pyx_L1_error)
-    __pyx_f_18fit_learning_rates_f_pf_FR_LTP(__pyx_t_6, __pyx_v_y_obs_trial, __pyx_v_beta);
+    __pyx_t_6 = __Pyx_PyObject_to_MemoryviewSlice_dc_double(((PyObject *)__pyx_v_pf_LTP_funs), PyBUF_WRITABLE); if (unlikely(!__pyx_t_6.memview)) __PYX_ERR(0, 250, __pyx_L1_error)
+    __pyx_f_18fit_learning_rates_f_pf_FR_LTP(__pyx_t_6, __pyx_v_y_obs_trial, __pyx_v_beta, __pyx_v_FR_MAX);
     __PYX_XDEC_MEMVIEW(&__pyx_t_6, 1);
     __pyx_t_6.memview = NULL;
     __pyx_t_6.data = NULL;
 
-    /* "fit_learning_rates.pyx":253
+    /* "fit_learning_rates.pyx":251
  *         f_pf_CS_LTP(pf_LTP_funs, CS_trial_bin, tau_rise_CS_LTP, tau_decay_CS_LTP, alpha)
- *         f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta)
+ *         f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta, FR_MAX)
  *         f_pf_static_LTP(pf_LTP_funs, gamma)             # <<<<<<<<<<<<<<
  *         f_pf_LTP(pf_LTP, pf_LTP_funs, state_input_pf, W_pf, W_max_pf)
  * 
  */
-    __pyx_t_6 = __Pyx_PyObject_to_MemoryviewSlice_dc_double(((PyObject *)__pyx_v_pf_LTP_funs), PyBUF_WRITABLE); if (unlikely(!__pyx_t_6.memview)) __PYX_ERR(0, 253, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyObject_to_MemoryviewSlice_dc_double(((PyObject *)__pyx_v_pf_LTP_funs), PyBUF_WRITABLE); if (unlikely(!__pyx_t_6.memview)) __PYX_ERR(0, 251, __pyx_L1_error)
     __pyx_f_18fit_learning_rates_f_pf_static_LTP(__pyx_t_6, __pyx_v_gamma);
     __PYX_XDEC_MEMVIEW(&__pyx_t_6, 1);
     __pyx_t_6.memview = NULL;
     __pyx_t_6.data = NULL;
 
-    /* "fit_learning_rates.pyx":254
- *         f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta)
+    /* "fit_learning_rates.pyx":252
+ *         f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta, FR_MAX)
  *         f_pf_static_LTP(pf_LTP_funs, gamma)
  *         f_pf_LTP(pf_LTP, pf_LTP_funs, state_input_pf, W_pf, W_max_pf)             # <<<<<<<<<<<<<<
  * 
@@ -5980,22 +5979,22 @@ __PYX_XDEC_MEMVIEW(&__pyx_v_CS_trial_bin, 1);
  */
     __pyx_f_18fit_learning_rates_f_pf_LTP(((PyArrayObject *)__pyx_v_pf_LTP), ((PyArrayObject *)__pyx_v_pf_LTP_funs), __pyx_v_state_input_pf, ((PyArrayObject *)__pyx_v_W_pf), __pyx_v_W_max_pf);
 
-    /* "fit_learning_rates.pyx":257
+    /* "fit_learning_rates.pyx":255
  * 
  *         # Updates weights of W_pf in place
  *         update_W_pf(W_pf, pf_LTP, pf_LTD, W_max_pf, W_min_pf)             # <<<<<<<<<<<<<<
  *         # Put updated weights into W_full for next iteration
  *         for wi in range(0, n_gaussians):
  */
-    __pyx_t_1 = PyFloat_FromDouble(__pyx_v_W_max_pf); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 257, __pyx_L1_error)
+    __pyx_t_1 = PyFloat_FromDouble(__pyx_v_W_max_pf); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 255, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_9 = PyFloat_FromDouble(__pyx_v_W_min_pf); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 257, __pyx_L1_error)
+    __pyx_t_9 = PyFloat_FromDouble(__pyx_v_W_min_pf); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 255, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_9);
     __pyx_f_18fit_learning_rates_update_W_pf(((PyArrayObject *)__pyx_v_W_pf), ((PyArrayObject *)__pyx_v_pf_LTP), ((PyArrayObject *)__pyx_v_pf_LTD), __pyx_t_1, __pyx_t_9);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
 
-    /* "fit_learning_rates.pyx":259
+    /* "fit_learning_rates.pyx":257
  *         update_W_pf(W_pf, pf_LTP, pf_LTD, W_max_pf, W_min_pf)
  *         # Put updated weights into W_full for next iteration
  *         for wi in range(0, n_gaussians):             # <<<<<<<<<<<<<<
@@ -6007,7 +6006,7 @@ __PYX_XDEC_MEMVIEW(&__pyx_v_CS_trial_bin, 1);
     for (__pyx_t_27 = 0; __pyx_t_27 < __pyx_t_26; __pyx_t_27+=1) {
       __pyx_v_wi = __pyx_t_27;
 
-      /* "fit_learning_rates.pyx":260
+      /* "fit_learning_rates.pyx":258
  *         # Put updated weights into W_full for next iteration
  *         for wi in range(0, n_gaussians):
  *             W_full[wi] = W_pf[wi]             # <<<<<<<<<<<<<<
@@ -6020,7 +6019,7 @@ __PYX_XDEC_MEMVIEW(&__pyx_v_CS_trial_bin, 1);
     }
   }
 
-  /* "fit_learning_rates.pyx":262
+  /* "fit_learning_rates.pyx":260
  *             W_full[wi] = W_pf[wi]
  * 
  *     return residuals             # <<<<<<<<<<<<<<
