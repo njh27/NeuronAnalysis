@@ -1312,6 +1312,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         # Binary CS for this trial
         CS_trial_bin = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt]
 
+        zeta_f_move = np.sqrt(move_m_trial) * move_LTD_scale
         # Get LTD function for parallel fibers
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS'],
                           kwargs['tau_decay_CS'], epsilon, 0.0, zeta_f_move)
