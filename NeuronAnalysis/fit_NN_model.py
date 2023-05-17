@@ -769,7 +769,7 @@ def f_pf_move_LTP(pf_LTP_funs, move_m_trial, move_LTP_scale):
     """
     """
     # Add a term with movement magnitude times weight
-    pf_LTP_funs *= np.sqrt(move_m_trial * move_LTP_scale + 1)
+    # pf_LTP_funs *= np.sqrt(move_m_trial * move_LTP_scale + 1)
     return pf_LTP_funs
 
 def f_pf_LTP(pf_LTP_funs, state_input_pf, pf_LTP, W_pf=None, W_max_pf=None):
