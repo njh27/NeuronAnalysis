@@ -741,7 +741,7 @@ def f_pf_LTD(pf_CS_LTD, state_input_pf, pf_LTD, W_pf=None, W_min_pf=0.0):
         pf_LTD *= -1.0
     return pf_LTD
 
-def f_pf_CS_LTP(CS_trial_bin, tau_1, tau_2, scale=1.0):
+def f_pf_CS_LTP(CS_trial_bin, tau_1, tau_2, scale=1.0, zeta_f_move=None):
     """ Assumes CS_trial_bin is an array of 0's and 1's where 1's indicate that
     CS LTD is taking place and 0's indicate no CS related LTD. This function
     will then invert the CS train and form windows of LTP where LTD is absent.
@@ -749,20 +749,26 @@ def f_pf_CS_LTP(CS_trial_bin, tau_1, tau_2, scale=1.0):
     # Inverts the CS function
     # pf_CS_LTP = np.mod(CS_trial_bin + 1, 2)
     pf_CS_LTP = box_windows(CS_trial_bin, tau_1, tau_2, scale=scale)
+    if zeta_f_move is not None:
+        pf_CS_LTP += (pf_CS_LTP * zeta_f_move)
     return pf_CS_LTP
 
-def f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, static_weight_LTP):
+def f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, static_weight_LTP, zeta_f_move=None):
     """
     """
     pf_LTP_funs += static_weight_LTP
     pf_LTP_funs[pf_CS_LTD > 0.0] = 0.0
+    if zeta_f_move is not None:
+        pf_LTP_funs += (static_weight_LTP * zeta_f_move)
     return pf_LTP_funs
 
-def f_pf_FR_LTP(pf_LTP_funs, PC_FR, PC_FR_weight_LTP):
+def f_pf_FR_LTP(pf_LTP_funs, PC_FR, PC_FR_weight_LTP, zeta_f_move=None):
     """
     """
     # Add a term with firing rate times weight of constant LTP
     pf_LTP_funs += (PC_FR * PC_FR_weight_LTP)
+    if zeta_f_move is not None:
+        pf_LTP_funs += (PC_FR * PC_FR_weight_LTP * zeta_f_move)
     return pf_LTP_funs
 
 def f_pf_move_LTP(pf_LTP_funs, move_m_trial, move_LTP_scale):
@@ -963,13 +969,14 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         # Convert to LTD input for Purkinje cell
         pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, pf_LTD, W_pf=W_pf, W_min_pf=W_min_pf)
 
+        zeta_f_move = np.sqrt(move_m_trial) * move_LTP_scale
         # Create the LTP function for parallel fibers
         pf_LTP_funs = f_pf_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_LTP'],
-                        kwargs['tau_decay_CS_LTP'], alpha)
+                        kwargs['tau_decay_CS_LTP'], alpha, zeta_f_move)
         # These functions add on to pf_LTP_funs in place
-        pf_LTP_funs = f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta)
-        pf_LTP_funs = f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, gamma)
-        pf_LTP_funs = f_pf_move_LTP(pf_LTP_funs, move_m_trial, move_LTP_scale)
+        pf_LTP_funs = f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta, zeta_f_move)
+        pf_LTP_funs = f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, gamma, zeta_f_move)
+        # pf_LTP_funs = f_pf_move_LTP(pf_LTP_funs, move_m_trial, move_LTP_scale)
         # Convert to LTP input for Purkinje cell
         pf_LTP = f_pf_LTP(pf_LTP_funs, state_input_pf, pf_LTP, W_pf=W_pf, W_max_pf=W_max_pf)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
@@ -1304,13 +1311,14 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         # Convert to LTD input for Purkinje cell
         pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, pf_LTD, W_pf=W_pf, W_min_pf=W_min_pf)
 
+        zeta_f_move = np.sqrt(move_m_trial) * move_LTP_scale
         # Create the LTP function for parallel fibers
         pf_LTP_funs = f_pf_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_LTP'],
-                        kwargs['tau_decay_CS_LTP'], alpha)
+                        kwargs['tau_decay_CS_LTP'], alpha, zeta_f_move)
         # These functions add on to pf_LTP_funs in place
-        pf_LTP_funs = f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta)
-        pf_LTP_funs = f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, gamma)
-        pf_LTP_funs = f_pf_move_LTP(pf_LTP_funs, move_m_trial, move_LTP_scale)
+        pf_LTP_funs = f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta, zeta_f_move)
+        pf_LTP_funs = f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, gamma, zeta_f_move)
+        # pf_LTP_funs = f_pf_move_LTP(pf_LTP_funs, move_m_trial, move_LTP_scale)
         # Convert to LTP input for Purkinje cell
         pf_LTP = f_pf_LTP(pf_LTP_funs, state_input_pf, pf_LTP, W_pf=W_pf, W_max_pf=W_max_pf)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
