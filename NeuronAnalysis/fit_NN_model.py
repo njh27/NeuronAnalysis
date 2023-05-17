@@ -978,7 +978,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             W_mli[(W_mli < W_min_mli)] = W_min_mli
             W_full[n_gaussians:] = W_mli
 
-    residuals = np.nansum((y - y_hat) ** 2)
+    residuals = np.nansum((y[~is_missing_data] - y_hat[~is_missing_data]) ** 2)
     print("DIff with new resids", np.abs(iter_residuals - residuals))
     print("SO delete y_hat")
     return residuals
