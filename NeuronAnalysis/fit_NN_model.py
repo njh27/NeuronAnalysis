@@ -1161,7 +1161,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
                                         blocks, trial_sets, return_inds=True)
     CS_bin_evts = NN_FIT.neuron.get_CS_dataseries_by_trial(
                                 NN_FIT.learn_rates_time_window,
-                                blocks, trial_sets, nan_sacc=False)
+                                blocks, all_t_inds, nan_sacc=False)
     print("RAW RATES", firing_rate.shape)
     """ Here we have to do some work to get all the data in the correct format """
     # First get all firing rate data, bin and format
@@ -1178,7 +1178,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
 
     """ Get all the binned eye data """
     eye_data, initial_shape = get_plasticity_data_trial_win(NN_FIT,
-                                    blocks, trial_sets,
+                                    blocks, all_t_inds,
                                     NN_FIT.learn_rates_time_window,
                                     return_shape=True)
     print("Raw EYE", eye_data.shape)
