@@ -724,7 +724,7 @@ def f_pf_move_LTD(pf_CS_LTD, move_m_trial, move_LTD_scale):
     """
     """
     # Add a term with movement magnitude times weight
-    # pf_CS_LTD *= (np.sqrt(move_m_trial) * move_LTD_scale + 1)
+    pf_CS_LTD += (pf_CS_LTD * np.sqrt(move_m_trial) * move_LTD_scale)
     return pf_CS_LTD
 
 def f_pf_LTD(pf_CS_LTD, state_input_pf, pf_LTD, W_pf=None, W_min_pf=0.0):
