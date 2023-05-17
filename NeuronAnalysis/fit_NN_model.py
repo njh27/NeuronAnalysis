@@ -914,7 +914,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     move_LTP_scale = params[6]
     move_magn = np.linalg.norm(x[:, 2:4], axis=1)
     pf_scale = params[7]
-    mli_scale = 1 #params[6]
+    mli_scale = params[8]
     # Set weights to initial fit values
     W_pf = np.copy(W_0_pf)
     W_pf *= pf_scale
@@ -1122,7 +1122,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None,
                    "move_LTD_scale": (1.0, 0.0, np.inf, 5),
                    "move_LTP_scale": (1.0, 0.0, np.inf, 6),
                    "pf_scale": (1.0, 0.7, 1.3, 7),
-                   # "mli_scale": (1.0, 0.9, 1.15, 6),
+                   "mli_scale": (1.0, 0.7, 1.3, 8),
             }
     if lf_kwargs['UPDATE_MLI_WEIGHTS']:
         raise ValueError("check param nums")
@@ -1266,7 +1266,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     move_LTP_scale = NN_FIT.fit_results['gauss_basis_kinematics']['move_LTP_scale']
     move_magn = np.linalg.norm(bin_eye_data[:, 2:4], axis=1)
     pf_scale = NN_FIT.fit_results['gauss_basis_kinematics']['pf_scale']
-    mli_scale = 1 #NN_FIT.fit_results['gauss_basis_kinematics']['mli_scale']
+    mli_scale = NN_FIT.fit_results['gauss_basis_kinematics']['mli_scale']
     W_pf = np.zeros(W_0_pf.shape) # Place to store updating result and copy to output
     W_pf[:] = pf_scale * W_0_pf # Initialize storage to start values
     W_mli = np.zeros(W_0_mli.shape) # Place to store updating result and copy to output
