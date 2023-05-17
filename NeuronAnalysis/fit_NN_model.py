@@ -1018,11 +1018,12 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None,
     if learn_t_win is None:
         learn_t_win = NN_FIT.time_window
     NN_FIT.learn_rates_time_window = learn_t_win
-    """ Get all the binned firing rate data """
+    """ Get all the binned firing rate data. Get the trial indices and use those
+    to get behavior since neural data can be fewer trials. """
     firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(learn_t_win,
                                         blocks, trial_sets, return_inds=True)
     CS_bin_evts = NN_FIT.neuron.get_CS_dataseries_by_trial(learn_t_win,
-                                blocks, trial_sets, nan_sacc=False)
+                                blocks, all_t_inds, nan_sacc=False)
 
     """ Here we have to do some work to get all the data in the correct format """
     # First get all firing rate data, bin and format
@@ -1037,7 +1038,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None,
 
     """ Get all the binned eye data """
     eye_data, initial_shape = get_plasticity_data_trial_win(NN_FIT,
-                                    blocks, trial_sets, learn_t_win,
+                                    blocks, all_t_inds, learn_t_win,
                                     return_shape=True)
     eye_data = eye_data.reshape(initial_shape)
     # Use bin smoothing on data before fitting
@@ -1155,7 +1156,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None,
 def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
                                     W_0_mli=None, bin_width=10, bin_threshold=5):
     """ Need the trials from blocks and trial_sets to be ORDERED! """
-    """ Get all the binned firing rate data """
+    """ Get all the binned firing rate data. Get the trial indices and use those
+    to get behavior since neural data can be fewer trials. """
     firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(
                                         NN_FIT.learn_rates_time_window,
                                         blocks, trial_sets, return_inds=True)
