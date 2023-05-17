@@ -857,7 +857,6 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     # Separate behavior state from CS inputs
     state = x[:, 0:-1]
     CS = x[:, -1]
-    y_hat = np.zeros(x.shape[0])
     # Extract other precomputed necessary args
     bin_width = args[0]
     n_trials = args[1]
@@ -900,7 +899,6 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     W_full[0:n_gaussians] = W_pf
     W_full[n_gaussians:] = W_mli
 
-    iter_residuals = 0.0
     for trial in range(0, n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
         y_obs_trial = np.copy(y[trial*n_obs_pt:(trial + 1)*n_obs_pt]) # Observed FR for this trial
@@ -922,9 +920,8 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         # Now we can convert any nans to 0.0 so they don't affect residuals
         y_hat_trial[is_missing_data_trial] = 0.0
         y_obs_trial[is_missing_data_trial] = 0.0
-        # Store prediction for current trial
-        y_hat[trial*n_obs_pt:(trial + 1)*n_obs_pt] = y_hat_trial
-        iter_residuals += np.sum((y_obs_trial - y_hat_trial)**2)
+        # Add residuals for current trial
+        residuals += np.sum((y_obs_trial - y_hat_trial)**2)
 
         # Update weights for next trial based on activations in this trial
         state_input_pf = state_input[:, 0:n_gaussians]
@@ -978,9 +975,6 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
             W_mli[(W_mli < W_min_mli)] = W_min_mli
             W_full[n_gaussians:] = W_mli
 
-    residuals = np.nansum((y[~is_missing_data] - y_hat[~is_missing_data]) ** 2)
-    print("DIff with new resids", np.abs(iter_residuals - residuals))
-    print("SO delete y_hat")
     return residuals
 
 def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=10, bin_threshold=5):
