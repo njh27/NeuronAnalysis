@@ -700,12 +700,18 @@ def get_plasticity_data_trial_win(NN_FIT, blocks, trial_sets, time_window,
 """ THESE ARE THE LEARNING RULE PLASTICITY FUNCTIONS """
 """ *********************************************************************** """
 
-def f_pf_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0, delay=0):
+def f_pf_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0, delay=0, zeta_f_move=None):
     """ Computes the parallel fiber LTD as a function of time of the complex
     spike input f_CS with a kernel scaled from tau_1 to tau_2 with peak equal to
     scale and with CSs shifted by an amoutn of time "delay" INDICES (not time!). """
     # Just CS point plasticity
-    pf_CS_LTD = box_windows(CS_trial_bin, tau_1, tau_2, scale=scale)
+    if zeta_f_move is None:
+        pf_CS_LTD = box_windows(CS_trial_bin, tau_1, tau_2, scale=scale)
+    else:
+        pf_CS_LTD = box_windows(CS_trial_bin, tau_1, tau_2, scale=1.0)
+        add_zeta = (pf_CS_LTD * zeta_f_move)
+        pf_CS_LTD *= scale
+        pf_CS_LTD += add_zeta
     # Shift pf_CS_LTD LTD envelope according to delay_LTD
     delay = int(delay)
     if delay == 0:
@@ -963,11 +969,12 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         # Binary CS for this trial
         CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt]
 
+        zeta_f_move = np.sqrt(move_m_trial) * move_LTD_scale
         # Get LTD function for parallel fibers
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS'],
-                          kwargs['tau_decay_CS'], epsilon, 0.0)
+                          kwargs['tau_decay_CS'], epsilon, 0.0, zeta_f_move)
         # Add to pf_CS_LTD in place
-        pf_CS_LTD = f_pf_move_LTD(pf_CS_LTD, move_m_trial, move_LTD_scale)
+        # pf_CS_LTD = f_pf_move_LTD(pf_CS_LTD, move_m_trial, move_LTD_scale)
         # Convert to LTD input for Purkinje cell
         pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, pf_LTD, W_pf=W_pf, W_min_pf=W_min_pf)
 
@@ -1307,9 +1314,9 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
 
         # Get LTD function for parallel fibers
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS'],
-                          kwargs['tau_decay_CS'], epsilon, 0.0)
+                          kwargs['tau_decay_CS'], epsilon, 0.0, zeta_f_move)
         # Add to pf_CS_LTD in place
-        pf_CS_LTD = f_pf_move_LTD(pf_CS_LTD, move_m_trial, move_LTD_scale)
+        # pf_CS_LTD = f_pf_move_LTD(pf_CS_LTD, move_m_trial, move_LTD_scale)
         # Convert to LTD input for Purkinje cell
         pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, pf_LTD, W_pf=W_pf, W_min_pf=W_min_pf)
 
