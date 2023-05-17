@@ -899,6 +899,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     W_full[0:n_gaussians] = W_pf
     W_full[n_gaussians:] = W_mli
 
+    residuals = 0.0
     for trial in range(0, n_trials):
         state_trial = state[trial*n_obs_pt:(trial + 1)*n_obs_pt, :] # State for this trial
         y_obs_trial = np.copy(y[trial*n_obs_pt:(trial + 1)*n_obs_pt]) # Observed FR for this trial
