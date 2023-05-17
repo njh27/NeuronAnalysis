@@ -1239,6 +1239,10 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         W_max_mli = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_mli']
         W_mli[(W_mli > W_max_mli).squeeze()] = W_max_mli
     W_full = np.vstack((W_pf, W_mli))
+    state_input = np.zeros((n_obs_pt, n_gaussians+8))
+    y_hat_trial = np.zeros((n_obs_pt, ))
+    pf_LTD = np.zeros((n_gaussians+8))
+    pf_LTP = np.zeros((n_gaussians+8))
     weights_by_trial = {t_num: np.zeros(W_full.shape) for t_num in all_t_inds}
 
     for trial_ind, trial_num in zip(range(0, n_trials), all_t_inds):
@@ -1264,22 +1268,22 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS'],
                           kwargs['tau_decay_CS'], epsilon, 0.0)
         # Convert to LTD input for Purkinje cell
-        pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, W_pf=W_pf, W_min_pf=W_min_pf)
+        pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, pf_LTD, W_pf=W_pf, W_min_pf=W_min_pf)
 
         # Create the LTP function for parallel fibers
         pf_LTP_funs = f_pf_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_LTP'],
                         kwargs['tau_decay_CS_LTP'], alpha)
         pf_LTP_funs += f_pf_FR_LTP(y_obs_trial, beta)
-        pf_LTP_funs += f_pf_static_LTP(pf_CS_LTD, gamma)
-        # pf_LTP_funs[pf_CS_LTD > 0.0] = 0.0
+        # This function adds on to pf_LTP_funs in place
+        pf_LTP_funs = f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, gamma)
         # Convert to LTP input for Purkinje cell
-        pf_LTP = f_pf_LTP(pf_LTP_funs, state_input_pf, W_pf=W_pf, W_max_pf=W_max_pf)
+        pf_LTP = f_pf_LTP(pf_LTP_funs, state_input_pf, pf_LTP, W_pf=W_pf, W_max_pf=W_max_pf)
         # Compute delta W_pf as LTP + LTD inputs and update W_pf
-        W_pf += ( pf_LTP[:, None] + pf_LTD[:, None] )
+        W_pf += ( pf_LTP + pf_LTD )
 
         # Ensure W_pf values are within range and store in output W_full
-        W_pf[(W_pf > W_max_pf).squeeze()] = W_max_pf
-        W_pf[(W_pf < W_min_pf).squeeze()] = W_min_pf
+        W_pf[(W_pf > W_max_pf)] = W_max_pf
+        W_pf[(W_pf < W_min_pf)] = W_min_pf
         W_full[0:n_gaussians] = W_pf
 
         if kwargs['UPDATE_MLI_WEIGHTS']:
@@ -1301,13 +1305,9 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             mli_LTD = f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli, W_min_mli)
             # Ensure W_mli values are within range and store in output W_full
             W_mli += ( mli_LTP[:, None] + mli_LTD[:, None] )
-            W_mli[(W_mli > W_max_mli).squeeze()] = W_max_mli
-            W_mli[(W_mli < W_min_mli).squeeze()] = W_min_mli
+            W_mli[(W_mli > W_max_mli)] = W_max_mli
+            W_mli[(W_mli < W_min_mli)] = W_min_mli
             W_full[n_gaussians:] = W_mli
-
-        # if np.all(np.isnan(W_full)):
-        #     print(alpha, beta, psi, omega)
-        #     return LTP_Inputs, f_LTP, f_LTP_fixed, y_obs_trial, state_input, PC_FR_weight_LTP
 
     return weights_by_trial
 
