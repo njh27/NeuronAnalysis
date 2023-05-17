@@ -1316,8 +1316,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         pf_LTP_funs = f_pf_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_LTP'],
                         kwargs['tau_decay_CS_LTP'], alpha, zeta_f_move)
         # These functions add on to pf_LTP_funs in place
-        pf_LTP_funs = f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta, zeta_f_move)
-        pf_LTP_funs = f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, gamma, zeta_f_move)
+        pf_LTP_funs = f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta, zeta_f_move=None)
+        pf_LTP_funs = f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, gamma, zeta_f_move=None)
         # pf_LTP_funs = f_pf_move_LTP(pf_LTP_funs, move_m_trial, move_LTP_scale)
         # Convert to LTP input for Purkinje cell
         pf_LTP = f_pf_LTP(pf_LTP_funs, state_input_pf, pf_LTP, W_pf=W_pf, W_max_pf=W_max_pf)
