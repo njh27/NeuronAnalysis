@@ -984,8 +984,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
     not check if the numbers are correct because it could fail for various
     reasons like aborted trials. """
     ftol=1e-4
-    xtol=1e-8
-    gtol=1e-8
+    xtol=1e-6
+    gtol=1e-6
     max_nfev=200000
     loss='linear'
 
