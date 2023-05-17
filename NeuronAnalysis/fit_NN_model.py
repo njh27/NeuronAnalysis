@@ -1090,7 +1090,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_t_win=None, bin_width=1
                             "phi": (1.0, 0, np.inf, 8),
                             "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 9),
                             })
-    rescale_1e4 = ["alpha", "beta", "gamma", "epsilon"]
+    rescale_1e4 = ["alpha", "beta", "gamma", "epsilon",
                    "omega", "psi", "chi", "phi"]
 
     # Make sure params are in correct order and saved for input to least_squares
