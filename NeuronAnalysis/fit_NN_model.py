@@ -724,7 +724,7 @@ def f_pf_move_LTD(pf_CS_LTD, move_m_trial, move_LTD_scale):
     """
     """
     # Add a term with movement magnitude times weight
-    pf_CS_LTD += (pf_CS_LTD * np.sqrt(move_m_trial) * move_LTD_scale)
+    # pf_CS_LTD += (pf_CS_LTD * np.sqrt(move_m_trial) * move_LTD_scale)
     return pf_CS_LTD
 
 def f_pf_LTD(pf_CS_LTD, state_input_pf, pf_LTD, W_pf=None, W_min_pf=0.0):
@@ -972,7 +972,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         zeta_f_move = np.sqrt(move_m_trial) * move_LTP_scale
         # Create the LTP function for parallel fibers
         pf_LTP_funs = f_pf_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_LTP'],
-                        kwargs['tau_decay_CS_LTP'], alpha, zeta_f_move)
+                        kwargs['tau_decay_CS_LTP'], alpha, zeta_f_move=None)
         # These functions add on to pf_LTP_funs in place
         pf_LTP_funs = f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta, zeta_f_move)
         pf_LTP_funs = f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, gamma, zeta_f_move)
