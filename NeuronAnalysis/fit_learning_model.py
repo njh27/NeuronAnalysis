@@ -924,6 +924,8 @@ def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
     best_intrinsic_rate = None
     best_CS_wins = None
     best_result = None
+    best_iter = None
+    n_iter = 0
     for int_rate in test_intrinsic_rates:
         if int_rate is None:
             if not NN_fit_None:
@@ -1019,13 +1021,13 @@ def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
                                     gtol=gtol,
                                     max_nfev=max_nfev,
                                     loss=loss)
-
             # Save the results if they are best
             if result.cost < min_cost:
                 min_cost = result.cost
                 best_intrinsic_rate = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
                 best_CS_wins = curr_win
                 best_result = result
+                best_iter = n_iter
                 # All in place from starting at the initial conditions
                 for key in param_conds.keys():
                     param_ind = param_conds[key][3]
@@ -1034,6 +1036,7 @@ def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
                         NN_FIT.fit_results['gauss_basis_kinematics'][key] /= 1e4
                 for key in lf_kwargs.keys():
                     NN_FIT.fit_results['gauss_basis_kinematics'][key] = lf_kwargs[key]
+            n_iter += 1
 
-    print("Picked rate", best_intrinsic_rate, "and windows", best_CS_wins)
+    print("Picked rate", best_intrinsic_rate, "and windows", best_CS_wins, "from iter", best_iter)
     return NN_FIT, best_result, best_intrinsic_rate, best_CS_wins
