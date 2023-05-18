@@ -1036,6 +1036,7 @@ def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
                 for key in lf_kwargs.keys():
                     NN_FIT.fit_results['gauss_basis_kinematics'][key] = lf_kwargs[key]
             n_iter += 1
-
+    # Set NN to best fit intrinsic rate
+    fit_basic_NNModel(NN_FIT, best_intrinsic_rate, bin_width, bin_threshold)
     print("Picked rate", best_intrinsic_rate, "and windows", best_CS_wins, "from iter", best_iter, "of", n_iter)
     return NN_FIT, best_result, best_intrinsic_rate, best_CS_wins
