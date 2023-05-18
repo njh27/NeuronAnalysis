@@ -849,11 +849,7 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
     max_nfev=2000
     loss='linear'
 
-    # Fit NN model with default intrinsic rate starting point so we have initial
-    # lags and data to get the eye data. Then check more lags below
-    fit_basic_NNModel(NN_FIT, None, bin_width, bin_threshold)
     NN_fit_None = True
-
     if learn_fit_window is None:
         learn_fit_window = NN_FIT.time_window
     NN_FIT.learn_rates_time_window = learn_fit_window
