@@ -851,6 +851,7 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
     test_intrinsic_rates[0] = None
     CS_wins = [ [[100, -50],  [-50, 150]],
                 ]
+    NN_fit_None = True
     min_cost = np.inf
     best_intrinsic_rate = None
     best_CS_wins = None
