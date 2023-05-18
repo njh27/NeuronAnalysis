@@ -914,7 +914,7 @@ def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
     #             [[100, -50],  [-50, 150]],
     #             [[50, 0],     [-100, 200]],
     #             [[0, 50],     [-150, 250]],
-                ]
+                # ]
     test_intrinsic_rates = [x for x in np.linspace(0, np.nanmedian(binned_FR), 1)]
     test_intrinsic_rates[0] = None
     CS_wins = [ [[100, -50],  [-50, 150]],
