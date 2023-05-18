@@ -837,7 +837,7 @@ def fit_basic_NNModel(NN_FIT, intrinsic_rate0, bin_width, bin_threshold):
     return
 
 def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=None,
-                        bin_width=10, bin_threshold=5):
+                        median_FR=60, bin_width=10, bin_threshold=5):
     """ Hard code intrinsic rate starting points.
     "None" uses default near median rate."""
     # test_intrinsic_rates = [x for x in np.linspace(0, np.nanmedian(binned_FR), 5)]
@@ -847,7 +847,7 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
     #             [[50, 0],     [-100, 200]],
     #             [[0, 50],     [-150, 250]],
                 # ]
-    test_intrinsic_rates = [x for x in np.linspace(0, np.nanmedian(binned_FR), 1)]
+    test_intrinsic_rates = [x for x in np.linspace(0, median_FR, 1)]
     test_intrinsic_rates[0] = None
     CS_wins = [ [[100, -50],  [-50, 150]],
                 ]
