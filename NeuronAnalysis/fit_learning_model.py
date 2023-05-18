@@ -1017,6 +1017,7 @@ def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
 
             # Save the results if they are best
             if result.cost < min_cost:
+                min_cost = result.cost
                 best_intrinsic_rate = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
                 best_CS_wins = curr_win
                 best_result = result
