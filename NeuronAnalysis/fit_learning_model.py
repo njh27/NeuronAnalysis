@@ -848,7 +848,7 @@ def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
     ftol=1e-2
     xtol=1e-8
     gtol=1e-8
-    max_nfev=200000
+    max_nfev=200
     loss='linear'
 
     # Initialize neural network fitting object
@@ -1020,6 +1020,10 @@ def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
                                     gtol=gtol,
                                     max_nfev=max_nfev,
                                     loss=loss)
+            print("RESULTS for iter", n_iter)
+            print("Cost", result.cost)
+            for i, p in enumerate(result.x):
+                print(i, " : ", p)
             # Save the results if they are best
             if result.cost < min_cost:
                 min_cost = result.cost
