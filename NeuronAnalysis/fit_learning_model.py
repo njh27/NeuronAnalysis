@@ -472,7 +472,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     ftol=1e-1
     xtol=1e-6
     gtol=1e-8
-    max_nfev=200000
+    max_nfev=2000
     loss='linear'
 
     if learn_fit_window is None:
@@ -836,25 +836,19 @@ def fit_basic_NNModel(NN_FIT, intrinsic_rate0, bin_width, bin_threshold):
                                     batch_size=1200)
     return
 
-def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
-                                base_trial_sets, learn_fit_window, learn_blocks,
-                                learn_trial_sets, lag_range_pf=[-50, 150],
-                                bin_width=20, bin_threshold=10):
-    """ This will iteratively fit a few FitNNModel objects with different
-    starting conditions for the intrinsic rate and roll through a coarse set
-    of CS time windows to find the optimal ones. This is mostly hard coded
-    and coarse in hopes that it doesn't need to be too specific..."""
-    # For fitting learning function
-    ftol=1e-2
-    xtol=1e-8
+def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=None,
+                        bin_width=10, bin_threshold=5, CS_LTD_win=[25, 0],
+                        CS_LTP_win=[-100, 200]):
+    """ Need the trials from blocks and trial_sets to be ORDERED! Weights will
+    be updated from one trial to the next as if they are ordered and will
+    not check if the numbers are correct because it could fail for various
+    reasons like aborted trials. """
+    ftol=1e-1
+    xtol=1e-6
     gtol=1e-8
-    max_nfev=200
+    max_nfev=2000
     loss='linear'
 
-    # Initialize neural network fitting object
-    NN_FIT = FitNNModel(neuron, time_window=base_fit_window, blocks=base_blocks,
-                        trial_sets=base_trial_sets, lag_range_pf=lag_range_pf,
-                        use_series=None)
     # Fit NN model with default intrinsic rate starting point so we have initial
     # lags and data to get the eye data. Then check more lags below
     fit_basic_NNModel(NN_FIT, None, bin_width, bin_threshold)
@@ -866,9 +860,9 @@ def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
     """ Get all the binned firing rate data. Get the trial indices and use those
     to get behavior since neural data can be fewer trials. """
     firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(learn_fit_window,
-                                        learn_blocks, learn_trial_sets, return_inds=True)
+                                        blocks, trial_sets, return_inds=True)
     CS_bin_evts = NN_FIT.neuron.get_CS_dataseries_by_trial(learn_fit_window,
-                                learn_blocks, all_t_inds, nan_sacc=False)
+                                blocks, all_t_inds, nan_sacc=False)
 
     """ Here we have to do some work to get all the data in the correct format """
     # First get all firing rate data, bin and format
@@ -883,7 +877,7 @@ def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
 
     """ Get all the binned eye data """
     eye_data, initial_shape = get_plasticity_data_trial_win(NN_FIT,
-                                    learn_blocks, all_t_inds, learn_fit_window,
+                                    blocks, all_t_inds, learn_fit_window,
                                     return_shape=True)
     eye_data = eye_data.reshape(initial_shape)
     # Use bin smoothing on data before fitting
@@ -903,8 +897,30 @@ def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
     # We will AND this with where eye is NaN because both should be if data are truly missing
     is_missing_data = np.isnan(binned_FR) | eye_is_nan
 
-    rescale_1e4 = ["alpha", "beta", "gamma", "epsilon",
-                   "omega", "psi", "chi", "phi"]
+    # Need the means and stds for converting state to input
+    pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
+    vel_means = NN_FIT.fit_results['gauss_basis_kinematics']['vel_means']
+    n_gaussians_per_dim = np.array([len(pos_means), len(pos_means),
+                           len(vel_means), len(vel_means)], dtype=np.int32)
+    gauss_means = np.hstack([pos_means,
+                             pos_means,
+                             vel_means,
+                             vel_means], dtype=np.float64)
+    pos_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['pos_stds'])
+    vel_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['vel_stds'])
+    gauss_stds = np.hstack([pos_stds,
+                            pos_stds,
+                            vel_stds,
+                            vel_stds], dtype=np.float64)
+    n_gaussians = np.int32(len(gauss_means))
+
+    # Defining learning function within scope so we have access to "NN_FIT"
+    # and specifically the weights. Get here to save space
+    W_0_pf = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][0:n_gaussians].squeeze())
+    W_0_mli = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:].squeeze())
+    b = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['bias'])
+    # Initialize W_full to pass to objective function
+    W_full = np.zeros((n_gaussians+8, ), dtype=np.float64)
 
     """ Hard code intrinsic rate starting points.
     "None" uses default near median rate."""
@@ -934,50 +950,6 @@ def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
             fit_basic_NNModel(NN_FIT, int_rate, bin_width, bin_threshold)
         print("Intrinsic firing rate: ", NN_FIT.fit_results['gauss_basis_kinematics']['bias'][0])
 
-        # This stuff is all the same for each CS win
-        # Need the means and stds for converting state to input
-        pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
-        vel_means = NN_FIT.fit_results['gauss_basis_kinematics']['vel_means']
-        n_gaussians_per_dim = np.array([len(pos_means), len(pos_means),
-                               len(vel_means), len(vel_means)], dtype=np.int32)
-        gauss_means = np.hstack([pos_means,
-                                 pos_means,
-                                 vel_means,
-                                 vel_means], dtype=np.float64)
-        pos_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['pos_stds'])
-        vel_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['vel_stds'])
-        gauss_stds = np.hstack([pos_stds,
-                                pos_stds,
-                                vel_stds,
-                                vel_stds], dtype=np.float64)
-        n_gaussians = np.int32(len(gauss_means))
-
-        # Defining learning function within scope so we have access to "NN_FIT"
-        # and specifically the weights. Get here to save space
-        W_0_pf = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][0:n_gaussians].squeeze())
-        W_0_mli = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:].squeeze())
-        b = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['bias'])
-        # Initialize W_full to pass to objective function
-        W_full = np.zeros((n_gaussians+8, ), dtype=np.float64)
-
-        """ Need W_0_pf so do this repeatedly out here """
-        # Format of p0, upper, lower, index order for each variable to make this legible
-        param_conds = {"alpha": (4.0, 0, np.inf, 0),
-                       "beta": (1.0, 0, np.inf, 1),
-                       "gamma": (1.0, 0, np.inf, 2),
-                       "epsilon": (4.0, 0, np.inf, 3),
-                       "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 4),
-                       "move_LTD_scale": (1.0, 0.0, np.inf, 5),
-                       "move_LTP_scale": (1.0, 0.0, np.inf, 6),
-                       "pf_scale": (1.0, 0.7, 1.3, 7),
-                       "mli_scale": (1.0, 0.7, 1.3, 8),
-                }
-
-        # Make sure params are in correct order and saved for input to least_squares
-        p0 = [x[1][0] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
-        lower_bounds = [x[1][1] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
-        upper_bounds = [x[1][2] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
-
         for curr_win in CS_wins:
             print("Checking CS_wins [{0}] and [{1}].".format(curr_win[0], curr_win[1]))
             # Iterate CS windows here
@@ -989,6 +961,17 @@ def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
                          'UPDATE_MLI_WEIGHTS': False,
                          'activation_out': NN_FIT.activation_out,
                          }
+            # Format of p0, upper, lower, index order for each variable to make this legible
+            param_conds = {"alpha": (4.0, 0, np.inf, 0),
+                           "beta": (1.0, 0, np.inf, 1),
+                           "gamma": (1.0, 0, np.inf, 2),
+                           "epsilon": (4.0, 0, np.inf, 3),
+                           "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 4),
+                           "move_LTD_scale": (1.0, 0.0, np.inf, 5),
+                           "move_LTP_scale": (1.0, 0.0, np.inf, 6),
+                           "pf_scale": (1.0, 0.7, 1.3, 7),
+                           "mli_scale": (1.0, 0.7, 1.3, 8),
+                    }
             if lf_kwargs['UPDATE_MLI_WEIGHTS']:
                 raise ValueError("check param nums")
                 param_conds.update({"omega": (1.0, 0, np.inf, 5),
@@ -997,9 +980,14 @@ def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
                                     "phi": (1.0, 0, np.inf, 8),
                                     "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 9),
                                     })
+            rescale_1e4 = ["alpha", "beta", "gamma", "epsilon",
+                           "omega", "psi", "chi", "phi"]
 
-            """ Not sure these all need to be here but may want future functions
-            to be able to assume these are initialized at 0. """
+            # Make sure params are in correct order and saved for input to least_squares
+            p0 = [x[1][0] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
+            lower_bounds = [x[1][1] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
+            upper_bounds = [x[1][2] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
+
             # Finally append CS to inputs and get other args needed for learning function
             fit_inputs = np.hstack([bin_eye_data, binned_CS[:, None]])
             state_input = np.zeros((n_obs_pt, n_gaussians+8))
@@ -1020,6 +1008,7 @@ def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
                                     gtol=gtol,
                                     max_nfev=max_nfev,
                                     loss=loss)
+
             print("RESULTS for iter", n_iter)
             print("Cost", result.cost)
             for i, p in enumerate(result.x):
@@ -1031,16 +1020,16 @@ def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
                 best_CS_wins = curr_win
                 best_result = result
                 best_iter = n_iter
-                # All in place from starting at the initial conditions
-                for key in param_conds.keys():
-                    param_ind = param_conds[key][3]
-                    NN_FIT.fit_results['gauss_basis_kinematics'][key] = result.x[param_ind]
-                    if key in rescale_1e4:
-                        NN_FIT.fit_results['gauss_basis_kinematics'][key] /= 1e4
-                for key in lf_kwargs.keys():
-                    NN_FIT.fit_results['gauss_basis_kinematics'][key] = lf_kwargs[key]
             n_iter += 1
     # Set NN to best fit intrinsic rate
     fit_basic_NNModel(NN_FIT, best_intrinsic_rate, bin_width, bin_threshold)
+    # All in place from starting at the initial conditions
+    for key in param_conds.keys():
+        param_ind = param_conds[key][3]
+        NN_FIT.fit_results['gauss_basis_kinematics'][key] = result.x[param_ind]
+        if key in rescale_1e4:
+            NN_FIT.fit_results['gauss_basis_kinematics'][key] /= 1e4
+    for key in lf_kwargs.keys():
+        NN_FIT.fit_results['gauss_basis_kinematics'][key] = lf_kwargs[key]
     print("Picked rate", best_intrinsic_rate, "and windows", best_CS_wins, "from iter", best_iter, "of", n_iter)
     return NN_FIT, best_result, best_intrinsic_rate, best_CS_wins
