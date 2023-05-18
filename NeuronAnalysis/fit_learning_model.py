@@ -837,87 +837,7 @@ def fit_basic_NNModel(NN_FIT, intrinsic_rate0, bin_width, bin_threshold):
     return
 
 def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=None,
-                        bin_width=10, bin_threshold=5, CS_LTD_win=[25, 0],
-                        CS_LTP_win=[-100, 200]):
-    """ Need the trials from blocks and trial_sets to be ORDERED! Weights will
-    be updated from one trial to the next as if they are ordered and will
-    not check if the numbers are correct because it could fail for various
-    reasons like aborted trials. """
-    ftol=1e-1
-    xtol=1e-6
-    gtol=1e-8
-    max_nfev=2000
-    loss='linear'
-
-    NN_fit_None = True
-    if learn_fit_window is None:
-        learn_fit_window = NN_FIT.time_window
-    NN_FIT.learn_rates_time_window = learn_fit_window
-    """ Get all the binned firing rate data. Get the trial indices and use those
-    to get behavior since neural data can be fewer trials. """
-    firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(learn_fit_window,
-                                        blocks, trial_sets, return_inds=True)
-    CS_bin_evts = NN_FIT.neuron.get_CS_dataseries_by_trial(learn_fit_window,
-                                blocks, all_t_inds, nan_sacc=False)
-
-    """ Here we have to do some work to get all the data in the correct format """
-    # First get all firing rate data, bin and format
-    binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
-    binned_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-
-    # And for CSs
-    binned_CS = bin_data(CS_bin_evts, bin_width, bin_threshold)
-    # Convert to binary instead of binned average
-    binned_CS[binned_CS > 0.0] = 1.0
-    binned_CS = binned_CS.reshape(binned_CS.shape[0]*binned_CS.shape[1], order='C')
-
-    """ Get all the binned eye data """
-    eye_data, initial_shape = get_plasticity_data_trial_win(NN_FIT,
-                                    blocks, all_t_inds, learn_fit_window,
-                                    return_shape=True)
-    eye_data = eye_data.reshape(initial_shape)
-    # Use bin smoothing on data before fitting
-    bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-    # Observations defined after binning
-    n_trials = bin_eye_data.shape[0] # Total number of trials to fit
-    n_obs_pt = bin_eye_data.shape[1] # Number of observations per trial
-    # Reshape to 2D matrix
-    bin_eye_data = bin_eye_data.reshape(
-                            bin_eye_data.shape[0]*bin_eye_data.shape[1],
-                            bin_eye_data.shape[2], order='C')
-    # Make an index of all nans that we can use in objective function to set
-    # the unit activations to 0.0
-    eye_is_nan = np.any(np.isnan(bin_eye_data), axis=1)
-    # Firing rate data is only NaN where data for a trial does not cover NN_FIT.time_window
-    # So we need to find this separate from saccades and can set to 0.0 to ignore
-    # We will AND this with where eye is NaN because both should be if data are truly missing
-    is_missing_data = np.isnan(binned_FR) | eye_is_nan
-
-    # Need the means and stds for converting state to input
-    pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
-    vel_means = NN_FIT.fit_results['gauss_basis_kinematics']['vel_means']
-    n_gaussians_per_dim = np.array([len(pos_means), len(pos_means),
-                           len(vel_means), len(vel_means)], dtype=np.int32)
-    gauss_means = np.hstack([pos_means,
-                             pos_means,
-                             vel_means,
-                             vel_means], dtype=np.float64)
-    pos_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['pos_stds'])
-    vel_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['vel_stds'])
-    gauss_stds = np.hstack([pos_stds,
-                            pos_stds,
-                            vel_stds,
-                            vel_stds], dtype=np.float64)
-    n_gaussians = np.int32(len(gauss_means))
-
-    # Defining learning function within scope so we have access to "NN_FIT"
-    # and specifically the weights. Get here to save space
-    W_0_pf = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][0:n_gaussians].squeeze())
-    W_0_mli = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:].squeeze())
-    b = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['bias'])
-    # Initialize W_full to pass to objective function
-    W_full = np.zeros((n_gaussians+8, ), dtype=np.float64)
-
+                        bin_width=10, bin_threshold=5):
     """ Hard code intrinsic rate starting points.
     "None" uses default near median rate."""
     # test_intrinsic_rates = [x for x in np.linspace(0, np.nanmedian(binned_FR), 5)]
@@ -948,63 +868,11 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
 
         for curr_win in CS_wins:
             print("Checking CS_wins [{0}] and [{1}].".format(curr_win[0], curr_win[1]))
-            # Iterate CS windows here
-            lf_kwargs = {'tau_rise_CS': int(np.around(curr_win[0][0] /bin_width)),
-                         'tau_decay_CS': int(np.around(curr_win[0][1] /bin_width)),
-                         'tau_rise_CS_LTP': int(np.around(curr_win[1][0] /bin_width)),
-                         'tau_decay_CS_LTP': int(np.around(curr_win[1][0] /bin_width)),
-                         'FR_MAX': 500,
-                         'UPDATE_MLI_WEIGHTS': False,
-                         'activation_out': NN_FIT.activation_out,
-                         }
-            # Format of p0, upper, lower, index order for each variable to make this legible
-            param_conds = {"alpha": (4.0, 0, np.inf, 0),
-                           "beta": (1.0, 0, np.inf, 1),
-                           "gamma": (1.0, 0, np.inf, 2),
-                           "epsilon": (4.0, 0, np.inf, 3),
-                           "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 4),
-                           "move_LTD_scale": (1.0, 0.0, np.inf, 5),
-                           "move_LTP_scale": (1.0, 0.0, np.inf, 6),
-                           "pf_scale": (1.0, 0.7, 1.3, 7),
-                           "mli_scale": (1.0, 0.7, 1.3, 8),
-                    }
-            if lf_kwargs['UPDATE_MLI_WEIGHTS']:
-                raise ValueError("check param nums")
-                param_conds.update({"omega": (1.0, 0, np.inf, 5),
-                                    "psi": (1.0, 0, np.inf, 6),
-                                    "chi": (1.0, 0, np.inf, 7),
-                                    "phi": (1.0, 0, np.inf, 8),
-                                    "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 9),
-                                    })
-            rescale_1e4 = ["alpha", "beta", "gamma", "epsilon",
-                           "omega", "psi", "chi", "phi"]
 
-            # Make sure params are in correct order and saved for input to least_squares
-            p0 = [x[1][0] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
-            lower_bounds = [x[1][1] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
-            upper_bounds = [x[1][2] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
-
-            # Finally append CS to inputs and get other args needed for learning function
-            fit_inputs = np.hstack([bin_eye_data, binned_CS[:, None]])
-            state_input = np.zeros((n_obs_pt, n_gaussians+8))
-            y_hat_trial = np.zeros((n_obs_pt, ))
-            pf_LTD = np.zeros((n_gaussians))
-            pf_LTP = np.zeros((n_gaussians))
-            lf_args = (bin_width, n_trials, n_obs_pt, is_missing_data,
-                        n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
-                        W_full, state_input, y_hat_trial, pf_LTD, pf_LTP)
-
-            # Fit the learning rates to the data
-            result = least_squares(learning_function, p0,
-                                    args=(fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
-                                    kwargs=lf_kwargs,
-                                    bounds=(lower_bounds, upper_bounds),
-                                    ftol=ftol,
-                                    xtol=xtol,
-                                    gtol=gtol,
-                                    max_nfev=max_nfev,
-                                    loss=loss)
-
+            result = fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window,
+                                           bin_width=bin_width, bin_threshold=bin_threshold,
+                                           CS_LTD_win=curr_win[0],
+                                           CS_LTP_win=curr_win[1])
             print("RESULTS for iter", n_iter)
             print("Cost", result.cost)
             for i, p in enumerate(result.x):
@@ -1018,14 +886,207 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
                 best_iter = n_iter
             n_iter += 1
     # Set NN to best fit intrinsic rate
-    fit_basic_NNModel(NN_FIT, best_intrinsic_rate, bin_width, bin_threshold)
-    # All in place from starting at the initial conditions
-    for key in param_conds.keys():
-        param_ind = param_conds[key][3]
-        NN_FIT.fit_results['gauss_basis_kinematics'][key] = result.x[param_ind]
-        if key in rescale_1e4:
-            NN_FIT.fit_results['gauss_basis_kinematics'][key] /= 1e4
-    for key in lf_kwargs.keys():
-        NN_FIT.fit_results['gauss_basis_kinematics'][key] = lf_kwargs[key]
+    # fit_basic_NNModel(NN_FIT, best_intrinsic_rate, bin_width, bin_threshold)
+    # # All in place from starting at the initial conditions
+    # for key in param_conds.keys():
+    #     param_ind = param_conds[key][3]
+    #     NN_FIT.fit_results['gauss_basis_kinematics'][key] = result.x[param_ind]
+    #     if key in rescale_1e4:
+    #         NN_FIT.fit_results['gauss_basis_kinematics'][key] /= 1e4
+    # for key in lf_kwargs.keys():
+    #     NN_FIT.fit_results['gauss_basis_kinematics'][key] = lf_kwargs[key]
     print("Picked rate", best_intrinsic_rate, "and windows", best_CS_wins, "from iter", best_iter, "of", n_iter)
     return NN_FIT, best_result, best_intrinsic_rate, best_CS_wins
+
+# def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=None,
+#                         bin_width=10, bin_threshold=5):
+#     """ Need the trials from blocks and trial_sets to be ORDERED! Weights will
+#     be updated from one trial to the next as if they are ordered and will
+#     not check if the numbers are correct because it could fail for various
+#     reasons like aborted trials. """
+#     ftol=1e-1
+#     xtol=1e-6
+#     gtol=1e-8
+#     max_nfev=2000
+#     loss='linear'
+#
+#     NN_fit_None = True
+#     if learn_fit_window is None:
+#         learn_fit_window = NN_FIT.time_window
+#     # NN_FIT.learn_rates_time_window = learn_fit_window
+#     """ Get all the binned firing rate data. Get the trial indices and use those
+#     to get behavior since neural data can be fewer trials. """
+#     firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(learn_fit_window,
+#                                         blocks, trial_sets, return_inds=True)
+#     CS_bin_evts = NN_FIT.neuron.get_CS_dataseries_by_trial(learn_fit_window,
+#                                 blocks, all_t_inds, nan_sacc=False)
+#
+#     """ Here we have to do some work to get all the data in the correct format """
+#     # First get all firing rate data, bin and format
+#     binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
+#     binned_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
+#
+#     # And for CSs
+#     binned_CS = bin_data(CS_bin_evts, bin_width, bin_threshold)
+#     # Convert to binary instead of binned average
+#     binned_CS[binned_CS > 0.0] = 1.0
+#     binned_CS = binned_CS.reshape(binned_CS.shape[0]*binned_CS.shape[1], order='C')
+#
+#     """ Get all the binned eye data """
+#     eye_data, initial_shape = get_plasticity_data_trial_win(NN_FIT,
+#                                     blocks, all_t_inds, learn_fit_window,
+#                                     return_shape=True)
+#     eye_data = eye_data.reshape(initial_shape)
+#     # Use bin smoothing on data before fitting
+#     bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
+#     # Observations defined after binning
+#     n_trials = bin_eye_data.shape[0] # Total number of trials to fit
+#     n_obs_pt = bin_eye_data.shape[1] # Number of observations per trial
+#     # Reshape to 2D matrix
+#     bin_eye_data = bin_eye_data.reshape(
+#                             bin_eye_data.shape[0]*bin_eye_data.shape[1],
+#                             bin_eye_data.shape[2], order='C')
+#     # Make an index of all nans that we can use in objective function to set
+#     # the unit activations to 0.0
+#     eye_is_nan = np.any(np.isnan(bin_eye_data), axis=1)
+#     # Firing rate data is only NaN where data for a trial does not cover NN_FIT.time_window
+#     # So we need to find this separate from saccades and can set to 0.0 to ignore
+#     # We will AND this with where eye is NaN because both should be if data are truly missing
+#     is_missing_data = np.isnan(binned_FR) | eye_is_nan
+#
+#     # Need the means and stds for converting state to input
+#     pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
+#     vel_means = NN_FIT.fit_results['gauss_basis_kinematics']['vel_means']
+#     n_gaussians_per_dim = np.array([len(pos_means), len(pos_means),
+#                            len(vel_means), len(vel_means)], dtype=np.int32)
+#     gauss_means = np.hstack([pos_means,
+#                              pos_means,
+#                              vel_means,
+#                              vel_means], dtype=np.float64)
+#     pos_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['pos_stds'])
+#     vel_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['vel_stds'])
+#     gauss_stds = np.hstack([pos_stds,
+#                             pos_stds,
+#                             vel_stds,
+#                             vel_stds], dtype=np.float64)
+#     n_gaussians = np.int32(len(gauss_means))
+#
+#     # Defining learning function within scope so we have access to "NN_FIT"
+#     # and specifically the weights. Get here to save space
+#     W_0_pf = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][0:n_gaussians].squeeze())
+#     W_0_mli = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:].squeeze())
+#     b = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['bias'])
+#     # Initialize W_full to pass to objective function
+#     W_full = np.zeros((n_gaussians+8, ), dtype=np.float64)
+#
+#     """ Hard code intrinsic rate starting points.
+#     "None" uses default near median rate."""
+#     # test_intrinsic_rates = [x for x in np.linspace(0, np.nanmedian(binned_FR), 5)]
+#     # test_intrinsic_rates[0] = None
+#     # CS_wins = [ [[150, -100], [0, 100]],
+#     #             [[100, -50],  [-50, 150]],
+#     #             [[50, 0],     [-100, 200]],
+#     #             [[0, 50],     [-150, 250]],
+#                 # ]
+#     test_intrinsic_rates = [x for x in np.linspace(0, np.nanmedian(binned_FR), 1)]
+#     test_intrinsic_rates[0] = None
+#     CS_wins = [ [[100, -50],  [-50, 150]],
+#                 ]
+#     min_cost = np.inf
+#     best_intrinsic_rate = None
+#     best_CS_wins = None
+#     best_result = None
+#     best_iter = None
+#     n_iter = 0
+#     for int_rate in test_intrinsic_rates:
+#         if int_rate is None:
+#             if not NN_fit_None:
+#                 raise ValueError("Initial fit to None not in correct order here.")
+#         else:
+#             # Fit NN model with current intrinsic rate starting point
+#             fit_basic_NNModel(NN_FIT, int_rate, bin_width, bin_threshold)
+#         print("Intrinsic firing rate: ", NN_FIT.fit_results['gauss_basis_kinematics']['bias'][0])
+#
+#         for curr_win in CS_wins:
+#             print("Checking CS_wins [{0}] and [{1}].".format(curr_win[0], curr_win[1]))
+#             # Iterate CS windows here
+#             lf_kwargs = {'tau_rise_CS': int(np.around(curr_win[0][0] /bin_width)),
+#                          'tau_decay_CS': int(np.around(curr_win[0][1] /bin_width)),
+#                          'tau_rise_CS_LTP': int(np.around(curr_win[1][0] /bin_width)),
+#                          'tau_decay_CS_LTP': int(np.around(curr_win[1][0] /bin_width)),
+#                          'FR_MAX': 500,
+#                          'UPDATE_MLI_WEIGHTS': False,
+#                          'activation_out': NN_FIT.activation_out,
+#                          }
+#             # Format of p0, upper, lower, index order for each variable to make this legible
+#             param_conds = {"alpha": (4.0, 0, np.inf, 0),
+#                            "beta": (1.0, 0, np.inf, 1),
+#                            "gamma": (1.0, 0, np.inf, 2),
+#                            "epsilon": (4.0, 0, np.inf, 3),
+#                            "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 4),
+#                            "move_LTD_scale": (1.0, 0.0, np.inf, 5),
+#                            "move_LTP_scale": (1.0, 0.0, np.inf, 6),
+#                            "pf_scale": (1.0, 0.7, 1.3, 7),
+#                            "mli_scale": (1.0, 0.7, 1.3, 8),
+#                     }
+#             if lf_kwargs['UPDATE_MLI_WEIGHTS']:
+#                 raise ValueError("check param nums")
+#                 param_conds.update({"omega": (1.0, 0, np.inf, 5),
+#                                     "psi": (1.0, 0, np.inf, 6),
+#                                     "chi": (1.0, 0, np.inf, 7),
+#                                     "phi": (1.0, 0, np.inf, 8),
+#                                     "W_max_mli": (10*np.amax(W_0_mli), np.amax(W_0_mli), np.inf, 9),
+#                                     })
+#             rescale_1e4 = ["alpha", "beta", "gamma", "epsilon",
+#                            "omega", "psi", "chi", "phi"]
+#
+#             # Make sure params are in correct order and saved for input to least_squares
+#             p0 = [x[1][0] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
+#             lower_bounds = [x[1][1] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
+#             upper_bounds = [x[1][2] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
+#
+#             # Finally append CS to inputs and get other args needed for learning function
+#             fit_inputs = np.hstack([bin_eye_data, binned_CS[:, None]])
+#             state_input = np.zeros((n_obs_pt, n_gaussians+8))
+#             y_hat_trial = np.zeros((n_obs_pt, ))
+#             pf_LTD = np.zeros((n_gaussians))
+#             pf_LTP = np.zeros((n_gaussians))
+#             lf_args = (bin_width, n_trials, n_obs_pt, is_missing_data,
+#                         n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
+#                         W_full, state_input, y_hat_trial, pf_LTD, pf_LTP)
+#
+#             # Fit the learning rates to the data
+#             result = least_squares(learning_function, p0,
+#                                     args=(fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
+#                                     kwargs=lf_kwargs,
+#                                     bounds=(lower_bounds, upper_bounds),
+#                                     ftol=ftol,
+#                                     xtol=xtol,
+#                                     gtol=gtol,
+#                                     max_nfev=max_nfev,
+#                                     loss=loss)
+#
+#             print("RESULTS for iter", n_iter)
+#             print("Cost", result.cost)
+#             for i, p in enumerate(result.x):
+#                 print(i, " : ", p)
+#             # Save the results if they are best
+#             if result.cost < min_cost:
+#                 min_cost = result.cost
+#                 best_intrinsic_rate = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
+#                 best_CS_wins = curr_win
+#                 best_result = result
+#                 best_iter = n_iter
+#             n_iter += 1
+#     # Set NN to best fit intrinsic rate
+#     # fit_basic_NNModel(NN_FIT, best_intrinsic_rate, bin_width, bin_threshold)
+#     # # All in place from starting at the initial conditions
+#     # for key in param_conds.keys():
+#     #     param_ind = param_conds[key][3]
+#     #     NN_FIT.fit_results['gauss_basis_kinematics'][key] = result.x[param_ind]
+#     #     if key in rescale_1e4:
+#     #         NN_FIT.fit_results['gauss_basis_kinematics'][key] /= 1e4
+#     # for key in lf_kwargs.keys():
+#     #     NN_FIT.fit_results['gauss_basis_kinematics'][key] = lf_kwargs[key]
+#     print("Picked rate", best_intrinsic_rate, "and windows", best_CS_wins, "from iter", best_iter, "of", n_iter)
+#     return NN_FIT, best_result, best_intrinsic_rate, best_CS_wins
