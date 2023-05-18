@@ -845,7 +845,7 @@ def get_intrisic_rate_and_CSwin(neuron, base_fit_window, base_blocks,
     of CS time windows to find the optimal ones. This is mostly hard coded
     and coarse in hopes that it doesn't need to be too specific..."""
     # For fitting learning function
-    ftol=1e-1
+    ftol=1e-2
     xtol=1e-8
     gtol=1e-8
     max_nfev=200000
