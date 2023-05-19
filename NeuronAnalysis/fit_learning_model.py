@@ -847,7 +847,7 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
     #             [[50, 0],     [-100, 200]],
     #             [[0, 50],     [-150, 250]],
                 # ]
-    test_intrinsic_rates = [x for x in np.linspace(0, median_FR, 1)]
+    test_intrinsic_rates = [x for x in np.linspace(0, median_FR, 2)]
     test_intrinsic_rates[0] = None
     CS_wins = [ [[100, -50],  [-50, 150]],
                 [[50, 0],     [-100, 200]],
