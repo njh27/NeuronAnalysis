@@ -557,12 +557,12 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                  'activation_out': NN_FIT.activation_out,
                  }
     # Format of p0, upper, lower, index order for each variable to make this legible
-    param_conds = {"alpha": (1.0, 0, np.inf, 0),
-                   "beta": (0.1, 0, np.inf, 1),
-                   "gamma": (0.1, 0, np.inf, 2),
-                   "epsilon": (4.0, 0, np.inf, 3),
-                   "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 4),
-                   "move_LTP_scale": (0.1, 0.0, 10.0, 5),
+    param_conds = {"alpha": (1.0, 0, 10., 0),
+                   "beta": (0.1, 0, 1., 1),
+                   "gamma": (0.1, 0, 1., 2),
+                   "epsilon": (400.0, 0, 40000, 3),
+                   "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), 100., 4),
+                   "move_LTP_scale": (0.1, 0.0, 1., 5),
                    "pf_scale": (1.0, 0.7, 1.3, 6),
                    "mli_scale": (1.0, 0.7, 1.3, 7),
             }
