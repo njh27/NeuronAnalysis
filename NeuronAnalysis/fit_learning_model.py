@@ -397,7 +397,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args):
         y_hat_trial = np.dot(state_input, W_full, out=y_hat_trial)
         y_hat_trial += b # Add the bias term
         if kwargs['activation_out'] == "relu":
-            y_hat_trial[y_hat_trial < 0.0] = 0.0
+            y_hat_trial = np.maximum(0., y_hat_trial)
         # Now we can convert any nans to 0.0 so they don't affect residuals
         y_hat_trial[is_missing_data_trial] = 0.0
         y_obs_trial[is_missing_data_trial] = 0.0
