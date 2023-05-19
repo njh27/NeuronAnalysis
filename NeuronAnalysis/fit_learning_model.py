@@ -616,7 +616,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                         "args": (fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
                         "bounds": bounds}
     # Call basinhopping
-    result = basinhopping(learning_function, p0, minimizer_kwargs=minimizer_kwargs, niter=100)
+    result = basinhopping(learning_function, p0, minimizer_kwargs=minimizer_kwargs, niter=100, disp=True)
 
 
     result.residuals = learning_function(result.x, fit_inputs, binned_FR,
