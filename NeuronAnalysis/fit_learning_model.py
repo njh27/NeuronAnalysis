@@ -346,10 +346,10 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     W_min_mli = 0.0
 
     # Parse parameters to be fit
-    alpha = params[0] * n_obs_pt#/ (n_obs_pt * 1e4)
-    beta = params[1] * n_obs_pt#/ (n_obs_pt * 1e4)
-    gamma = params[2] * n_obs_pt#/ (n_obs_pt * 1e4)
-    epsilon = params[3] / n_obs_pt
+    alpha = params[0] / n_obs_pt#/ (n_obs_pt * 1e4)
+    beta = params[1] / n_obs_pt#/ (n_obs_pt * 1e4)
+    gamma = params[2] / n_obs_pt#/ (n_obs_pt * 1e4)
+    epsilon = params[3] * n_obs_pt
     W_max_pf = params[4]
     move_LTD_scale = params[5] / n_obs_pt
     move_LTP_scale = params[6] / n_obs_pt
@@ -576,8 +576,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                             })
     rescale_1e4 = [] #"alpha", "beta", "gamma"] #, "epsilon",
                    # "omega", "psi", "chi", "phi"]
-    rescale_up = ["alpha", "beta", "gamma"]
-    rescale_down = ["epsilon"]
+    rescale_down = ["alpha", "beta", "gamma"]
+    rescale_up = ["epsilon"]
 
     # Make sure params are in correct order and saved for input to least_squares
     p0 = [x[1][0] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
