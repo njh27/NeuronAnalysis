@@ -346,10 +346,10 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     W_min_mli = 0.0
 
     # Parse parameters to be fit
-    alpha = params[0] #/ (n_obs_pt * 1e4)
-    beta = params[1] #/ (n_obs_pt * 1e4)
-    gamma = params[2] #/ (n_obs_pt * 1e4)
-    epsilon = params[3]
+    alpha = params[0] * n_obs_pt#/ (n_obs_pt * 1e4)
+    beta = params[1] * n_obs_pt#/ (n_obs_pt * 1e4)
+    gamma = params[2] * n_obs_pt#/ (n_obs_pt * 1e4)
+    epsilon = params[3] / n_obs_pt
     W_max_pf = params[4]
     move_LTD_scale = params[5] / n_obs_pt
     move_LTP_scale = params[6] / n_obs_pt
@@ -556,9 +556,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                  'activation_out': NN_FIT.activation_out,
                  }
     # Format of p0, upper, lower, index order for each variable to make this legible
-    param_conds = {"alpha": (1.0, 0, 10, 0),
-                   "beta": (0.1, 0, 10.0, 1),
-                   "gamma": (0.1, 0, 10.0, 2),
+    param_conds = {"alpha": (1.0, 0, np.inf, 0),
+                   "beta": (0.1, 0, np.inf, 1),
+                   "gamma": (0.1, 0, np.inf, 2),
                    "epsilon": (4.0, 0, np.inf, 3),
                    "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 4),
                    "move_LTD_scale": (1.0, 0.0, np.inf, 5),
@@ -576,6 +576,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                             })
     rescale_1e4 = [] #"alpha", "beta", "gamma"] #, "epsilon",
                    # "omega", "psi", "chi", "phi"]
+    rescale_up = ["alpha", "beta", "gamma"]
+    rescale_down = ["epsilon"]
 
     # Make sure params are in correct order and saved for input to least_squares
     p0 = [x[1][0] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
@@ -608,7 +610,11 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
         param_ind = param_conds[key][3]
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = result.x[param_ind]
         if key in rescale_1e4:
-            NN_FIT.fit_results['gauss_basis_kinematics'][key] /= (n_obs_pt * 1e4)
+            NN_FIT.fit_results['gauss_basis_kinematics'][key] /= 1e4
+        if key in rescale_up:
+            NN_FIT.fit_results['gauss_basis_kinematics'][key] *= n_obs_pt
+        if key in rescale_down:
+            NN_FIT.fit_results['gauss_basis_kinematics'][key] /= n_obs_pt
     for key in lf_kwargs.keys():
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = lf_kwargs[key]
 
