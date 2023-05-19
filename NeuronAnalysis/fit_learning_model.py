@@ -323,7 +323,7 @@ def f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli=None, W_min_mli=0.0):
 
 """ *********************************************************************** """
 
-def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
+def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args):
     """ Defines the learning model we are fitting to the data """
     # Separate behavior state from CS inputs
     state = x[:, 0:-1]
@@ -342,6 +342,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     y_hat_trial = args[10]
     pf_LTD = args[11]
     pf_LTP = args[12]
+    kwargs = args[13]
     W_min_pf = 0.0
     W_min_mli = 0.0
 
@@ -607,11 +608,13 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
 
 
     # Create a local minimizer
+    lf_args = (bin_width, n_trials, n_obs_pt, is_missing_data,
+                n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
+                W_full, state_input, y_hat_trial, pf_LTD, pf_LTP, lf_kwargs)
     bounds = [(lb, ub) for lb, ub in zip(lower_bounds, upper_bounds)]
     minimizer_kwargs = {"method": "L-BFGS-B",
                         "args": (fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
-                        "bounds": bounds,
-                        **lf_kwargs}
+                        "bounds": bounds}
     # Call basinhopping
     result = basinhopping(learning_function, p0, minimizer_kwargs=minimizer_kwargs, niter=100)
 
