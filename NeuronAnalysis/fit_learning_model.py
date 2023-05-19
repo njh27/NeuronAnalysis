@@ -748,7 +748,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     move_LTP_scale = NN_FIT.fit_results['gauss_basis_kinematics']['move_LTP_scale']
     move_magn = np.linalg.norm(bin_eye_data[:, 2:4], axis=1)
     pf_scale = NN_FIT.fit_results['gauss_basis_kinematics']['pf_scale']
-    mli_scale = NN_FIT.fit_results['gauss_basis_kinematics']['mli_scale']
+    mli_scale = pf_scale #NN_FIT.fit_results['gauss_basis_kinematics']['mli_scale']
     W_pf = np.zeros(W_0_pf.shape) # Place to store updating result and copy to output
     W_pf[:] = pf_scale * W_0_pf # Initialize storage to start values
     W_mli = np.zeros(W_0_mli.shape) # Place to store updating result and copy to output
