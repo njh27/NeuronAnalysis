@@ -351,11 +351,11 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
     gamma = params[2] # / (10 * 10 * n_obs_pt)#/ (n_obs_pt * 1e4)
     epsilon = params[3] # * (10 * n_obs_pt)
     W_max_pf = params[4]
-    move_LTD_scale = params[5] / n_obs_pt
-    move_LTP_scale = params[6] / n_obs_pt
+    # move_LTD_scale = params[5] / n_obs_pt
+    move_LTP_scale = params[5] / n_obs_pt
     move_magn = np.linalg.norm(x[:, 2:4], axis=1)
-    pf_scale = params[7]
-    mli_scale = params[8]
+    pf_scale = params[6]
+    mli_scale = params[7]
     # Set weights to initial fit values
     W_pf = np.copy(W_0_pf)
     W_pf *= pf_scale
@@ -410,7 +410,7 @@ def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args, **kwargs):
         # Binary CS for this trial
         CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt]
 
-        zeta_f_move = np.sqrt(move_m_trial) * move_LTD_scale
+        # zeta_f_move = np.sqrt(move_m_trial) * move_LTD_scale
         # Get LTD function for parallel fibers
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS'],
                           kwargs['tau_decay_CS'], epsilon, 0.0, zeta_f_move=None)
@@ -561,10 +561,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                    "gamma": (0.1, 0, np.inf, 2),
                    "epsilon": (4.0, 0, np.inf, 3),
                    "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 4),
-                   "move_LTD_scale": (1.0, 0.0, np.inf, 5),
-                   "move_LTP_scale": (0.1, 0.0, 10.0, 6),
-                   "pf_scale": (1.0, 0.7, 1.3, 7),
-                   "mli_scale": (1.0, 0.7, 1.3, 8),
+                   # "move_LTD_scale": (1.0, 0.0, np.inf, 5),
+                   "move_LTP_scale": (0.1, 0.0, 10.0, 5),
+                   "pf_scale": (1.0, 0.7, 1.3, 6),
+                   "mli_scale": (1.0, 0.7, 1.3, 7),
             }
     if lf_kwargs['UPDATE_MLI_WEIGHTS']:
         raise ValueError("check param nums")
@@ -715,7 +715,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     gamma = NN_FIT.fit_results['gauss_basis_kinematics']['gamma']
     epsilon = NN_FIT.fit_results['gauss_basis_kinematics']['epsilon']
     W_max_pf = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_pf']
-    move_LTD_scale = NN_FIT.fit_results['gauss_basis_kinematics']['move_LTD_scale']
+    # move_LTD_scale = NN_FIT.fit_results['gauss_basis_kinematics']['move_LTD_scale']
     move_LTP_scale = NN_FIT.fit_results['gauss_basis_kinematics']['move_LTP_scale']
     move_magn = np.linalg.norm(bin_eye_data[:, 2:4], axis=1)
     pf_scale = NN_FIT.fit_results['gauss_basis_kinematics']['pf_scale']
@@ -765,7 +765,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         # Binary CS for this trial
         CS_trial_bin = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt]
 
-        zeta_f_move = np.sqrt(move_m_trial) * move_LTD_scale
+        # zeta_f_move = np.sqrt(move_m_trial) * move_LTD_scale
         # Get LTD function for parallel fibers
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS'],
                           kwargs['tau_decay_CS'], epsilon, 0.0, zeta_f_move=None)
