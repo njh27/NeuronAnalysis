@@ -469,8 +469,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     be updated from one trial to the next as if they are ordered and will
     not check if the numbers are correct because it could fail for various
     reasons like aborted trials. """
-    ftol=1e-6
-    xtol=1e-10
+    ftol=1e-4
+    xtol=1e-6
     gtol=1e-8
     max_nfev=2000
     loss='linear'
