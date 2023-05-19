@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.optimize import least_squares, basinhopping
+from scipy.optimize import least_squares, basinhopping, differential_evolution
 from NeuronAnalysis.fit_NN_model import bin_data, FitNNModel
 from NeuronAnalysis.general import box_windows
 from NeuronAnalysis.activation_functions import eye_input_to_PC_gauss_relu, gen_linspace_gaussians
@@ -607,16 +607,33 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     #                         loss=loss)
 
 
-    # Create a local minimizer
+    # # Create a local minimizer
+    # lf_args = (bin_width, n_trials, n_obs_pt, is_missing_data,
+    #             n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
+    #             W_full, state_input, y_hat_trial, pf_LTD, pf_LTP, lf_kwargs)
+    # bounds = [(lb, ub) for lb, ub in zip(lower_bounds, upper_bounds)]
+    # minimizer_kwargs = {"method": "L-BFGS-B",
+    #                     "args": (fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
+    #                     "bounds": bounds}
+    # # Call basinhopping
+    # result = basinhopping(learning_function, p0, minimizer_kwargs=minimizer_kwargs, niter=10, disp=True)
+
+
+    # Note that differential_evolution() does not allow method specification
+    # for the minimization step because it has its own mechanism.
     lf_args = (bin_width, n_trials, n_obs_pt, is_missing_data,
                 n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
                 W_full, state_input, y_hat_trial, pf_LTD, pf_LTP, lf_kwargs)
+
+    # We now define the bounds as a list of (min, max) pairs for each element in x
     bounds = [(lb, ub) for lb, ub in zip(lower_bounds, upper_bounds)]
-    minimizer_kwargs = {"method": "L-BFGS-B",
-                        "args": (fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
-                        "bounds": bounds}
-    # Call basinhopping
-    result = basinhopping(learning_function, p0, minimizer_kwargs=minimizer_kwargs, niter=10, disp=True)
+
+    # differential_evolution function takes the objective function and the bounds as main arguments.
+    result = differential_evolution(func=learning_function,
+                                    bounds=bounds,
+                                    args=(fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
+                                    disp=True) # Display status messages
+
 
 
     result.residuals = learning_function(result.x, fit_inputs, binned_FR,
