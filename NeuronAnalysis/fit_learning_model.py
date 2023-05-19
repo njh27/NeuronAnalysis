@@ -636,6 +636,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     result = differential_evolution(func=learning_function,
                                     bounds=bounds,
                                     args=(fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
+                                    workers=-1,
                                     disp=True) # Display status messages
     result.residuals = learning_function(result.x, fit_inputs, binned_FR,
                                     W_0_pf, W_0_mli, b, *lf_args)
