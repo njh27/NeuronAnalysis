@@ -557,12 +557,12 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                  'activation_out': NN_FIT.activation_out,
                  }
     # Format of p0, upper, lower, index order for each variable to make this legible
-    param_conds = {"alpha": (1.0, 0, 10., 0),
-                   "beta": (0.1, 0, 1., 1),
-                   "gamma": (0.1, 0, 1., 2),
+    param_conds = {"alpha": (0.01, 0, 1., 0),
+                   "beta": (0.001, 0, 0.1, 1),
+                   "gamma": (0.001, 0, 0.1, 2),
                    "epsilon": (400.0, 0, 40000, 3),
                    "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), 100., 4),
-                   "move_LTP_scale": (0.1, 0.0, 1., 5),
+                   "move_LTP_scale": (0.001, 0.0, 0.1, 5),
                    "pf_scale": (1.0, 0.7, 1.3, 6),
                    "mli_scale": (1.0, 0.7, 1.3, 7),
             }
@@ -616,7 +616,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                         "args": (fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
                         "bounds": bounds}
     # Call basinhopping
-    result = basinhopping(learning_function, p0, minimizer_kwargs=minimizer_kwargs, niter=100, disp=True)
+    result = basinhopping(learning_function, p0, minimizer_kwargs=minimizer_kwargs, niter=10, disp=True)
 
 
     result.residuals = learning_function(result.x, fit_inputs, binned_FR,
