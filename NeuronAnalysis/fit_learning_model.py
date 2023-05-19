@@ -744,6 +744,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
             kwargs[key] = NN_FIT.fit_results['gauss_basis_kinematics'][key]
         elif key in ["UPDATE_MLI_WEIGHTS"]:
             kwargs[key] = NN_FIT.fit_results['gauss_basis_kinematics'][key]
+        kwargs[key] = NN_FIT.fit_results['gauss_basis_kinematics'][key]
     FR_MAX = NN_FIT.fit_results['gauss_basis_kinematics']['FR_MAX']
     # Fit parameters
     alpha = NN_FIT.fit_results['gauss_basis_kinematics']['alpha']
@@ -798,8 +799,8 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
 
         y_hat_trial = np.dot(state_input, W_full, out=y_hat_trial)
         y_hat_trial += b # Add the bias term
-        # if kwargs['activation_out'] == "relu":
-        y_hat_trial[y_hat_trial < 0.0] = 0.0
+        if kwargs['activation_out'] == "relu":
+            y_hat_trial[y_hat_trial < 0.0] = 0.0
         # Now we can convert any nans to 0.0 so they don't affect residuals
         y_hat_trial[is_missing_data_trial] = np.nan
         fr_hat_by_trial[trial_num][:] = y_hat_trial
