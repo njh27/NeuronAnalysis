@@ -595,7 +595,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                 n_gaussians_per_dim, gauss_means, gauss_stds, n_gaussians,
                 W_full, state_input, y_hat_trial, pf_LTD, pf_LTP, lf_kwargs)
 
-    Fit the learning rates to the data
+    # Fit the learning rates to the data
     result = least_squares(learning_function, p0,
                             args=(fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
                             bounds=(lower_bounds, upper_bounds),
