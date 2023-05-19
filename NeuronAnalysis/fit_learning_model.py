@@ -611,7 +611,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     minimizer_kwargs = {"method": "L-BFGS-B",
                         "args": (fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
                         "bounds": bounds,
-                        "kwargs": lf_kwargs}
+                        **lf_kwargs}
     # Call basinhopping
     result = basinhopping(learning_function, p0, minimizer_kwargs=minimizer_kwargs, niter=100)
 
