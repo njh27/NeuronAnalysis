@@ -839,7 +839,7 @@ def fit_basic_NNModel(NN_FIT, intrinsic_rate0, bin_width, bin_threshold):
     return
 
 def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=None,
-                        median_FR=60, bin_width=10, bin_threshold=5):
+                                bin_width=10, bin_threshold=5):
     """ Hard code intrinsic rate starting points.
     "None" uses default near median rate."""
     # test_intrinsic_rates = [x for x in np.linspace(0, 100, 5)]
@@ -849,13 +849,13 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
     #             [[50, 0],     [-100, 200]],
     #             [[0, 50],     [-150, 250]],
     #             ]
-    test_intrinsic_rates = [x for x in np.linspace(0, median_FR, 1)]
+    test_intrinsic_rates = [x for x in np.linspace(0, 60, 1)]
     test_intrinsic_rates[0] = None
     CS_wins = [ [[100, -50],  [-50, 150]],
                 [[50, 0],     [-100, 200]],
                 ]
     NN_fit_None = True
-    min_cost = np.inf
+    min_resids = np.inf
     best_intrinsic_rate = None
     best_CS_wins = None
     best_result = None
@@ -883,8 +883,8 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
             for i, p in enumerate(result.x):
                 print(i, " : ", p)
             # Save the results if they are best
-            if result.cost < min_cost:
-                min_cost = result.cost
+            if result.residuals < min_resids:
+                min_resids = result.residuals
                 best_intrinsic_rate = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
                 best_CS_wins = curr_win
                 best_result = result
