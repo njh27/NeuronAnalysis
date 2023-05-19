@@ -602,6 +602,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                             gtol=gtol,
                             max_nfev=max_nfev,
                             loss=loss)
+    result.residuals = learning_function(result.x, fit_inputs, binned_FR,
+                                    W_0_pf, W_0_mli, b, *args, **kwargs)
     for key in param_conds.keys():
         param_ind = param_conds[key][3]
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = result.x[param_ind]
@@ -840,18 +842,18 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
                         median_FR=60, bin_width=10, bin_threshold=5):
     """ Hard code intrinsic rate starting points.
     "None" uses default near median rate."""
-    test_intrinsic_rates = [x for x in np.linspace(0, 100, 5)]
-    test_intrinsic_rates[0] = None
-    CS_wins = [ [[150, -100], [0, 100]],
-                [[100, -50],  [-50, 150]],
-                [[50, 0],     [-100, 200]],
-                [[0, 50],     [-150, 250]],
-                ]
-    # test_intrinsic_rates = [x for x in np.linspace(0, median_FR, 2)]
+    # test_intrinsic_rates = [x for x in np.linspace(0, 100, 5)]
     # test_intrinsic_rates[0] = None
-    # CS_wins = [ [[100, -50],  [-50, 150]],
+    # CS_wins = [ [[150, -100], [0, 100]],
+    #             [[100, -50],  [-50, 150]],
     #             [[50, 0],     [-100, 200]],
+    #             [[0, 50],     [-150, 250]],
     #             ]
+    test_intrinsic_rates = [x for x in np.linspace(0, median_FR, 1)]
+    test_intrinsic_rates[0] = None
+    CS_wins = [ [[100, -50],  [-50, 150]],
+                [[50, 0],     [-100, 200]],
+                ]
     NN_fit_None = True
     min_cost = np.inf
     best_intrinsic_rate = None
@@ -877,6 +879,7 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
                                            CS_LTP_win=curr_win[1])
             print("RESULTS for iter", n_iter)
             print("Cost", result.cost)
+            print("Residuals", result.residuals)
             for i, p in enumerate(result.x):
                 print(i, " : ", p)
             # Save the results if they are best
