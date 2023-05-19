@@ -561,7 +561,6 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                    "gamma": (0.1, 0, np.inf, 2),
                    "epsilon": (4.0, 0, np.inf, 3),
                    "W_max_pf": (10*np.amax(W_0_pf), np.amax(W_0_pf), np.inf, 4),
-                   # "move_LTD_scale": (1.0, 0.0, np.inf, 5),
                    "move_LTP_scale": (0.1, 0.0, 10.0, 5),
                    "pf_scale": (1.0, 0.7, 1.3, 6),
                    "mli_scale": (1.0, 0.7, 1.3, 7),
@@ -605,12 +604,13 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     #                         gtol=gtol,
     #                         max_nfev=max_nfev,
     #                         loss=loss)
+
+
     # Create a local minimizer
-    # Create a local minimizer
+    bounds = [(lb, ub) for lb, ub in zip(lower_bounds, upper_bounds)]
     minimizer_kwargs = {"method": "L-BFGS-B",
                         "args": (fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args, lf_kwargs),
                         "bounds": (lower_bounds, upper_bounds)}
-
     # Call basinhopping
     result = basinhopping(learning_function, p0, minimizer_kwargs=minimizer_kwargs, niter=100)
 
