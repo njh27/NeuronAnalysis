@@ -810,7 +810,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         # Rescaled trial firing rate in proportion to max OVERWRITES y_obs_trial!
         y_obs_trial = y_obs_trial / kwargs['FR_MAX']
         # Binary CS for this trial
-        CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt]
+        CS_trial_bin = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt]
 
         # zeta_f_move = np.sqrt(move_m_trial) * move_LTD_scale
         # Get LTD function for parallel fibers
