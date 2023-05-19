@@ -855,7 +855,6 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
     # CS_wins = [ [[100, -50],  [-50, 150]],
     #             [[50, 0],     [-100, 200]],
     #             ]
-    NN_fit_None = True
     min_resids = np.inf
     best_intrinsic_rate = None
     best_CS_wins = None
@@ -863,17 +862,12 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
     best_iter = None
     n_iter = 0
     for int_rate in test_intrinsic_rates:
-        if int_rate is None:
-            if not NN_fit_None:
-                raise ValueError("Initial fit to None not in correct order here.")
-        else:
-            # Fit NN model with current intrinsic rate starting point
-            fit_basic_NNModel(NN_FIT, int_rate, bin_width, bin_threshold)
+        # Fit NN model with current intrinsic rate starting point
+        fit_basic_NNModel(NN_FIT, int_rate, bin_width, bin_threshold)
         print("Intrinsic firing rate: ", NN_FIT.fit_results['gauss_basis_kinematics']['bias'][0])
 
         for curr_win in CS_wins:
             print("Checking CS_wins [{0}] and [{1}].".format(curr_win[0], curr_win[1]))
-
             result = fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window,
                                            bin_width=bin_width, bin_threshold=bin_threshold,
                                            CS_LTD_win=curr_win[0],
