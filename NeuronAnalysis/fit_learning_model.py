@@ -605,6 +605,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     #                         gtol=gtol,
     #                         max_nfev=max_nfev,
     #                         loss=loss)
+    # result.residuals = learning_function(result.x, fit_inputs, binned_FR,
+    #                                 W_0_pf, W_0_mli, b, *lf_args, **lf_kwargs)
 
 
     # # Create a local minimizer
@@ -617,6 +619,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     #                     "bounds": bounds}
     # # Call basinhopping
     # result = basinhopping(learning_function, p0, minimizer_kwargs=minimizer_kwargs, niter=10, disp=True)
+    # result.residuals = learning_function(result.x, fit_inputs, binned_FR,
+    #                                 W_0_pf, W_0_mli, b, *lf_args, **lf_kwargs)
 
 
     # Note that differential_evolution() does not allow method specification
@@ -633,11 +637,12 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                                     bounds=bounds,
                                     args=(fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
                                     disp=True) # Display status messages
-
-
-
     result.residuals = learning_function(result.x, fit_inputs, binned_FR,
-                                    W_0_pf, W_0_mli, b, *lf_args, **lf_kwargs)
+                                    W_0_pf, W_0_mli, b, *lf_args)
+
+
+
+
     result_copy = np.copy(result.x)
     for key in param_conds.keys():
         param_ind = param_conds[key][3]
