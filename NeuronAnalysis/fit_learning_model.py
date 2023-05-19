@@ -638,8 +638,6 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                                     args=(fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
                                     workers=-1,
                                     disp=True) # Display status messages
-    result.residuals = learning_function(result.x, fit_inputs, binned_FR,
-                                    W_0_pf, W_0_mli, b, *lf_args)
 
 
 
@@ -779,6 +777,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
     pf_LTD = np.zeros((n_gaussians))
     pf_LTP = np.zeros((n_gaussians))
     weights_by_trial = {t_num: np.zeros(W_full.shape) for t_num in all_t_inds}
+    fr_hat_by_trial = {t_num: np.zeros((n_obs_pt, )) for t_num in all_t_inds}
 
     for trial_ind, trial_num in zip(range(0, n_trials), all_t_inds):
         weights_by_trial[trial_num][:] = W_full # Copy W for this trial, befoe updating at end of loop
@@ -796,12 +795,21 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         # No movement weight to missing/saccade data
         move_m_trial[is_missing_data_trial] = 0.0
         y_obs_trial[is_missing_data_trial] = 0.0
-        state_input_pf = state_input[:, 0:n_gaussians]
 
-        # Rescaled trial firing rate in proportion to max
-        y_obs_trial = y_obs_trial / FR_MAX
+        y_hat_trial = np.dot(state_input, W_full, out=y_hat_trial)
+        y_hat_trial += b # Add the bias term
+        if kwargs['activation_out'] == "relu":
+            y_hat_trial[y_hat_trial < 0.0] = 0.0
+        # Now we can convert any nans to 0.0 so they don't affect residuals
+        y_hat_trial[is_missing_data_trial] = np.nan
+        fr_hat_by_trial[trial_num][:] = y_hat_trial
+
+        # Update weights for next trial based on activations in this trial
+        state_input_pf = state_input[:, 0:n_gaussians]
+        # Rescaled trial firing rate in proportion to max OVERWRITES y_obs_trial!
+        y_obs_trial = y_obs_trial / kwargs['FR_MAX']
         # Binary CS for this trial
-        CS_trial_bin = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt]
+        CS_trial_bin = CS[trial*n_obs_pt:(trial + 1)*n_obs_pt]
 
         # zeta_f_move = np.sqrt(move_m_trial) * move_LTD_scale
         # Get LTD function for parallel fibers
@@ -830,30 +838,7 @@ def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
         W_pf[(W_pf < W_min_pf)] = W_min_pf
         W_full[0:n_gaussians] = W_pf
 
-        if kwargs['UPDATE_MLI_WEIGHTS']:
-            # MLI state input is all <= 0, so need to multiply by -1 here
-            state_input_mli = -1.0 * state_input[:, n_gaussians:]
-            # Create the MLI LTP weighting function
-            mli_CS_LTP = f_mli_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_mli_LTP'],
-                              kwargs['tau_decay_CS_mli_LTP'], omega, 0.0)
-            # Convert to LTP input for Purkinje cell MLI weights
-            mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli, W_max_mli)
-
-            # Create the LTD function for MLIs
-            # mli_LTD_funs = f_mli_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS_mli_LTD'],
-            #                 kwargs['tau_decay_CS_mli_LTD'], psi)
-            # mli_LTD_funs = f_mli_FR_LTD(y_obs_trial, chi)
-            mli_LTD_funs = f_mli_static_LTD(mli_CS_LTP, phi)
-            mli_LTD_funs[mli_CS_LTP > 0.0] = 0.0
-            # Convert to LTD input for MLI
-            mli_LTD = f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli, W_min_mli)
-            # Ensure W_mli values are within range and store in output W_full
-            W_mli += ( mli_LTP[:, None] + mli_LTD[:, None] )
-            W_mli[(W_mli > W_max_mli)] = W_max_mli
-            W_mli[(W_mli < W_min_mli)] = W_min_mli
-            W_full[n_gaussians:] = W_mli
-
-    return weights_by_trial
+    return weights_by_trial, fr_hat_by_trial
 
 def fit_basic_NNModel(NN_FIT, intrinsic_rate0, bin_width, bin_threshold):
     """ Basically a helper function for get_intrisic_rate_and_CSwin that sets
