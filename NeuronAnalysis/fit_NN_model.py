@@ -263,6 +263,7 @@ class FitNNModel(object):
             layers.Input(shape=(n_gaussians + 8,)),
             layers.Dense(1, activation=activation_out,
                             kernel_constraint=constraints.NonNeg(),
+                            kernel_initializer=initializers.Ones(),
                             bias_initializer=initializers.Constant(intrinsic_rate0)),
         ])
         clip_value = None
