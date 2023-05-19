@@ -820,7 +820,6 @@ def fit_basic_NNModel(NN_FIT, intrinsic_rate0, bin_width, bin_threshold):
     pos_range = 25
     vel_range = 35
     fit_avg_data=False
-    p0 = None
     quick_lag_step=8
     train_split =1.
     pos_means, pos_stds = gen_linspace_gaussians(pos_range, pos_n_gaussians, pos_std)
