@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.optimize import least_squares
+from scipy.optimize import least_squares, basinhopping
 from NeuronAnalysis.fit_NN_model import bin_data, FitNNModel
 from NeuronAnalysis.general import box_windows
 from NeuronAnalysis.activation_functions import eye_input_to_PC_gauss_relu, gen_linspace_gaussians
@@ -612,7 +612,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                         "bounds": (lower_bounds, upper_bounds)}
 
     # Call basinhopping
-    result = scipy.optimize.basinhopping(learning_function, p0, minimizer_kwargs=minimizer_kwargs, niter=100)
+    result = basinhopping(learning_function, p0, minimizer_kwargs=minimizer_kwargs, niter=100)
 
 
     result.residuals = learning_function(result.x, fit_inputs, binned_FR,
