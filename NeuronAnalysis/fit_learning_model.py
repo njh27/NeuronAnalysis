@@ -842,8 +842,8 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
     """ Hard code intrinsic rate starting points.
     "None" uses default near median rate."""
     # test_intrinsic_rates = [x for x in np.linspace(0, 100, 5)]
-    test_intrinsic_rates = [0, 60]
-    test_intrinsic_rates[0] = None
+    # test_intrinsic_rates[0] = None
+    test_intrinsic_rates = [57.]
     CS_wins = [ [[150, -150], [50, -50]],
                 [[100, -100],  [0, 0]],
                 [[50, -50],     [-50, 50]],
