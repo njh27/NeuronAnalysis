@@ -596,15 +596,25 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                 W_full, state_input, y_hat_trial, pf_LTD, pf_LTP)
 
     # Fit the learning rates to the data
-    result = least_squares(learning_function, p0,
-                            args=(fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
-                            kwargs=lf_kwargs,
-                            bounds=(lower_bounds, upper_bounds),
-                            ftol=ftol,
-                            xtol=xtol,
-                            gtol=gtol,
-                            max_nfev=max_nfev,
-                            loss=loss)
+    # result = least_squares(learning_function, p0,
+    #                         args=(fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
+    #                         kwargs=lf_kwargs,
+    #                         bounds=(lower_bounds, upper_bounds),
+    #                         ftol=ftol,
+    #                         xtol=xtol,
+    #                         gtol=gtol,
+    #                         max_nfev=max_nfev,
+    #                         loss=loss)
+    # Create a local minimizer
+    # Create a local minimizer
+    minimizer_kwargs = {"method": "L-BFGS-B",
+                        "args": (fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args, lf_kwargs),
+                        "bounds": (lower_bounds, upper_bounds)}
+
+    # Call basinhopping
+    result = scipy.optimize.basinhopping(learning_function, p0, minimizer_kwargs=minimizer_kwargs, niter=100)
+
+
     result.residuals = learning_function(result.x, fit_inputs, binned_FR,
                                     W_0_pf, W_0_mli, b, *lf_args, **lf_kwargs)
     result_copy = np.copy(result.x)
