@@ -603,7 +603,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                             max_nfev=max_nfev,
                             loss=loss)
     result.residuals = learning_function(result.x, fit_inputs, binned_FR,
-                                    W_0_pf, W_0_mli, b, *args, **kwargs)
+                                    W_0_pf, W_0_mli, b, *lf_args, **lf_kwargs)
     for key in param_conds.keys():
         param_ind = param_conds[key][3]
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = result.x[param_ind]
