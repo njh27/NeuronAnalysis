@@ -495,29 +495,6 @@ def comp_trial_rates_weights(weights_0, input_state, FR, CS, move_magn, int_rate
         W_pf[(W_pf < W_min_pf)] = W_min_pf
         W_full[0:func_kwargs['n_gaussians']] = W_pf
 
-        if func_kwargs['UPDATE_MLI_WEIGHTS']:
-            # MLI state input is all <= 0, so need to multiply by -1 here
-            state_input_mli = -1.0 * state_input[:, func_kwargs['n_gaussians']:]
-            # Create the MLI LTP weighting function
-            mli_CS_LTP = f_mli_CS_LTP(CS_trial_bin, func_kwargs['tau_rise_CS_mli_LTP'],
-                              func_kwargs['tau_decay_CS_mli_LTP'], omega, 0.0)
-            # Convert to LTP input for Purkinje cell MLI weights
-            mli_LTP = f_mli_LTP(mli_CS_LTP, state_input_mli, W_mli, W_max_mli)
-
-            # Create the LTD function for MLIs
-            # mli_LTD_funs = f_mli_CS_LTD(CS_trial_bin, func_kwargs['tau_rise_CS_mli_LTD'],
-            #                 func_kwargs['tau_decay_CS_mli_LTD'], psi)
-            # mli_LTD_funs = f_mli_FR_LTD(y_obs_trial, chi)
-            mli_LTD_funs = f_mli_static_LTD(mli_CS_LTP, phi)
-            mli_LTD_funs[mli_CS_LTP > 0.0] = 0.0
-            # Convert to LTD input for MLI
-            mli_LTD = f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli, W_min_mli)
-            # Ensure W_mli values are within range and store in output W_full
-            W_mli += ( mli_LTP[:, None] + mli_LTD[:, None] )
-            W_mli[(W_mli > W_max_mli)] = W_max_mli
-            W_mli[(W_mli < W_min_mli)] = W_min_mli
-            W_full[func_kwargs['n_gaussians']:] = W_mli
-
     if len(return_items) == 1:
         return return_items[0]
     return tuple(return_items)
