@@ -14,22 +14,7 @@ def comp_learning_response(NN_FIT, X_trial, W_trial, return_comp=False):
     if X_trial.shape[2] != 8:
         raise ValueError("Gaussian basis kinematics model is fit for 8 data dimensions but input data dimension is {0}.".format(X.shape[1]))
 
-    pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
-    vel_means = NN_FIT.fit_results['gauss_basis_kinematics']['vel_means']
-    n_gaussians_per_dim = [len(pos_means), len(pos_means),
-                           len(vel_means), len(vel_means)]
-    gauss_means = np.hstack([pos_means,
-                             pos_means,
-                             vel_means,
-                             vel_means])
-    pos_stds = NN_FIT.fit_results['gauss_basis_kinematics']['pos_stds']
-    vel_stds = NN_FIT.fit_results['gauss_basis_kinematics']['vel_stds']
-    gauss_stds = np.hstack([pos_stds,
-                            pos_stds,
-                            vel_stds,
-                            vel_stds])
-
-    n_gaussians = len(gauss_means)
+    gauss_means, gauss_stds, n_gaussians_per_dim, n_gaussians =  NN_FIT.get_all_gauss_params()
     y_hat = np.zeros((X_trial.shape[0], X_trial.shape[1]))
     W = np.copy(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'])
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
@@ -112,7 +97,7 @@ def get_eye_data_traces_win(NN_FIT, blocks, trial_sets, time_window, lag=0,
 
 
 def get_plasticity_data_trial_win(NN_FIT, blocks, trial_sets, time_window,
-                                    return_shape=False, return_inds=False):
+                                    return_inds=False):
     """ Gets behavioral data from blocks and trial sets and formats in a
     way that it can be used to predict firing rate according to the linear
     eye kinematic model using predict_lin_eye_kinematics.
@@ -126,16 +111,28 @@ def get_plasticity_data_trial_win(NN_FIT, blocks, trial_sets, time_window,
                             time_window,
                             NN_FIT.fit_results['gauss_basis_kinematics']['mli_lag'])
     eye_data = np.concatenate((eye_data_pf, eye_data_mli), axis=2)
-    initial_shape = eye_data.shape
-    eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
-    if return_shape and return_inds:
-        return eye_data, initial_shape, t_inds
-    elif return_shape and not return_inds:
-        return eye_data, initial_shape
-    elif not return_shape and return_inds:
+    if return_inds:
         return eye_data, t_inds
     else:
         return eye_data
+
+
+def get_firing_eye_by_trial(NN_FIT, time_window, blocks, trial_sets):
+    """ Get all the firing rate and eye data for the neuron fit in the NN_fit
+    obejct Returned as a 3D array of trials x time x data_dim.
+    """
+    #Get the trial indices and use those to get behavior since neural data
+    # can be fewer trials.
+    firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(time_window,
+                                        blocks, trial_sets, return_inds=True)
+    CS_bin_evts = NN_FIT.neuron.get_CS_dataseries_by_trial(time_window,
+                                blocks, all_t_inds, nan_sacc=False)
+
+    # Now get eye data for the same trials
+    eye_data, initial_shape = get_plasticity_data_trial_win(NN_FIT,
+                                    blocks, all_t_inds, time_window)
+
+    return firing_rate, eye_data, CS_bin_evts
 
 
 """ THESE ARE THE LEARNING RULE PLASTICITY FUNCTIONS """
@@ -479,12 +476,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     if learn_fit_window is None:
         learn_fit_window = NN_FIT.time_window
     NN_FIT.learn_rates_time_window = learn_fit_window
-    """ Get all the binned firing rate data. Get the trial indices and use those
-    to get behavior since neural data can be fewer trials. """
-    firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(learn_fit_window,
-                                        blocks, trial_sets, return_inds=True)
-    CS_bin_evts = NN_FIT.neuron.get_CS_dataseries_by_trial(learn_fit_window,
-                                blocks, all_t_inds, nan_sacc=False)
+
+    # Get firing rate and eye data for trials to be fit
+    firing_rate, eye_data, CS_bin_evts = get_firing_eye_by_trial(NN_FIT,
+                                            learn_fit_window, blocks, trial_sets)
 
     """ Here we have to do some work to get all the data in the correct format """
     # First get all firing rate data, bin and format
@@ -498,10 +493,6 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     binned_CS = binned_CS.reshape(binned_CS.shape[0]*binned_CS.shape[1], order='C')
 
     """ Get all the binned eye data """
-    eye_data, initial_shape = get_plasticity_data_trial_win(NN_FIT,
-                                    blocks, all_t_inds, learn_fit_window,
-                                    return_shape=True)
-    eye_data = eye_data.reshape(initial_shape)
     # Use bin smoothing on data before fitting
     bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
     # Observations defined after binning
@@ -511,6 +502,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     bin_eye_data = bin_eye_data.reshape(
                             bin_eye_data.shape[0]*bin_eye_data.shape[1],
                             bin_eye_data.shape[2], order='C')
+
+
     # Make an index of all nans that we can use in objective function to set
     # the unit activations to 0.0
     eye_is_nan = np.any(np.isnan(bin_eye_data), axis=1)
@@ -520,21 +513,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     is_missing_data = np.isnan(binned_FR) | eye_is_nan
 
     # Need the means and stds for converting state to input
-    pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
-    vel_means = NN_FIT.fit_results['gauss_basis_kinematics']['vel_means']
-    n_gaussians_per_dim = np.array([len(pos_means), len(pos_means),
-                           len(vel_means), len(vel_means)], dtype=np.int32)
-    gauss_means = np.hstack([pos_means,
-                             pos_means,
-                             vel_means,
-                             vel_means], dtype=np.float64)
-    pos_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['pos_stds'])
-    vel_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['vel_stds'])
-    gauss_stds = np.hstack([pos_stds,
-                            pos_stds,
-                            vel_stds,
-                            vel_stds], dtype=np.float64)
-    n_gaussians = np.int32(len(gauss_means))
+    gauss_means, gauss_stds, n_gaussians_per_dim, n_gaussians =  NN_FIT.get_all_gauss_params()
 
     # Defining learning function within scope so we have access to "NN_FIT"
     # and specifically the weights. Get here to save space

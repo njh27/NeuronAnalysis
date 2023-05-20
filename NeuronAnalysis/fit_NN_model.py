@@ -141,6 +141,27 @@ class FitNNModel(object):
         ind_stop = ind_start + self.fit_dur
         return eye_data[:, ind_start:ind_stop, :]
 
+    def get_all_gauss_params(self):
+        """ Gathers the Gaussian means and STDs for each dimension of the basis
+        set functions and outputs them together as used in the fitting functions.
+        """
+        pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
+        vel_means = NN_FIT.fit_results['gauss_basis_kinematics']['vel_means']
+        n_gaussians_per_dim = np.array([len(pos_means), len(pos_means),
+                               len(vel_means), len(vel_means)], dtype=np.int64)
+        gauss_means = np.hstack([pos_means,
+                                 pos_means,
+                                 vel_means,
+                                 vel_means], dtype=np.float64)
+        pos_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['pos_stds'])
+        vel_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['vel_stds'])
+        gauss_stds = np.hstack([pos_stds,
+                                pos_stds,
+                                vel_stds,
+                                vel_stds], dtype=np.float64)
+        n_gaussians = np.int64(len(gauss_means))
+        return gauss_means, gauss_stds, n_gaussians_per_dim, n_gaussians
+
     def fit_gauss_basis_kinematics(self, pos_means, pos_stds, vel_means, vel_stds,
                                     activation_out="relu",
                                     intrinsic_rate0=None,
@@ -202,9 +223,9 @@ class FitNNModel(object):
 
         # Now get all the eye data at correct lags, bin and format
         # Get all the eye data at the desired lags
-        eye_data_pf = self.get_eye_data_traces(self.blocks, self.trial_sets,
+        eye_data_pf = self.get_eye_data_traces(self.blocks, all_t_inds,
                             pf_lag)
-        eye_data_mli = self.get_eye_data_traces(self.blocks, self.trial_sets,
+        eye_data_mli = self.get_eye_data_traces(self.blocks, all_t_inds,
                             mli_lag)
         eye_data = np.concatenate((eye_data_pf, eye_data_mli), axis=2)
 
@@ -426,6 +447,7 @@ class FitNNModel(object):
                                 pos_stds,
                                 vel_stds,
                                 vel_stds])
+        gauss_means, gauss_stds, n_gaussians_per_dim, _ =  self.get_all_gauss_params()
         X_input = af.eye_input_to_PC_gauss_relu(X,
                                         gauss_means, gauss_stds,
                                         n_gaussians_per_dim=n_gaussians_per_dim)
