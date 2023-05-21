@@ -355,8 +355,8 @@ class FitNNModel(object):
     def get_model(self):
         """ Get the initial starting values for model fit. """
         W_full = np.float64(self.fit_results['gauss_basis_kinematics']['coeffs'].squeeze())
-        W_0_pf = np.copy(W_full[0:self.fit_results['n_gaussians']])
-        W_0_mli = np.copy(W_full[self.fit_results['n_gaussians']:])
+        W_0_pf = np.copy(W_full[0:self.fit_results['gauss_basis_kinematics']['n_gaussians']])
+        W_0_mli = np.copy(W_full[self.fit_results['gauss_basis_kinematics']['n_gaussians']:])
         int_rate = np.float64(self.fit_results['gauss_basis_kinematics']['bias'])
         return W_0_pf, W_0_mli, W_full, int_rate
 
