@@ -382,7 +382,7 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
     if return_y_hat:
         y_hat_by_trial = np.zeros(FR.shape)
     if return_weights:
-        weights_by_trial = np.zeros((input_state[0], input_state[2]))
+        weights_by_trial = np.zeros((input_state.shape[0], input_state.shape[2]))
 
     # Set weights to initial values by copying so we don't alter inputs
     W_full = np.copy(weights_0)
