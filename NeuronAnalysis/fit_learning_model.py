@@ -541,9 +541,10 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
                    "gamma": (0.001, 0, 1.0, 2),
                    "epsilon": (4000.0, 0, 400000, 3),
                    "W_max_pf": (W_max_pf0, W_max_pf_min, 100., 4),
-                   "move_LTP_scale": (0.001, 0.0, 0.1, 5),
-                   "pf_scale": (1.0, 0.7, 1.3, 6),
-                   "mli_scale": (1.0, 0.7, 1.3, 7),
+                   "move_LTD_scale": (0.001, 0.0, 0.1, 5),
+                   "move_LTP_scale": (0.001, 0.0, 0.1, 6),
+                   "pf_scale": (1.0, 0.7, 1.3, 7),
+                   "mli_scale": (1.0, 0.7, 1.3, 8),
             }
     if lf_kwargs['UPDATE_MLI_WEIGHTS']:
         raise ValueError("check param nums")
