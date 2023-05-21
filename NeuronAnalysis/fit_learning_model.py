@@ -323,10 +323,10 @@ def f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli=None, W_min_mli=0.0):
 
 """ *********************************************************************** """
 
-def comp_trial_rates_weights(weights_0, input_state, FR, CS, move_magn, int_rate,
-                                param_kwargs, func_kwargs, arr_kwargs={},
-                                return_residuals=True, return_y_hat=False,
-                                return_weights=False):
+def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
+                        param_kwargs, func_kwargs, arr_kwargs={},
+                        return_residuals=True, return_y_hat=False,
+                        return_weights=False):
     """ Iterates over the trial-wise data input_state, FR, and CS starting
     with weights_0 at trial1 (row index 0) and runs the learning algorithm to
     update the weights and firing rate prediction of each trial given the
@@ -402,36 +402,6 @@ def comp_trial_rates_weights(weights_0, input_state, FR, CS, move_magn, int_rate
     W_pf[(W_pf < func_kwargs['W_min_pf'])] = func_kwargs['W_min_pf']
     W_mli[(W_mli < func_kwargs['W_min_mli'])] = func_kwargs['W_min_mli']
 
-    # Extract other precomputed necessary args
-    is_missing_data = args[3]
-    n_gaussians_per_dim = args[4]
-    gauss_means = args[5]
-    gauss_stds = args[6]
-    n_gaussians = args[7]
-    W_full = args[8]
-    state_input = args[9]
-    y_hat_trial = args[10]
-    pf_LTD = args[11]
-    pf_LTP = args[12]
-    kwargs = args[13]
-    W_min_pf = 0.0
-    W_min_mli = 0.0
-
-    # Parse parameters to be fit
-    alpha = params[0]  # / (10 * n_obs_pt) #/ (n_obs_pt * 1e4)
-    beta = params[1]  # / (10 * 10 * n_obs_pt)#/ (n_obs_pt * 1e4)
-    gamma = params[2]  # / (10 * 10 * n_obs_pt)#/ (n_obs_pt * 1e4)
-    epsilon = params[3] # * (10 * n_obs_pt)
-    W_max_pf = params[4]
-    # move_LTD_scale = params[5] / n_obs_pt
-    move_LTP_scale = params[5] / n_obs_pt
-    pf_scale = params[6]
-    mli_scale = pf_scale #params[7]
-
-
-
-
-
     for trial in range(0, eye_data.shape[0]):
         state_trial = input_state[trial, :, :] # Input state for this trial
         move_m_trial = move_magn[trial, :] # Movement for this trial
@@ -444,7 +414,7 @@ def comp_trial_rates_weights(weights_0, input_state, FR, CS, move_magn, int_rate
         arr_kwargs['y_hat_trial'] += b # Add the bias term
         if func_kwargs['activation_out'] == "relu":
             # Set maximum IN PLACE
-            np.maximum(0., y_hat_trial, out=arr_kwargs['y_hat_trial'])
+            np.maximum(0., arr_kwargs['y_hat_trial'], out=arr_kwargs['y_hat_trial'])
         # Now we can convert any nans to 0.0 so they don't affect residuals
         arr_kwargs['y_hat_trial'][func_kwargs['is_missing_data'][trial, :]] = 0.0
         arr_kwargs['fr_obs_trial'][func_kwargs['is_missing_data'][trial, :]] = 0.0
@@ -465,102 +435,75 @@ def comp_trial_rates_weights(weights_0, input_state, FR, CS, move_magn, int_rate
         arr_kwargs['fr_obs_trial'] /= func_kwargs['FR_MAX']
         CS_trial_bin = CS[trial, :] # Get CS view for this trial
 
-        # zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTD_scale']
         # Get LTD function for parallel fibers
+        # zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTD_scale']
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, func_kwargs['tau_rise_CS'],
                           func_kwargs['tau_decay_CS'], param_kwargs['epsilon'],
                           0.0, zeta_f_move=None)
         # Add to pf_CS_LTD in place
-        # pf_CS_LTD = f_pf_move_LTD(pf_CS_LTD, move_m_trial, param_kwargs['move_LTD_scale'])
+        pf_CS_LTD = f_pf_move_LTD(pf_CS_LTD, move_m_trial, param_kwargs['move_LTD_scale'])
         # Convert to LTD input for Purkinje cell
         arr_kwargs['pf_LTD'] = f_pf_LTD(pf_CS_LTD, state_input_pf,
                                         arr_kwargs['pf_LTD'], W_pf=W_pf,
                                         W_min_pf=func_kwargs['W_min_pf'])
 
-        zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTP_scale']
         # Create the LTP function for parallel fibers
+        zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTP_scale']
         pf_LTP_funs = f_pf_CS_LTP(CS_trial_bin, func_kwargs['tau_rise_CS_LTP'],
-                        func_kwargs['tau_decay_CS_LTP'], param_kwargs['alpha'], zeta_f_move=None)
+                                    func_kwargs['tau_decay_CS_LTP'],
+                                    param_kwargs['alpha'], zeta_f_move=None)
         # These functions add on to pf_LTP_funs in place
-        # pf_LTP_funs = f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta, zeta_f_move=None)
-        pf_LTP_funs = f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, gamma, zeta_f_move=None)
+        pf_LTP_funs = f_pf_FR_LTP(pf_LTP_funs, arr_kwargs['fr_obs_trial'],
+                                    param_kwargs['beta'], zeta_f_move=None)
+        pf_LTP_funs = f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD,
+                                        param_kwargs['gamma'], zeta_f_move=None)
+        # Make LTP not directly compete with LTD
         pf_LTP_funs[pf_CS_LTD > 0.0] = 0.0
         # Convert to LTP input for Purkinje cell
-        pf_LTP = f_pf_LTP(pf_LTP_funs, state_input_pf, pf_LTP, W_pf=W_pf, W_max_pf=W_max_pf)
-        # Compute delta W_pf as LTP + LTD inputs and update W_pf
-        W_pf += ( pf_LTP + pf_LTD )
+        arr_kwargs['pf_LTP'] = f_pf_LTP(pf_LTP_funs, state_input_pf, arr_kwargs['pf_LTP'], W_pf=W_pf, W_max_pf=param_kwargs['W_max_pf'])
 
+        # Compute delta W_pf as LTP + LTD inputs and update W_pf
+        # Since W_pf is view into W_full, W_full is updated IN PLACE here!
+        W_pf += ( arr_kwargs['pf_LTP'] + arr_kwargs['pf_LTD'] )
         # Ensure W_pf values are within range and store in output W_full
-        W_pf[(W_pf > W_max_pf)] = W_max_pf
-        W_pf[(W_pf < W_min_pf)] = W_min_pf
-        W_full[0:func_kwargs['n_gaussians']] = W_pf
+        W_pf[(W_pf > param_kwargs['W_max_pf'])] = param_kwargs['W_max_pf']
+        W_pf[(W_pf < func_kwargs['W_min_pf'])] = func_kwargs['W_min_pf']
 
     if len(return_items) == 1:
         return return_items[0]
     return tuple(return_items)
 
+def obj_fun(params, state_input, FR, *args):
+    """ A wrapper for run_learning_model that can be called as an objective
+    function by a scipy optimizeer. It stores the parameters and other needed
+    values into dictionaries used by run_learning_model and returns the
+    residual squared error to the optimizer. """
+    # Unpack all the extra args needed here to pass into learning function
+    param_conds = args[0]
+    weights_0 = args[1]
+    int_rate = args[2]
+    binned_CS = args[3]
+    move_magn = args[4]
+    fr_obs_trial = args[5]
+    y_hat_trial = args[6]
+    pf_LTD = args[7]
+    pf_LTP = args[8]
+    func_kwargs = args[9]
 
+    # Build dictionary of params being fit to pass to learning function
+    # according to the initialization dictionary param_conds
+    param_kwargs = {}
+    for p in param_conds.keys():
+        param_kwargs[p] = params[param_conds[key][3]]
 
+    # Assign preallocated arrays for learning function to use
+    arr_kwargs = {'fr_obs_trial': fr_obs_trial,
+                  'y_hat_trial': y_hat_trial,
+                  'pf_LTD': pf_LTD,
+                  'pf_LTP': pf_LTP,
+                 }
 
-def learning_function(params, x, y, W_0_pf, W_0_mli, b, *args):
-    """ Defines the learning model we are fitting to the data """
-    # Separate behavior state from CS inputs
-    state = x[:, 0:-1]
-    CS = x[:, -1]
-    # Extract other precomputed necessary args
-    bin_width = args[0]
-    n_trials = args[1]
-    n_obs_pt = args[2]
-    is_missing_data = args[3]
-    n_gaussians_per_dim = args[4]
-    gauss_means = args[5]
-    gauss_stds = args[6]
-    n_gaussians = args[7]
-    W_full = args[8]
-    state_input = args[9]
-    y_hat_trial = args[10]
-    pf_LTD = args[11]
-    pf_LTP = args[12]
-    kwargs = args[13]
-    W_min_pf = 0.0
-    W_min_mli = 0.0
-
-    # Parse parameters to be fit
-    alpha = params[0]  # / (10 * n_obs_pt) #/ (n_obs_pt * 1e4)
-    beta = params[1]  # / (10 * 10 * n_obs_pt)#/ (n_obs_pt * 1e4)
-    gamma = params[2]  # / (10 * 10 * n_obs_pt)#/ (n_obs_pt * 1e4)
-    epsilon = params[3] # * (10 * n_obs_pt)
-    W_max_pf = params[4]
-    # move_LTD_scale = params[5] / n_obs_pt
-    move_LTP_scale = params[5] / n_obs_pt
-    move_magn = np.linalg.norm(x[:, 2:4], axis=1)
-    pf_scale = params[6]
-    mli_scale = pf_scale #params[7]
-    # Set weights to initial fit values
-    W_pf = np.copy(W_0_pf)
-    W_pf *= pf_scale
-    W_mli = np.copy(W_0_mli)
-    W_mli *= mli_scale
-    # Ensure W_pf values are within range and store in output W_full
-    W_pf[(W_pf > W_max_pf)] = W_max_pf
-    W_pf[(W_pf < W_min_pf)] = W_min_pf
-    W_mli[(W_mli < W_min_mli)] = W_min_mli
-    if kwargs['UPDATE_MLI_WEIGHTS']:
-        omega = params[5] / (n_obs_pt * 1e4)
-        psi = params[6] / (n_obs_pt * 1e4)
-        chi = params[7] / (n_obs_pt * 1e4)
-        phi = params[8] / (n_obs_pt * 1e4)
-        W_max_mli = params[9]
-        W_mli[(W_mli > W_max_mli)] = W_max_mli
-    W_full[0:n_gaussians] = W_pf
-    W_full[n_gaussians:] = W_mli
-
-    func_kwargs['UPDATE_MLI_WEIGHTS']
-    func_kwargs['activation_out']
-    func_kwargs['is_missing_data']
-    func_kwargs['FR_MAX']
-
-    residuals = comp_trial_rates_weights(weights_0, input_state, FR, CS,
+    residuals = run_learning_model(weights_0, state_input, FR, binned_CS,
                                     move_magn, int_rate,
                                     param_kwargs, func_kwargs, arr_kwargs={},
                                     return_residuals=True, return_y_hat=False,
@@ -650,10 +593,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     gauss_params =  NN_FIT.get_all_gauss_params()
     gauss_means, gauss_stds, n_gaussians_per_dim, n_gaussians = gauss_params
     # Get the initial starting values for model fit
-    W_0_pf, W_0_mli, W_full, int_rate = NN_FIT.get_model()
+    W_0_pf, W_0_mli, weights_0, int_rate = NN_FIT.get_model()
 
     # Transform the eye data to the state_input layer activations
-    state_input = np.zeros((bin_eye_data.shape[0], bin_eye_data.shape[1], W_full.size))
+    state_input = np.zeros((bin_eye_data.shape[0], bin_eye_data.shape[1], weights_0.size))
     for trial in range(0, bin_eye_data.shape[0]):
         # This will modify stat_input IN PLACE for each trial
         eye_input_to_PC_gauss_relu(bin_eye_data[trial, :, :], gauss_means,
@@ -669,15 +612,20 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
 
     init_params = init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
                                         W_0_pf, W_0_mli)
-    lf_kwargs, param_conds, p0, lower_bounds, upper_bounds = init_params
+    func_kwargs, param_conds, p0, lower_bounds, upper_bounds = init_params
+    # Add extra needed args to pass in func_kwargs
+    func_kwargs['n_gaussians'] = n_gaussians
+    func_kwargs['is_missing_data'] = is_missing_data
+    func_kwargs['W_min_pf'] = 0.0
+    func_kwargs['W_min_mli'] = 0.0
 
     # Finally append CS to inputs and get other args needed for learning function
+    fr_obs_trial = np.zeros((bin_eye_data.shape[1], ))
     y_hat_trial = np.zeros((bin_eye_data.shape[1], ))
     pf_LTD = np.zeros((n_gaussians))
     pf_LTP = np.zeros((n_gaussians))
-    lf_args = (binned_CS, move_magn, is_missing_data,
-                n_gaussians_per_dim,
-                W_full, state_input, y_hat_trial, pf_LTD, pf_LTP, lf_kwargs)
+    lf_args = (param_conds, weights_0, int_rate, binned_CS, move_magn,
+                fr_obs_trial, y_hat_trial, pf_LTD, pf_LTP, func_kwargs)
 
     ftol=1e-4
     xtol=1e-8
@@ -685,8 +633,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     max_nfev=2000
     loss='linear'
     # Fit the learning rates to the data
-    result = least_squares(learning_function, p0,
-                            args=(state_input, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
+    result = least_squares(obj_fun, p0,
+                            args=(state_input, binned_FR, *lf_args),
                             bounds=(lower_bounds, upper_bounds),
                             ftol=ftol,
                             xtol=xtol,
