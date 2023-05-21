@@ -496,7 +496,7 @@ def obj_fun(params, state_input, FR, *args):
     # according to the initialization dictionary param_conds
     param_kwargs = {}
     for p in param_conds.keys():
-        param_kwargs[p] = params[param_conds[key][3]]
+        param_kwargs[p] = params[param_conds[p][3]]
 
     # Assign preallocated arrays for learning function to use
     arr_kwargs = {'fr_obs_trial': fr_obs_trial,
