@@ -404,7 +404,7 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
     W_pf[(W_pf < func_kwargs['W_min_pf'])] = func_kwargs['W_min_pf']
     W_mli[(W_mli < func_kwargs['W_min_mli'])] = func_kwargs['W_min_mli']
 
-    for trial in range(0, eye_data.shape[0]):
+    for trial in range(0, input_state.shape[0]):
         state_trial = input_state[trial, :, :] # Input state for this trial
         move_m_trial = move_magn[trial, :] # Movement for this trial
         # Copy over so we can manipulate and not overwrite the input
