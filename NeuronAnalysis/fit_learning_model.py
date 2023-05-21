@@ -413,7 +413,7 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
         # Expected rate this trial given updated weights. Updated in-place to
         # preallocated array y_hat_trial
         np.dot(state_trial, W_full, out=arr_kwargs['y_hat_trial'])
-        arr_kwargs['y_hat_trial'] += b # Add the bias term
+        arr_kwargs['y_hat_trial'] += int_rate # Add the bias term
         if func_kwargs['activation_out'] == "relu":
             # Set maximum IN PLACE
             np.maximum(0., arr_kwargs['y_hat_trial'], out=arr_kwargs['y_hat_trial'])
@@ -644,8 +644,6 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                             gtol=gtol,
                             max_nfev=max_nfev,
                             loss=loss)
-    result.residuals = learning_function(result.x, fit_inputs, binned_FR,
-                                    W_0_pf, W_0_mli, b, *lf_args)
 
     result_copy = np.copy(result.x)
     for key in param_conds.keys():
