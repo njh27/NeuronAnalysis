@@ -192,12 +192,12 @@ def f_pf_CS_LTD(CS_trial_bin, tau_1, tau_2, scale=1.0, delay=0, zeta_f_move=None
         pf_CS_LTD[-delay:] = 0.0
     return pf_CS_LTD
 
-def f_pf_move_LTD(pf_CS_LTD, move_m_trial, move_LTD_scale):
-    """
-    """
-    # Add a term with movement magnitude times weight
-    # pf_CS_LTD += (pf_CS_LTD * np.sqrt(move_m_trial) * move_LTD_scale)
-    return pf_CS_LTD
+# def f_pf_move_LTD(pf_CS_LTD, move_m_trial, move_LTD_scale):
+#     """
+#     """
+#     # Add a term with movement magnitude times weight
+#     pf_CS_LTD += (pf_CS_LTD * np.sqrt(move_m_trial) * move_LTD_scale)
+#     return pf_CS_LTD
 
 def f_pf_LTD(pf_CS_LTD, state_input_pf, pf_LTD, W_pf=None, W_min_pf=0.0):
     """ Updates the parallel fiber LTD function of time "pf_CS_LTD" to be scaled
@@ -249,7 +249,7 @@ def f_pf_move_LTP(pf_LTP_funs, move_m_trial, move_LTP_scale):
     """
     """
     # Add a term with movement magnitude times weight
-    # pf_LTP_funs *= np.sqrt(move_m_trial * move_LTP_scale + 1)
+    pf_LTP_funs *= np.sqrt(move_m_trial * move_LTP_scale + 1)
     return pf_LTP_funs
 
 def f_pf_LTP(pf_LTP_funs, state_input_pf, pf_LTP, W_pf=None, W_max_pf=None):
@@ -454,12 +454,12 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
         CS_trial_bin = CS[trial, :] # Get CS view for this trial
 
         # Get LTD function for parallel fibers
-        # zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTD_scale']
+        zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTD_scale']
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, func_kwargs['tau_rise_CS'],
                           func_kwargs['tau_decay_CS'], param_kwargs['epsilon'],
-                          0.0, zeta_f_move=None)
+                          0.0, zeta_f_move=zeta_f_move)
         # Add to pf_CS_LTD in place
-        pf_CS_LTD = f_pf_move_LTD(pf_CS_LTD, move_m_trial, param_kwargs['move_LTD_scale'])
+        # pf_CS_LTD = f_pf_move_LTD(pf_CS_LTD, move_m_trial, param_kwargs['move_LTD_scale'])
         # Convert to LTD input for Purkinje cell
         arr_kwargs['pf_LTD'] = f_pf_LTD(pf_CS_LTD, state_input_pf,
                                         arr_kwargs['pf_LTD'], W_pf=W_pf,
@@ -469,12 +469,12 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
         zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTP_scale']
         pf_LTP_funs = f_pf_CS_LTP(CS_trial_bin, func_kwargs['tau_rise_CS_LTP'],
                                     func_kwargs['tau_decay_CS_LTP'],
-                                    param_kwargs['alpha'], zeta_f_move=None)
+                                    param_kwargs['alpha'], zeta_f_move=zeta_f_move)
         # These functions add on to pf_LTP_funs in place
         pf_LTP_funs = f_pf_FR_LTP(pf_LTP_funs, arr_kwargs['fr_obs_trial'],
-                                    param_kwargs['beta'], zeta_f_move=None)
+                                    param_kwargs['beta'], zeta_f_move=zeta_f_move)
         pf_LTP_funs = f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD,
-                                        param_kwargs['gamma'], zeta_f_move=None)
+                                        param_kwargs['gamma'], zeta_f_move=zeta_f_move)
         # Make LTP not directly compete with LTD
         pf_LTP_funs[pf_CS_LTD > 0.0] = 0.0
         # Convert to LTP input for Purkinje cell
@@ -568,10 +568,10 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
                    "gamma": (0.001, 0, 1.0, 2),
                    "epsilon": (4000.0, 0, 400000, 3),
                    "W_max_pf": (W_max_pf0, W_max_pf_min, 100., 4),
-                   "move_LTD_scale": (0.001, 0.0, 0.1, 5),
-                   "move_LTP_scale": (0.001, 0.0, 0.1, 6),
-                   "pf_scale": (1.0, 0.7, 1.3, 7),
-                   "mli_scale": (1.0, 0.7, 1.3, 8),
+                   # "move_LTD_scale": (0.001, 0.0, 0.1, 5),
+                   "move_LTP_scale": (0.001, 0.0, 0.1, 5),
+                   "pf_scale": (1.0, 0.8, 1.2, 6),
+                   "mli_scale": (1.0, 0.8, 1.2, 7),
             }
     if lf_kwargs['UPDATE_MLI_WEIGHTS']:
         raise ValueError("check param nums")
