@@ -714,14 +714,14 @@ def pred_run_learn_model(NN_FIT, state_input, FR, *args):
     weights_0 = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'].squeeze()
     int_rate = NN_FIT.fit_results['gauss_basis_kinematics']['bias'][0]
 
-    shit = run_learning_model(weights_0, state_input, FR, binned_CS,
+    weights = run_learning_model(weights_0, state_input, FR, binned_CS,
                                     move_magn, int_rate,
                                     param_kwargs, func_kwargs, arr_kwargs={},
                                     return_residuals=False, return_y_hat=False,
                                     return_weights=True)
-    return shit
+    return weights
 
-def predict_learn_model(NN_FIT, blocks, trial_sets,
+def get_learned_weights(NN_FIT, blocks, trial_sets,
                         bin_width=10, bin_threshold=5, CS_LTD_win=[25, 0],
                         CS_LTP_win=[-100, 200]):
     """ Need the trials from blocks and trial_sets to be ORDERED! """
@@ -789,10 +789,9 @@ def predict_learn_model(NN_FIT, blocks, trial_sets,
     lf_args = (all_t_inds, binned_CS, move_magn,
                 fr_obs_trial, y_hat_trial, pf_LTD, pf_LTP,
                 func_kwargs, param_conds)
-
-    shit = pred_run_learn_model(NN_FIT, state_input, binned_FR, *lf_args)
-    return shit
-    return y_hat, weights, all_t_inds
+    # Run learning model to get the weights at each trial in all_t_inds
+    weights = pred_run_learn_model(NN_FIT, state_input, binned_FR, *lf_args)
+    return weights, all_t_inds
 
 def fit_basic_NNModel(NN_FIT, intrinsic_rate0, bin_width, bin_threshold):
     """ Basically a helper function for get_intrisic_rate_and_CSwin that sets
