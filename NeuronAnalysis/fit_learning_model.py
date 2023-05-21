@@ -53,6 +53,7 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
                             blocks, trial_sets, return_shape=True,
                             test_data_only=test_data_only, return_inds=True,
                             verbose=verbose)
+    return t_inds
     X_trial = X.reshape(init_shape)
     # Get weights in a single matrix to pass through here
     W_trial = np.zeros((len(weights_by_trial), weights_by_trial[t_inds[0]].shape[0]))
