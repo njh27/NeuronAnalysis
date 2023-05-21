@@ -585,7 +585,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
 
     # Make an index of all nans that we can use in objective function to set
     # the unit activations to 0.0
-    eye_is_nan = np.any(np.isnan(bin_eye_data), axis=2)
+    eye_is_nan = np.any(np.isnan(bin_eye_data), axis=2).squeeze()
     # Firing rate data is only NaN where data for a trial does not cover NN_FIT.time_window
     # So we need to find this separate from saccades and can set to 0.0 to ignore
     # We will OR this with where eye is NaN to guarantee all missing points included
@@ -732,7 +732,7 @@ def predict_learn_model(NN_FIT, blocks, trial_sets,
 
     # Make an index of all nans that we can use in objective function to set
     # the unit activations to 0.0
-    eye_is_nan = np.any(np.isnan(bin_eye_data), axis=2)
+    eye_is_nan = np.any(np.isnan(bin_eye_data), axis=2).squeeze()
     # Firing rate data is only NaN where data for a trial does not cover NN_FIT.time_window
     # So we need to find this separate from saccades and can set to 0.0 to ignore
     # We will OR this with where eye is NaN to guarantee all missing points included
