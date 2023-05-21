@@ -658,27 +658,20 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     lf_args = (param_conds, weights_0, int_rate, binned_CS, move_magn,
                 fr_obs_trial, y_hat_trial, pf_LTD, pf_LTP, func_kwargs)
 
-    ftol=1e-4
-    xtol=1e-8
-    gtol=1e-8
-    max_nfev=2000
-    loss='linear'
-    # Fit the learning rates to the data
-    result = least_squares(obj_fun, p0,
-                            args=(state_input, binned_FR, *lf_args),
-                            bounds=(lower_bounds, upper_bounds),
-                            ftol=ftol,
-                            xtol=xtol,
-                            gtol=gtol,
-                            max_nfev=max_nfev,
-                            loss=loss)
-
-    result_copy = np.copy(result.x)
-    for key in param_conds.keys():
-        param_ind = param_conds[key][3]
-        NN_FIT.fit_results['gauss_basis_kinematics'][key] = result_copy[param_ind]
-    for key in func_kwargs.keys():
-        NN_FIT.fit_results['gauss_basis_kinematics'][key] = func_kwargs[key]
+    # ftol=1e-4
+    # xtol=1e-8
+    # gtol=1e-8
+    # max_nfev=2000
+    # loss='linear'
+    # # Fit the learning rates to the data
+    # result = least_squares(obj_fun, p0,
+    #                         args=(state_input, binned_FR, *lf_args),
+    #                         bounds=(lower_bounds, upper_bounds),
+    #                         ftol=ftol,
+    #                         xtol=xtol,
+    #                         gtol=gtol,
+    #                         max_nfev=max_nfev,
+    #                         loss=loss)
 
 
     # # Create a local minimizer
@@ -692,17 +685,24 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     #                                 W_0_pf, W_0_mli, b, *lf_args, **func_kwargs)
 
 
-    # # Note that differential_evolution() does not allow method specification
-    # # for the minimization step because it has its own mechanism.
-    # # We now define the bounds as a list of (min, max) pairs for each element in x
-    # bounds = [(lb, ub) for lb, ub in zip(lower_bounds, upper_bounds)]
-    #
-    # # differential_evolution function takes the objective function and the bounds as main arguments.
-    # result = differential_evolution(func=learning_function,
-    #                                 bounds=bounds,
-    #                                 args=(fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
-    #                                 workers=-1,
-    #                                 disp=True) # Display status messages
+    # Note that differential_evolution() does not allow method specification
+    # for the minimization step because it has its own mechanism.
+    # We now define the bounds as a list of (min, max) pairs for each element in x
+    bounds = [(lb, ub) for lb, ub in zip(lower_bounds, upper_bounds)]
+
+    # differential_evolution function takes the objective function and the bounds as main arguments.
+    result = differential_evolution(func=obj_fun,
+                                    bounds=bounds,
+                                    args=(state_input, binned_FR, *lf_args),
+                                    workers=-1,
+                                    disp=True) # Display status messages
+
+    result_copy = np.copy(result.x)
+    for key in param_conds.keys():
+        param_ind = param_conds[key][3]
+        NN_FIT.fit_results['gauss_basis_kinematics'][key] = result_copy[param_ind]
+    for key in func_kwargs.keys():
+        NN_FIT.fit_results['gauss_basis_kinematics'][key] = func_kwargs[key]
 
     return result
 
