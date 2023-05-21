@@ -45,32 +45,39 @@ def comp_learning_response(NN_FIT, X_trial, W_trial, return_comp=False):
 
 
 def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_trial,
+                                        weights_t_inds,
                                         return_comp=False, test_data_only=False,
-                                        verbose=False):
-    """
+                                        verbose=False, return_inds=False):
+    """ Given the input array of weights in weights_by_trial which is an n trials
+    by d input dimensions array of the weights for the NN_FIT model, this
+    computes the expected firing rate at each trial requested in blocks and
+    trial sets.
     """
     X, init_shape, t_inds = NN_FIT.get_gauss_basis_kinematics_predict_data_trial(
                             blocks, trial_sets, return_shape=True,
                             test_data_only=test_data_only, return_inds=True,
                             verbose=verbose)
-    return t_inds
     X_trial = X.reshape(init_shape)
-    # Get weights in a single matrix to pass through here
-    W_trial = np.zeros((len(weights_by_trial), weights_by_trial[t_inds[0]].shape[0]))
-    # Go through t_nums IN ORDER
-    for t_i, t in enumerate(t_inds):
-        try:
-            W_trial[t_i, :] = weights_by_trial[t].squeeze()
-        except KeyError:
-            print("weights by trial does not contain weights for requested trial number {0}.".format(t))
-            continue
+    # Get weights in a single matrix to pass through here according to weights_t_inds
+    sel_t_inds, inds_all_t_inds, _ = np.intersect1d(weights_t_inds, t_inds, return_indices=True)
+    # If the input request is valid, then it must be true that the requested
+    # trials are a subset of the trials on which the weights have been calculated
+    if not np.all(sel_t_inds == t_inds):
+        raise ValueError("Requested trials in blocks and trial sets are not a subset of the trial weights input in weights_t_inds.")
+    W_trial = weights_by_trial[sel_t_inds, :]
     if return_comp:
         y_hat, pf_in, mli_in = comp_learning_response(NN_FIT, X_trial, W_trial,
-                                        return_comp=return_comp)
-        return y_hat, pf_in, mli_in
+                                                        return_comp=return_comp)
+        if return_inds:
+            return y_hat, pf_in, mli_in, t_inds
+        else:
+            return y_hat, pf_in, mli_in
     else:
         y_hat = comp_learning_response(NN_FIT, X_trial, W_trial)
-        return y_hat
+        if return_inds:
+            return y_hat, t_inds
+        else:
+            return y_hat
 
 
 """ SOME HELPERS FOR GETTING THE EYE DATA TO FIT FOR PLASTIC WEIGHTS """
