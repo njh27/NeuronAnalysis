@@ -405,11 +405,7 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
 
         # Expected rate this trial given updated weights. Updated in-place to
         # preallocated array y_hat_trial
-        try:
-            np.dot(state_trial, W_full, out=arr_kwargs['y_hat_trial'])
-        except:
-            print(trial, state_trial.shape, W_full.shape, arr_kwargs['y_hat_trial'].shape)
-            raise
+        np.dot(state_trial, W_full, out=arr_kwargs['y_hat_trial'])
         arr_kwargs['y_hat_trial'] += int_rate # Add the bias term
         if func_kwargs['activation_out'] == "relu":
             # Set maximum IN PLACE
@@ -715,8 +711,8 @@ def pred_run_learn_model(NN_FIT, state_input, FR, *args):
                   'pf_LTD': pf_LTD,
                   'pf_LTP': pf_LTP,
                  }
-    weights_0 = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs']
-    int_rate = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
+    weights_0 = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'].squeeze()
+    int_rate = NN_FIT.fit_results['gauss_basis_kinematics']['bias'][0]
 
     y_hat, weights = run_learning_model(weights_0, state_input, FR, binned_CS,
                                     move_magn, int_rate,
