@@ -790,8 +790,8 @@ def predict_learn_model(NN_FIT, blocks, trial_sets,
                 fr_obs_trial, y_hat_trial, pf_LTD, pf_LTP,
                 func_kwargs, param_conds)
 
-    y_hat, weights = pred_run_learn_model(NN_FIT, state_input, binned_FR, *lf_args)
-
+    shit = pred_run_learn_model(NN_FIT, state_input, binned_FR, *lf_args)
+    return shit
     return y_hat, weights, all_t_inds
 
 def fit_basic_NNModel(NN_FIT, intrinsic_rate0, bin_width, bin_threshold):
