@@ -454,10 +454,10 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
         CS_trial_bin = CS[trial, :] # Get CS view for this trial
 
         # Get LTD function for parallel fibers
-        zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTD_scale']
+        # zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTD_scale']
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, func_kwargs['tau_rise_CS'],
                           func_kwargs['tau_decay_CS'], param_kwargs['epsilon'],
-                          0.0, zeta_f_move=zeta_f_move)
+                          0.0, zeta_f_move=None)
         # Add to pf_CS_LTD in place
         # pf_CS_LTD = f_pf_move_LTD(pf_CS_LTD, move_m_trial, param_kwargs['move_LTD_scale'])
         # Convert to LTD input for Purkinje cell
@@ -568,19 +568,15 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
                    "gamma": (0.001, 0, 1.0, 2),
                    "epsilon": (4000.0, 0, 400000, 3),
                    "W_max_pf": (W_max_pf0, W_max_pf_min, 100., 4),
-                   "move_LTD_scale": (0.001, 0.0, 0.1, 5),
-                   "move_LTP_scale": (0.001, 0.0, 0.1, 5),
+                   # "move_LTD_scale": (0.001, 0.0, 0.1, 5),
+                   "move_LTP_scale": (0.001, 0.0, 0.1, 6),
                    "pf_scale": (1.0, 0.8, 1.2, 6),
                    "mli_scale": (1.0, 0.8, 1.2, 7),
             }
-    if lf_kwargs['UPDATE_MLI_WEIGHTS']:
-        raise ValueError("check param nums")
-        param_conds.update({"omega": (1.0, 0, np.inf, 5),
-                            "psi": (1.0, 0, np.inf, 6),
-                            "chi": (1.0, 0, np.inf, 7),
-                            "phi": (1.0, 0, np.inf, 8),
-                            "W_max_mli": (W_0_mli0, W_max_mli_min, np.inf, 9),
-                            })
+    param_ind = 0
+    for key in param_conds.keys():
+        param_conds[key][3] = param_ind
+        param_ind += 1
 
     # Make sure params are in correct order and saved for input to least_squares
     p0 = [x[1][0] for x in sorted(param_conds.items(), key=lambda item: item[1][3])]
