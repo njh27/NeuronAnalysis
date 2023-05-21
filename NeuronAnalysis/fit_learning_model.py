@@ -4,7 +4,20 @@ from NeuronAnalysis.fit_NN_model import bin_data, FitNNModel
 from NeuronAnalysis.general import box_windows
 from NeuronAnalysis.activation_functions import eye_input_to_PC_gauss_relu, gen_linspace_gaussians
 
-
+# # Transform the eye data to the state_input layer activations
+# state_input = np.zeros((X_trial.shape[0], X_trial.shape[1], W_trial.shape[1]))
+# for trial in range(0, X_trial.shape[0]):
+#     # This will modify stat_input IN PLACE for each trial
+#     eye_input_to_PC_gauss_relu(X_trial[trial, :, :], gauss_means,
+#                                 gauss_stds, n_gaussians_per_dim,
+#                                 state_input[trial, :, :])
+#
+# for t_ind in range(0, X_trial.shape[0]):
+#     # Each trial update the weights for W
+#     W[:, 0] = W_trial[t_ind, :]
+#     y_hat[t_ind, :] = (np.dot(state_input[trial, :, :], W) + b).squeeze()
+#     pf_in[t_ind, :] = (np.dot(state_input[trial, :, :][:, 0:n_gaussians], W[0:n_gaussians, 0]) + b).squeeze()
+#     mli_in[t_ind, :] = (np.dot(state_input[trial, :, :][:, n_gaussians:], W[n_gaussians:, 0]) + b).squeeze()
 
 """ SOME FUNCTIONS FOR GETTING DATA TO PREDICT FIRING BASED ON PLASTIC WEIGHTS """
 """ ********************************************************************** """
@@ -23,20 +36,17 @@ def comp_learning_response(NN_FIT, X_trial, W_trial, return_comp=False):
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
     pf_in = np.zeros((X_trial.shape[0], X_trial.shape[1]))
     mli_in = np.zeros((X_trial.shape[0], X_trial.shape[1]))
-    # Transform the eye data to the state_input layer activations
-    state_input = np.zeros((X_trial.shape[0], X_trial.shape[1], W_trial.shape[1]))
-    for trial in range(0, X_trial.shape[0]):
-        # This will modify stat_input IN PLACE for each trial
-        eye_input_to_PC_gauss_relu(X_trial[trial, :, :], gauss_means,
-                                    gauss_stds, n_gaussians_per_dim,
-                                    state_input[trial, :, :])
 
     for t_ind in range(0, X_trial.shape[0]):
+        # Transform X_data for this trial into input space
+        X_input = eye_input_to_PC_gauss_relu(X_trial[t_ind, :, :],
+                                        gauss_means, gauss_stds,
+                                        n_gaussians_per_dim=n_gaussians_per_dim)
         # Each trial update the weights for W
         W[:, 0] = W_trial[t_ind, :]
-        y_hat[t_ind, :] = (np.dot(state_input[trial, :, :], W) + b).squeeze()
-        pf_in[t_ind, :] = (np.dot(state_input[trial, :, :][:, 0:n_gaussians], W[0:n_gaussians, 0]) + b).squeeze()
-        mli_in[t_ind, :] = (np.dot(state_input[trial, :, :][:, n_gaussians:], W[n_gaussians:, 0]) + b).squeeze()
+        y_hat[t_ind, :] = (np.dot(X_input, W) + b).squeeze()
+        pf_in[t_ind, :] = (np.dot(X_input[:, 0:n_gaussians], W[0:n_gaussians, 0]) + b).squeeze()
+        mli_in[t_ind, :] = (np.dot(X_input[:, n_gaussians:], W[n_gaussians:, 0]) + b).squeeze()
         if NN_FIT.activation_out == "relu":
             y_hat[t_ind, :] = np.maximum(0., y_hat[t_ind, :])
             pf_in[t_ind, :] = np.maximum(0., pf_in[t_ind, :])
