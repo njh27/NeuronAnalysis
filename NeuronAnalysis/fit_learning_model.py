@@ -472,9 +472,12 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
         return_items.append(y_hat_by_trial)
     if return_weights:
         return_items.append(weights_by_trial)
-    if len(return_items) == 1:
+    if len(return_items) == 0:
+        return None
+    elif len(return_items) == 1:
         return return_items[0]
-    return tuple(return_items)
+    else:
+        return tuple(return_items)
 
 def obj_fun(params, state_input, FR, *args):
     """ A wrapper for run_learning_model that can be called as an objective
