@@ -714,12 +714,12 @@ def pred_run_learn_model(NN_FIT, state_input, FR, *args):
     weights_0 = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'].squeeze()
     int_rate = NN_FIT.fit_results['gauss_basis_kinematics']['bias'][0]
 
-    y_hat, weights = run_learning_model(weights_0, state_input, FR, binned_CS,
+    shit = run_learning_model(weights_0, state_input, FR, binned_CS,
                                     move_magn, int_rate,
                                     param_kwargs, func_kwargs, arr_kwargs={},
                                     return_residuals=False, return_y_hat=False,
                                     return_weights=True)
-    return y_hat, weights
+    return shit
 
 def predict_learn_model(NN_FIT, blocks, trial_sets,
                         bin_width=10, bin_threshold=5, CS_LTD_win=[25, 0],
