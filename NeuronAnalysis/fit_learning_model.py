@@ -609,8 +609,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
 
     # Convert missing input data to 0's. MUST DO THIS TO INPUT NOT EYE DATA
     # because eye_data = 0 implies activiations in the input state!
+    print(state_input.shape, is_missing_data.shape, move_magn.shape)
     state_input[is_missing_data, :] = 0.0
-    move_magn[is_missing_data, :] = 0.0
+    move_magn[is_missing_data] = 0.0
 
     init_params = init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
                                         W_0_pf, W_0_mli)
