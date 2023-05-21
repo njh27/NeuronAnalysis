@@ -728,8 +728,9 @@ def predict_learn_model(NN_FIT, blocks, trial_sets,
     to get behavior since neural data can be fewer trials. """
     # Get firing rate and eye data for trials to be fit
     firing_rate, eye_data, CS_bin_evts, all_t_inds = get_firing_eye_by_trial(NN_FIT,
-                                                        learn_fit_window, blocks,
-                                                        trial_sets, return_inds=True)
+                                                        NN_FIT.learn_rates_time_window,
+                                                        blocks, trial_sets,
+                                                        return_inds=True)
     # Now we need to bin the data over time
     binned_FR = bin_data(firing_rate, bin_width, bin_threshold).squeeze()
     bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
