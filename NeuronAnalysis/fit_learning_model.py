@@ -379,16 +379,10 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
             # This allocated array not found so allocate here
             arr_kwargs[key] = np.zeros(shapes_allocated_arrays[key])
     # Initialize and set for return the requested items
-    return_items = []
-    if return_residuals:
-        residuals = 0.0
-        return_items.append(residuals)
     if return_y_hat:
         y_hat_by_trial = np.zeros(FR.shape)
-        return_items.append(y_hat_by_trial)
     if return_weights:
         weights_by_trial = np.zeros((input_state[0], input_state[2]))
-        return_items.append(weights_by_trial)
     if len(return_items) == 0:
         raise ValueError("No data were requested in return so why even run this?")
 
@@ -404,6 +398,7 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
     W_pf[(W_pf < func_kwargs['W_min_pf'])] = func_kwargs['W_min_pf']
     W_mli[(W_mli < func_kwargs['W_min_mli'])] = func_kwargs['W_min_mli']
 
+    residuals = 0.0
     for trial in range(0, input_state.shape[0]):
         state_trial = input_state[trial, :, :] # Input state for this trial
         move_m_trial = move_magn[trial, :] # Movement for this trial
@@ -471,6 +466,14 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
         W_pf[(W_pf > param_kwargs['W_max_pf'])] = param_kwargs['W_max_pf']
         W_pf[(W_pf < func_kwargs['W_min_pf'])] = func_kwargs['W_min_pf']
 
+    # Initialize and set for return the requested items
+    return_items = []
+    if return_residuals:
+        return_items.append(residuals)
+    if return_y_hat:
+        return_items.append(y_hat_by_trial)
+    if return_weights:
+        return_items.append(weights_by_trial)
     if len(return_items) == 1:
         return return_items[0]
     return tuple(return_items)
