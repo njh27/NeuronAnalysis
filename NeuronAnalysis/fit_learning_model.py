@@ -64,18 +64,18 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
     # trials are a subset of the trials on which the weights have been calculated
     if not np.all(sel_t_inds == t_inds):
         raise ValueError("Requested trials in blocks and trial sets are not a subset of the trial weights input in weights_t_inds.")
-    W_trial = weights_by_trial[sel_t_inds, :]
+    W_trial = weights_by_trial[inds_all_t_inds, :]
     if return_comp:
         y_hat, pf_in, mli_in = comp_learning_response(NN_FIT, X_trial, W_trial,
                                                         return_comp=return_comp)
         if return_inds:
-            return y_hat, pf_in, mli_in, t_inds
+            return y_hat, pf_in, mli_in, sel_t_inds
         else:
             return y_hat, pf_in, mli_in
     else:
         y_hat = comp_learning_response(NN_FIT, X_trial, W_trial)
         if return_inds:
-            return y_hat, t_inds
+            return y_hat, sel_t_inds
         else:
             return y_hat
 
