@@ -469,10 +469,10 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
         zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTP_scale']
         pf_LTP_funs = f_pf_CS_LTP(CS_trial_bin, func_kwargs['tau_rise_CS_LTP'],
                                     func_kwargs['tau_decay_CS_LTP'],
-                                    param_kwargs['alpha'], zeta_f_move=None)
+                                    param_kwargs['alpha'], zeta_f_move=zeta_f_move)
         # These functions add on to pf_LTP_funs in place
         pf_LTP_funs = f_pf_FR_LTP(pf_LTP_funs, arr_kwargs['fr_obs_trial'],
-                                    param_kwargs['beta'], zeta_f_move=zeta_f_move)
+                                    param_kwargs['beta'], zeta_f_move=None)
         pf_LTP_funs = f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD,
                                         param_kwargs['gamma'], zeta_f_move=zeta_f_move)
         # Make LTP not directly compete with LTD
