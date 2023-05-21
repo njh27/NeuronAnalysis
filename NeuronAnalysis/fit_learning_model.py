@@ -23,9 +23,6 @@ def comp_learning_response(NN_FIT, X_trial, W_trial, return_comp=False):
     b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
     pf_in = np.zeros((X_trial.shape[0], X_trial.shape[1]))
     mli_in = np.zeros((X_trial.shape[0], X_trial.shape[1]))
-
-
-
     # Transform the eye data to the state_input layer activations
     state_input = np.zeros((X_trial.shape[0], X_trial.shape[1], W_trial.shape[1]))
     for trial in range(0, X_trial.shape[0]):
@@ -35,15 +32,11 @@ def comp_learning_response(NN_FIT, X_trial, W_trial, return_comp=False):
                                     state_input[trial, :, :])
 
     for t_ind in range(0, X_trial.shape[0]):
-        # Transform X_data for this trial into input space
-        X_input = eye_input_to_PC_gauss_relu(X_trial[t_ind, :, :],
-                                        gauss_means, gauss_stds,
-                                        n_gaussians_per_dim=n_gaussians_per_dim)
         # Each trial update the weights for W
         W[:, 0] = W_trial[t_ind, :]
-        y_hat[t_ind, :] = (np.dot(X_input, W) + b).squeeze()
-        pf_in[t_ind, :] = (np.dot(X_input[:, 0:n_gaussians], W[0:n_gaussians, 0]) + b).squeeze()
-        mli_in[t_ind, :] = (np.dot(X_input[:, n_gaussians:], W[n_gaussians:, 0]) + b).squeeze()
+        y_hat[t_ind, :] = (np.dot(state_input[trial, :, :], W) + b).squeeze()
+        pf_in[t_ind, :] = (np.dot(state_input[trial, :, :][:, 0:n_gaussians], W[0:n_gaussians, 0]) + b).squeeze()
+        mli_in[t_ind, :] = (np.dot(state_input[trial, :, :][:, n_gaussians:], W[n_gaussians:, 0]) + b).squeeze()
         if NN_FIT.activation_out == "relu":
             y_hat[t_ind, :] = np.maximum(0., y_hat[t_ind, :])
             pf_in[t_ind, :] = np.maximum(0., pf_in[t_ind, :])
@@ -69,7 +62,6 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
                             test_data_only=test_data_only, return_inds=True,
                             verbose=verbose)
     X = X.reshape(init_shape)
-    return X
     # Get weights in a single matrix to pass through here according to weights_t_inds
     sel_t_inds, inds_all_t_inds, _ = np.intersect1d(weights_t_inds, t_inds, return_indices=True)
     # If the input request is valid, then it must be true that the requested
@@ -78,14 +70,14 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
         raise ValueError("Requested trials in blocks and trial sets are not a subset of the trial weights input in weights_t_inds.")
     W_trial = weights_by_trial[inds_all_t_inds, :]
     if return_comp:
-        y_hat, pf_in, mli_in = comp_learning_response(NN_FIT, X_trial, W_trial,
+        y_hat, pf_in, mli_in = comp_learning_response(NN_FIT, X, W_trial,
                                                         return_comp=return_comp)
         if return_inds:
             return y_hat, pf_in, mli_in, sel_t_inds
         else:
             return y_hat, pf_in, mli_in
     else:
-        y_hat = comp_learning_response(NN_FIT, X_trial, W_trial)
+        y_hat = comp_learning_response(NN_FIT, X, W_trial)
         if return_inds:
             return y_hat, sel_t_inds
         else:
