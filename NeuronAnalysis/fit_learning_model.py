@@ -120,7 +120,7 @@ def get_plasticity_data_trial_win(NN_FIT, blocks, trial_sets, time_window,
         return eye_data
 
 
-def get_firing_eye_by_trial(NN_FIT, time_window, blocks, trial_sets):
+def get_firing_eye_by_trial(NN_FIT, time_window, blocks, trial_sets, return_inds=False):
     """ Get all the firing rate and eye data for the neuron fit in the NN_fit
     obejct Returned as a 3D array of trials x time x data_dim.
     """
@@ -135,7 +135,10 @@ def get_firing_eye_by_trial(NN_FIT, time_window, blocks, trial_sets):
     eye_data, initial_shape = get_plasticity_data_trial_win(NN_FIT,
                                     blocks, all_t_inds, time_window)
 
-    return firing_rate, eye_data, CS_bin_evts
+    if return_inds:
+        return firing_rate, eye_data, CS_bin_evts, all_t_inds
+    else:
+        return firing_rate, eye_data, CS_bin_evts
 
 
 """ THESE ARE THE LEARNING RULE PLASTICITY FUNCTIONS """
@@ -675,73 +678,110 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     #                                 workers=-1,
     #                                 disp=True) # Display status messages
 
-
-
-
     return result
 
-def get_learning_weights_by_trial(NN_FIT, blocks, trial_sets, W_0_pf=None,
-                                    W_0_mli=None, bin_width=10, bin_threshold=5):
+def pred_run_learn_model(NN_FIT, state_input, FR, *args):
+    """ A wrapper for run_learning_model that can be called as an objective
+    function by a scipy optimizeer. It stores the parameters and other needed
+    values into dictionaries used by run_learning_model and returns the
+    residual squared error to the optimizer. """
+    # Unpack all the extra args needed here to pass into learning function
+    all_t_inds = args[0]
+    binned_CS = args[1]
+    move_magn = args[2]
+    fr_obs_trial = args[3]
+    y_hat_trial = args[4]
+    pf_LTD = args[5]
+    pf_LTP = args[6]
+    func_kwargs = args[7]
+
+    # Build dictionary of params being fit to pass to learning function
+    # according to the initialization dictionary param_conds
+    param_kwargs = {}
+    for p in param_conds.keys():
+        param_kwargs[p] = params[param_conds[key][3]]
+
+    # Assign preallocated arrays for learning function to use
+    arr_kwargs = {'fr_obs_trial': fr_obs_trial,
+                  'y_hat_trial': y_hat_trial,
+                  'pf_LTD': pf_LTD,
+                  'pf_LTP': pf_LTP,
+                 }
+
+    y_hat, weights = run_learning_model(weights_0, state_input, FR, binned_CS,
+                                    move_magn, int_rate,
+                                    param_kwargs, func_kwargs, arr_kwargs={},
+                                    return_residuals=False, return_y_hat=True,
+                                    return_weights=True)
+    return y_hat, weights
+
+def predict_learn_model(NN_FIT, blocks, trial_sets,
+                        bin_width=10, bin_threshold=5):
     """ Need the trials from blocks and trial_sets to be ORDERED! """
     """ Get all the binned firing rate data. Get the trial indices and use those
     to get behavior since neural data can be fewer trials. """
-    firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(
-                                        NN_FIT.learn_rates_time_window,
-                                        blocks, trial_sets, return_inds=True)
-    CS_bin_evts = NN_FIT.neuron.get_CS_dataseries_by_trial(
-                                NN_FIT.learn_rates_time_window,
-                                blocks, all_t_inds, nan_sacc=False)
-    """ Here we have to do some work to get all the data in the correct format """
-    # First get all firing rate data, bin and format
+    # Get firing rate and eye data for trials to be fit
+    firing_rate, eye_data, CS_bin_evts, all_t_inds = get_firing_eye_by_trial(NN_FIT,
+                                                        learn_fit_window, blocks,
+                                                        trial_sets, return_inds=True)
+    # Now we need to bin the data over time
     binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
-    binned_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-
-    # And for CSs
-    binned_CS = bin_data(CS_bin_evts, bin_width, bin_threshold)
-    # Convert to binary instead of binned average
-    binned_CS[binned_CS > 0.0] = 1.0
-    binned_CS = binned_CS.reshape(binned_CS.shape[0]*binned_CS.shape[1], order='C')
-
-    """ Get all the binned eye data """
-    eye_data, initial_shape = get_plasticity_data_trial_win(NN_FIT,
-                                    blocks, all_t_inds,
-                                    NN_FIT.learn_rates_time_window,
-                                    return_shape=True)
-    eye_data = eye_data.reshape(initial_shape)
-    # Use bin smoothing on data before fitting
     bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-    # Observations defined after binning
-    n_trials = bin_eye_data.shape[0] # Total number of trials to fit
-    n_obs_pt = bin_eye_data.shape[1] # Number of observations per trial
-    # Reshape to 2D matrix
-    bin_eye_data = bin_eye_data.reshape(
-                            bin_eye_data.shape[0]*bin_eye_data.shape[1],
-                            bin_eye_data.shape[2], order='C')
-    fit_inputs = np.hstack([bin_eye_data, binned_CS[:, None]])
+    binned_CS = bin_data(CS_bin_evts, bin_width, bin_threshold)
+    # Convert CS to binary instead of binned average
+    binned_CS[binned_CS > 0.0] = 1.0
+
     # Make an index of all nans that we can use in objective function to set
     # the unit activations to 0.0
-    eye_is_nan = np.any(np.isnan(bin_eye_data), axis=1)
+    eye_is_nan = np.any(np.isnan(bin_eye_data), axis=2)
     # Firing rate data is only NaN where data for a trial does not cover NN_FIT.time_window
     # So we need to find this separate from saccades and can set to 0.0 to ignore
-    # We will AND this with where eye is NaN because both should be if data are truly missing
+    # We will OR this with where eye is NaN to guarantee all missing points included
     is_missing_data = np.isnan(binned_FR) | eye_is_nan
 
     # Need the means and stds for converting state to input
-    pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
-    vel_means = NN_FIT.fit_results['gauss_basis_kinematics']['vel_means']
-    n_gaussians_per_dim = [len(pos_means), len(pos_means),
-                           len(vel_means), len(vel_means)]
-    gauss_means = np.hstack([pos_means,
-                             pos_means,
-                             vel_means,
-                             vel_means])
-    pos_stds = NN_FIT.fit_results['gauss_basis_kinematics']['pos_stds']
-    vel_stds = NN_FIT.fit_results['gauss_basis_kinematics']['vel_stds']
-    gauss_stds = np.hstack([pos_stds,
-                            pos_stds,
-                            vel_stds,
-                            vel_stds])
-    n_gaussians = len(gauss_means)
+    gauss_params =  NN_FIT.get_all_gauss_params()
+    gauss_means, gauss_stds, n_gaussians_per_dim, n_gaussians = gauss_params
+    # Get the initial starting values for model fit
+    W_0_pf, W_0_mli, weights_0, int_rate = NN_FIT.get_model()
+
+    # Transform the eye data to the state_input layer activations
+    state_input = np.zeros((bin_eye_data.shape[0], bin_eye_data.shape[1], weights_0.size))
+    for trial in range(0, bin_eye_data.shape[0]):
+        # This will modify stat_input IN PLACE for each trial
+        eye_input_to_PC_gauss_relu(bin_eye_data[trial, :, :], gauss_means,
+                                    gauss_stds, n_gaussians_per_dim,
+                                    state_input[trial, :, :])
+    # Compute that magnitude of the eye movement vector for scaling learning magnitude
+    move_magn = np.linalg.norm(bin_eye_data[:, :, 2:4], axis=2)
+
+    # Convert missing input data to 0's. MUST DO THIS TO INPUT NOT EYE DATA
+    # because eye_data = 0 implies activiations in the input state!
+    state_input[is_missing_data, :] = 0.0
+    move_magn[is_missing_data, :] = 0.0
+
+    init_params = init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
+                                        W_0_pf, W_0_mli)
+    func_kwargs, param_conds, p0, lower_bounds, upper_bounds = init_params
+    # Add extra needed args to pass in func_kwargs
+    func_kwargs['n_gaussians'] = n_gaussians
+    func_kwargs['is_missing_data'] = is_missing_data
+    func_kwargs['W_min_pf'] = 0.0
+    func_kwargs['W_min_mli'] = 0.0
+
+    # Finally append CS to inputs and get other args needed for learning function
+    fr_obs_trial = np.zeros((bin_eye_data.shape[1], ))
+    y_hat_trial = np.zeros((bin_eye_data.shape[1], ))
+    pf_LTD = np.zeros((n_gaussians))
+    pf_LTP = np.zeros((n_gaussians))
+    lf_args = (all_t_inds, binned_CS, move_magn,
+                fr_obs_trial, y_hat_trial, pf_LTD, pf_LTP, func_kwargs)
+
+    pred_run_learn_model(NN_FIT, state_input, binned_FR, *lf_args)
+
+
+
+
 
     if W_0_pf is None:
         W_0_pf = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][0:n_gaussians].squeeze()
