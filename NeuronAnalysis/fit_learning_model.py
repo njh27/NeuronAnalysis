@@ -423,7 +423,7 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
         arr_kwargs['fr_obs_trial'][func_kwargs['is_missing_data'][trial, :]] = 0.0
 
         # Store requested outputs as needed
-        if return_residuals
+        if return_residuals:
             # Add residuals for current trial
             residuals += np.sum((arr_kwargs['fr_obs_trial'] - arr_kwargs['y_hat_trial'])**2)
         if return_y_hat:
