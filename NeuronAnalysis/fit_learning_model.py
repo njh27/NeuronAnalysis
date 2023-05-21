@@ -37,7 +37,7 @@ def comp_learning_response(NN_FIT, X_trial, W_trial, return_comp=False):
     pf_in = np.zeros((X_trial.shape[0], X_trial.shape[1]))
     mli_in = np.zeros((X_trial.shape[0], X_trial.shape[1]))
 
-    X_input = np.zeros((X_trial.shape[0], W_trial.shape[1]))
+    X_input = np.zeros((X_trial.shape[1], W_trial.shape[1]))
     for t_ind in range(0, X_trial.shape[0]):
         # Transform X_data for this trial into input space
         X_input = eye_input_to_PC_gauss_relu(X_trial[t_ind, :, :],
