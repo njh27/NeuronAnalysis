@@ -694,7 +694,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     result = differential_evolution(func=obj_fun,
                                     bounds=bounds,
                                     args=(state_input, binned_FR, *lf_args),
-                                    workers=-1,
+                                    workers=-1, updating='deferred',
                                     disp=True) # Display status messages
 
     result_copy = np.copy(result.x)
