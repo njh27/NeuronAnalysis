@@ -514,7 +514,6 @@ def obj_fun(params, state_input, FR, *args):
                                     param_kwargs, func_kwargs, arr_kwargs={},
                                     return_residuals=True, return_y_hat=False,
                                     return_weights=False)
-    print("resids", residuals)
     return residuals
 
 def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
@@ -698,12 +697,13 @@ def pred_run_learn_model(NN_FIT, state_input, FR, *args):
     pf_LTD = args[5]
     pf_LTP = args[6]
     func_kwargs = args[7]
+    param_conds = args[8]
 
     # Build dictionary of params being fit to pass to learning function
     # according to the initialization dictionary param_conds
     param_kwargs = {}
     for p in param_conds.keys():
-        param_kwargs[p] = params[param_conds[key][3]]
+        param_kwargs[p] = NN_FIT.fit_results['gauss_basis_kinematics'][p]
 
     # Assign preallocated arrays for learning function to use
     arr_kwargs = {'fr_obs_trial': fr_obs_trial,
@@ -711,6 +711,8 @@ def pred_run_learn_model(NN_FIT, state_input, FR, *args):
                   'pf_LTD': pf_LTD,
                   'pf_LTP': pf_LTP,
                  }
+    weights_0 = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs']
+    int_rate = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
 
     y_hat, weights = run_learning_model(weights_0, state_input, FR, binned_CS,
                                     move_magn, int_rate,
@@ -768,10 +770,12 @@ def predict_learn_model(NN_FIT, blocks, trial_sets,
                                         W_0_pf, W_0_mli)
     func_kwargs, param_conds, p0, lower_bounds, upper_bounds = init_params
     # Add extra needed args to pass in func_kwargs
-    func_kwargs['n_gaussians'] = n_gaussians
-    func_kwargs['is_missing_data'] = is_missing_data
-    func_kwargs['W_min_pf'] = 0.0
-    func_kwargs['W_min_mli'] = 0.0
+    func_kwargs.update({'n_gaussians': n_gaussians,
+                        'is_missing_data': is_missing_data,
+                        'W_min_pf': 0.0,
+                        'W_min_mli': 0.0,
+                        'activation_out': NN_FIT.activation_out,
+                        })
 
     # Finally append CS to inputs and get other args needed for learning function
     fr_obs_trial = np.zeros((bin_eye_data.shape[1], ))
@@ -779,137 +783,12 @@ def predict_learn_model(NN_FIT, blocks, trial_sets,
     pf_LTD = np.zeros((n_gaussians))
     pf_LTP = np.zeros((n_gaussians))
     lf_args = (all_t_inds, binned_CS, move_magn,
-                fr_obs_trial, y_hat_trial, pf_LTD, pf_LTP, func_kwargs)
+                fr_obs_trial, y_hat_trial, pf_LTD, pf_LTP,
+                func_kwargs, param_conds)
 
-    pred_run_learn_model(NN_FIT, state_input, binned_FR, *lf_args)
+    y_hat, weights = pred_run_learn_model(NN_FIT, state_input, binned_FR, *lf_args)
 
-
-
-
-
-    if W_0_pf is None:
-        W_0_pf = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][0:n_gaussians].squeeze()
-    if W_0_pf.shape[0] != n_gaussians:
-        raise ValueError("Input W_0_pf must have match the fit coefficients shape of {0}.".format(n_gaussians))
-    if W_0_mli is None:
-        W_0_mli = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'][n_gaussians:].squeeze()
-    if W_0_mli.shape[0] != 8:
-        raise ValueError("Input W_0_mli must have match the MLI coefficients shape of 8.")
-    b = NN_FIT.fit_results['gauss_basis_kinematics']['bias'].squeeze()
-    W_min_pf = 0.0
-    W_min_mli = 0.0
-
-    # Separate behavior state from CS inputs
-    state = fit_inputs[:, 0:-1]
-    CS = fit_inputs[:, -1]
-    # Fixed input params into one dict to match above
-    kwargs = {}
-    for key in NN_FIT.fit_results['gauss_basis_kinematics'].keys():
-        if "tau" in key:
-            kwargs[key] = NN_FIT.fit_results['gauss_basis_kinematics'][key]
-        elif key in ["UPDATE_MLI_WEIGHTS"]:
-            kwargs[key] = NN_FIT.fit_results['gauss_basis_kinematics'][key]
-        kwargs[key] = NN_FIT.fit_results['gauss_basis_kinematics'][key]
-    FR_MAX = NN_FIT.fit_results['gauss_basis_kinematics']['FR_MAX']
-    # Fit parameters
-    alpha = NN_FIT.fit_results['gauss_basis_kinematics']['alpha']
-    beta = NN_FIT.fit_results['gauss_basis_kinematics']['beta']
-    gamma = NN_FIT.fit_results['gauss_basis_kinematics']['gamma']
-    epsilon = NN_FIT.fit_results['gauss_basis_kinematics']['epsilon']
-    W_max_pf = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_pf']
-    # move_LTD_scale = NN_FIT.fit_results['gauss_basis_kinematics']['move_LTD_scale']
-    move_LTP_scale = NN_FIT.fit_results['gauss_basis_kinematics']['move_LTP_scale']
-    move_magn = np.linalg.norm(bin_eye_data[:, 2:4], axis=1)
-    pf_scale = NN_FIT.fit_results['gauss_basis_kinematics']['pf_scale']
-    mli_scale = pf_scale #NN_FIT.fit_results['gauss_basis_kinematics']['mli_scale']
-    W_pf = np.zeros(W_0_pf.shape) # Place to store updating result and copy to output
-    W_pf[:] = pf_scale * W_0_pf # Initialize storage to start values
-    W_mli = np.zeros(W_0_mli.shape) # Place to store updating result and copy to output
-    W_mli[:] = mli_scale * W_0_mli # Initialize storage to start values
-    # Ensure W_pf values are within range and store in output W_full
-    W_pf[(W_pf > W_max_pf)] = W_max_pf
-    W_pf[(W_pf < W_min_pf)] = W_min_pf
-    W_mli[(W_mli < W_min_mli)] = W_min_mli
-    if kwargs['UPDATE_MLI_WEIGHTS']:
-        omega = NN_FIT.fit_results['gauss_basis_kinematics']['omega']
-        psi = NN_FIT.fit_results['gauss_basis_kinematics']['psi']
-        chi = NN_FIT.fit_results['gauss_basis_kinematics']['chi']
-        phi = NN_FIT.fit_results['gauss_basis_kinematics']['phi']
-        W_max_mli = NN_FIT.fit_results['gauss_basis_kinematics']['W_max_mli']
-        W_mli[(W_mli > W_max_mli)] = W_max_mli
-    W_full = np.concatenate((W_pf, W_mli))
-    state_input = np.zeros((n_obs_pt, n_gaussians+8))
-    y_hat_trial = np.zeros((n_obs_pt, ))
-    pf_LTD = np.zeros((n_gaussians))
-    pf_LTP = np.zeros((n_gaussians))
-    weights_by_trial = {t_num: np.zeros(W_full.shape) for t_num in all_t_inds}
-    fr_hat_by_trial = {t_num: np.zeros((n_obs_pt, )) for t_num in all_t_inds}
-
-    for trial_ind, trial_num in zip(range(0, n_trials), all_t_inds):
-        weights_by_trial[trial_num][:] = W_full # Copy W for this trial, befoe updating at end of loop
-        state_trial = state[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt, :] # State for this trial
-        move_m_trial = move_magn[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Movement for this trial
-        y_obs_trial = binned_FR[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Observed FR for this trial
-        is_missing_data_trial = is_missing_data[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt] # Nan state points for this trial
-        # Convert state to input layer activations
-        state_input = eye_input_to_PC_gauss_relu(state_trial,
-                                        gauss_means, gauss_stds,
-                                        n_gaussians_per_dim=n_gaussians_per_dim)
-        # Set inputs derived from nan points to 0.0 so t hat the weights
-        # for these states are not affected during nans
-        state_input[is_missing_data_trial, :] = 0.0
-        # No movement weight to missing/saccade data
-        move_m_trial[is_missing_data_trial] = 0.0
-        y_obs_trial[is_missing_data_trial] = 0.0
-
-        y_hat_trial = np.dot(state_input, W_full, out=y_hat_trial)
-        y_hat_trial += b # Add the bias term
-        if kwargs['activation_out'] == "relu":
-            y_hat_trial[y_hat_trial < 0.0] = 0.0
-        # Now we can convert any nans to 0.0 so they don't affect residuals
-        y_hat_trial[is_missing_data_trial] = np.nan
-        fr_hat_by_trial[trial_num][:] = y_hat_trial
-
-        # Update weights for next trial based on activations in this trial
-        state_input_pf = state_input[:, 0:n_gaussians]
-        # Rescaled trial firing rate in proportion to max OVERWRITES y_obs_trial!
-        y_obs_trial = y_obs_trial / kwargs['FR_MAX']
-        # Binary CS for this trial
-        CS_trial_bin = CS[trial_ind*n_obs_pt:(trial_ind + 1)*n_obs_pt]
-
-        # zeta_f_move = np.sqrt(move_m_trial) * move_LTD_scale
-        # Get LTD function for parallel fibers
-        pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, kwargs['tau_rise_CS'],
-                          kwargs['tau_decay_CS'], epsilon, 0.0, zeta_f_move=None)
-        # Add to pf_CS_LTD in place
-        # pf_CS_LTD = f_pf_move_LTD(pf_CS_LTD, move_m_trial, move_LTD_scale)
-        # Convert to LTD input for Purkinje cell
-        pf_LTD = f_pf_LTD(pf_CS_LTD, state_input_pf, pf_LTD, W_pf=W_pf, W_min_pf=W_min_pf)
-
-        zeta_f_move = np.sqrt(move_m_trial) * move_LTP_scale
-        # Create the LTP function for parallel fibers
-        pf_LTP_funs = f_pf_CS_LTP(CS_trial_bin, kwargs['tau_rise_CS_LTP'],
-                        kwargs['tau_decay_CS_LTP'], alpha, zeta_f_move=None)
-        # These functions add on to pf_LTP_funs in place
-        # pf_LTP_funs = f_pf_FR_LTP(pf_LTP_funs, y_obs_trial, beta, zeta_f_move=None)
-        pf_LTP_funs = f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, gamma, zeta_f_move=None)
-        pf_LTP_funs[pf_CS_LTD > 0.0] = 0.0
-        # Convert to LTP input for Purkinje cell
-        pf_LTP = f_pf_LTP(pf_LTP_funs, state_input_pf, pf_LTP, W_pf=W_pf, W_max_pf=W_max_pf)
-        # Compute delta W_pf as LTP + LTD inputs and update W_pf
-        W_pf += ( pf_LTP + pf_LTD )
-
-        # Ensure W_pf values are within range and store in output W_full
-        W_pf[(W_pf > W_max_pf)] = W_max_pf
-        W_pf[(W_pf < W_min_pf)] = W_min_pf
-        W_full[0:n_gaussians] = W_pf
-
-        # Ensure W_pf values are within range and store in output W_full
-        W_pf[(W_pf > W_max_pf)] = W_max_pf
-        W_pf[(W_pf < W_min_pf)] = W_min_pf
-        W_full[0:n_gaussians] = W_pf
-
-    return weights_by_trial, fr_hat_by_trial
+    return y_hat, weights, all_t_inds
 
 def fit_basic_NNModel(NN_FIT, intrinsic_rate0, bin_width, bin_threshold):
     """ Basically a helper function for get_intrisic_rate_and_CSwin that sets
