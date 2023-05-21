@@ -383,8 +383,6 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
         y_hat_by_trial = np.zeros(FR.shape)
     if return_weights:
         weights_by_trial = np.zeros((input_state[0], input_state[2]))
-    if len(return_items) == 0:
-        raise ValueError("No data were requested in return so why even run this?")
 
     # Set weights to initial values by copying so we don't alter inputs
     W_full = np.copy(weights_0)
