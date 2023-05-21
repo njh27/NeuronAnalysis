@@ -457,7 +457,7 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
         zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTD_scale']
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, func_kwargs['tau_rise_CS'],
                           func_kwargs['tau_decay_CS'], param_kwargs['epsilon'],
-                          0.0, zeta_f_move=None)
+                          0.0, zeta_f_move=zeta_f_move)
         # Add to pf_CS_LTD in place
         # pf_CS_LTD = f_pf_move_LTD(pf_CS_LTD, move_m_trial, param_kwargs['move_LTD_scale'])
         # Convert to LTD input for Purkinje cell
@@ -580,10 +580,10 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
                    "gamma": (0.001, 0, 1.0),
                    "epsilon": (4000.0, 0, 400000),
                    "W_max_pf": (W_max_pf0, W_max_pf_min, 100.),
-                   # "move_LTD_scale": (0.001, 0.0, 0.1),
+                   "move_LTD_scale": (0.001, 0.0, 0.1),
                    "move_LTP_scale": (0.001, 0.0, 0.1),
                    "pf_scale": (1.0, 0.6, 1.4),
-                   # "mli_scale": (1., 0.6, 1.4),
+                   "mli_scale": (1., 0.6, 1.4),
             }
     # index order for each variable
     param_ind = 0
