@@ -750,9 +750,18 @@ def pred_run_learn_model(NN_FIT, state_input, FR, *args):
     func_kwargs = args[7]
     param_conds = args[8]
 
-    # Build dictionary of params being fit to pass to learning function
-    # according to the initialization dictionary param_conds
-    param_kwargs = {}
+    param_kwargs = {"alpha": 0.0,
+                    "beta": 0.0,
+                    "gamma": 0.0,
+                    "epsilon": 0.0,
+                    "W_max_pf": 100.,
+                    "move_LTD_scale": 0.0,
+                    "move_LTP_scale": 0.0,
+                    "pf_scale": 1.0,
+                    "mli_scale": 1.0,
+                    }
+
+    # Overwrite default param args with the fitted result ones
     for p in param_conds.keys():
         param_kwargs[p] = NN_FIT.fit_results['gauss_basis_kinematics'][p]
 
