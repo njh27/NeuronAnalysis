@@ -43,7 +43,6 @@ def comp_learning_response(NN_FIT, X_trial, W_trial, return_comp=False):
         X_input = eye_input_to_PC_gauss_relu(X_trial[t_ind, :, :],
                                         gauss_means, gauss_stds,
                                         n_gaussians_per_dim, X_input)
-        print(X_input.shape)
         # Each trial update the weights for W
         W[:, 0] = W_trial[t_ind, :]
         y_hat[t_ind, :] = (np.dot(X_input, W) + b).squeeze()
