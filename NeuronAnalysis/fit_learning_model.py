@@ -722,7 +722,8 @@ def pred_run_learn_model(NN_FIT, state_input, FR, *args):
     return y_hat, weights
 
 def predict_learn_model(NN_FIT, blocks, trial_sets,
-                        bin_width=10, bin_threshold=5):
+                        bin_width=10, bin_threshold=5, CS_LTD_win=[25, 0],
+                        CS_LTP_win=[-100, 200]):
     """ Need the trials from blocks and trial_sets to be ORDERED! """
     """ Get all the binned firing rate data. Get the trial indices and use those
     to get behavior since neural data can be fewer trials. """
@@ -767,6 +768,8 @@ def predict_learn_model(NN_FIT, blocks, trial_sets,
     state_input[is_missing_data, :] = 0.0
     move_magn[is_missing_data] = 0.0
 
+    # Doing this is a bit repetitive and not totally necessary but I want to
+    # keep these functions matched as much as possible
     init_params = init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
                                         W_0_pf, W_0_mli)
     func_kwargs, param_conds, p0, lower_bounds, upper_bounds = init_params
