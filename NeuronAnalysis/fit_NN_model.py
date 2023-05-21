@@ -145,16 +145,16 @@ class FitNNModel(object):
         """ Gathers the Gaussian means and STDs for each dimension of the basis
         set functions and outputs them together as used in the fitting functions.
         """
-        pos_means = NN_FIT.fit_results['gauss_basis_kinematics']['pos_means']
-        vel_means = NN_FIT.fit_results['gauss_basis_kinematics']['vel_means']
+        pos_means = self.fit_results['gauss_basis_kinematics']['pos_means']
+        vel_means = self.fit_results['gauss_basis_kinematics']['vel_means']
         n_gaussians_per_dim = np.array([len(pos_means), len(pos_means),
                                len(vel_means), len(vel_means)], dtype=np.int64)
         gauss_means = np.hstack([pos_means,
                                  pos_means,
                                  vel_means,
                                  vel_means], dtype=np.float64)
-        pos_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['pos_stds'])
-        vel_stds = np.float64(NN_FIT.fit_results['gauss_basis_kinematics']['vel_stds'])
+        pos_stds = np.float64(self.fit_results['gauss_basis_kinematics']['pos_stds'])
+        vel_stds = np.float64(self.fit_results['gauss_basis_kinematics']['vel_stds'])
         gauss_stds = np.hstack([pos_stds,
                                 pos_stds,
                                 vel_stds,
