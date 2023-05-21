@@ -472,7 +472,7 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
                                     param_kwargs['alpha'], zeta_f_move=None)
         # These functions add on to pf_LTP_funs in place
         pf_LTP_funs = f_pf_FR_LTP(pf_LTP_funs, arr_kwargs['fr_obs_trial'],
-                                    param_kwargs['beta'], zeta_f_move=None)
+                                    param_kwargs['beta'], zeta_f_move=zeta_f_move)
         pf_LTP_funs = f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD,
                                         param_kwargs['gamma'], zeta_f_move=zeta_f_move)
         # Make LTP not directly compete with LTD
