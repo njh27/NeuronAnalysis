@@ -650,8 +650,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     for key in param_conds.keys():
         param_ind = param_conds[key][3]
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = result_copy[param_ind]
-    for key in lf_kwargs.keys():
-        NN_FIT.fit_results['gauss_basis_kinematics'][key] = lf_kwargs[key]
+    for key in func_kwargs.keys():
+        NN_FIT.fit_results['gauss_basis_kinematics'][key] = func_kwargs[key]
 
 
     # # Create a local minimizer
@@ -662,7 +662,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     # # Call basinhopping
     # result = basinhopping(learning_function, p0, minimizer_kwargs=minimizer_kwargs, niter=10, disp=True)
     # result.residuals = learning_function(result.x, fit_inputs, binned_FR,
-    #                                 W_0_pf, W_0_mli, b, *lf_args, **lf_kwargs)
+    #                                 W_0_pf, W_0_mli, b, *lf_args, **func_kwargs)
 
 
     # # Note that differential_evolution() does not allow method specification
