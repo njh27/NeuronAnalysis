@@ -352,7 +352,7 @@ class FitNNModel(object):
 
         return
 
-    def NN_FIT.get_model(self):
+    def get_model(self):
         """ Get the initial starting values for model fit. """
         W_full = np.float64(self.fit_results['gauss_basis_kinematics']['coeffs'].squeeze())
         W_0_pf = np.copy(W_full[0:self.fit_results['n_gaussians']])
