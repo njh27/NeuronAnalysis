@@ -132,8 +132,7 @@ def get_firing_eye_by_trial(NN_FIT, time_window, blocks, trial_sets, return_inds
                                 blocks, all_t_inds, nan_sacc=False)
 
     # Now get eye data for the same trials
-    eye_data, initial_shape = get_plasticity_data_trial_win(NN_FIT,
-                                    blocks, all_t_inds, time_window)
+    eye_data = get_plasticity_data_trial_win(NN_FIT, blocks, all_t_inds, time_window)
 
     if return_inds:
         return firing_rate, eye_data, CS_bin_evts, all_t_inds
