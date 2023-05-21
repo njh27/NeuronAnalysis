@@ -723,11 +723,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     # Initialize dummies in output
     for key in learning_args.keys():
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = learning_args[key]
-
-    # Build dictionary of params being fit to pass to learning function
-    # according to the initialization dictionary param_conds
-    for p in param_conds.keys():
-        param_kwargs[p] = params[param_conds[p][3]]
+    # Need param conds in output to know what was fit
+    result.param_conds = param_conds
     result_copy = np.copy(result.x)
     for key in param_conds.keys():
         param_ind = param_conds[key][3]
