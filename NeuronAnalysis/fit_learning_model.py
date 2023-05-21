@@ -717,7 +717,7 @@ def pred_run_learn_model(NN_FIT, state_input, FR, *args):
     y_hat, weights = run_learning_model(weights_0, state_input, FR, binned_CS,
                                     move_magn, int_rate,
                                     param_kwargs, func_kwargs, arr_kwargs={},
-                                    return_residuals=False, return_y_hat=True,
+                                    return_residuals=False, return_y_hat=False,
                                     return_weights=True)
     return y_hat, weights
 
