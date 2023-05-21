@@ -510,6 +510,7 @@ def obj_fun(params, state_input, FR, *args):
                                     param_kwargs, func_kwargs, arr_kwargs={},
                                     return_residuals=True, return_y_hat=False,
                                     return_weights=False)
+    print("resids", residuals)
     return residuals
 
 def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
