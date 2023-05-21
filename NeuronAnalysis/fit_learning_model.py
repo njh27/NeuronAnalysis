@@ -405,7 +405,11 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
 
         # Expected rate this trial given updated weights. Updated in-place to
         # preallocated array y_hat_trial
-        np.dot(state_trial, W_full, out=arr_kwargs['y_hat_trial'])
+        try:
+            np.dot(state_trial, W_full, out=arr_kwargs['y_hat_trial'])
+        except:
+            print(trial, state_trial.shape, W_full.shape, arr_kwargs['y_hat_trial'].shape)
+            raise
         arr_kwargs['y_hat_trial'] += int_rate # Add the bias term
         if func_kwargs['activation_out'] == "relu":
             # Set maximum IN PLACE
