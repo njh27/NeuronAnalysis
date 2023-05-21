@@ -534,7 +534,6 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
                  'tau_decay_CS_LTP': int(np.around(CS_LTP_win[1] /bin_width)),
                  'FR_MAX': 500,
                  'UPDATE_MLI_WEIGHTS': False,
-                 'activation_out': NN_FIT.activation_out,
                  }
     # Format of p0, upper, lower, index order for each variable to make this legible
     param_conds = {"alpha": (0.01, 0, 10., 0),
@@ -609,7 +608,6 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
 
     # Convert missing input data to 0's. MUST DO THIS TO INPUT NOT EYE DATA
     # because eye_data = 0 implies activiations in the input state!
-    print(state_input.shape, is_missing_data.shape, move_magn.shape)
     state_input[is_missing_data, :] = 0.0
     move_magn[is_missing_data] = 0.0
 
@@ -617,10 +615,12 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                                         W_0_pf, W_0_mli)
     func_kwargs, param_conds, p0, lower_bounds, upper_bounds = init_params
     # Add extra needed args to pass in func_kwargs
-    func_kwargs['n_gaussians'] = n_gaussians
-    func_kwargs['is_missing_data'] = is_missing_data
-    func_kwargs['W_min_pf'] = 0.0
-    func_kwargs['W_min_mli'] = 0.0
+    func_kwargs.update({'n_gaussians': n_gaussians,
+                        'is_missing_data': is_missing_data,
+                        'W_min_pf': 0.0,
+                        'W_min_mli': 0.0,
+                        'activation_out': NN_FIT.activation_out,
+                        })
 
     # Finally append CS to inputs and get other args needed for learning function
     fr_obs_trial = np.zeros((bin_eye_data.shape[1], ))
@@ -758,7 +758,7 @@ def predict_learn_model(NN_FIT, blocks, trial_sets,
     # Convert missing input data to 0's. MUST DO THIS TO INPUT NOT EYE DATA
     # because eye_data = 0 implies activiations in the input state!
     state_input[is_missing_data, :] = 0.0
-    move_magn[is_missing_data, :] = 0.0
+    move_magn[is_missing_data] = 0.0
 
     init_params = init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
                                         W_0_pf, W_0_mli)
