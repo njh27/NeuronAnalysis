@@ -577,9 +577,9 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     firing_rate, eye_data, CS_bin_evts = get_firing_eye_by_trial(NN_FIT,
                                             learn_fit_window, blocks, trial_sets)
     # Now we need to bin the data over time
-    binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
+    binned_FR = bin_data(firing_rate, bin_width, bin_threshold).squeeze()
     bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-    binned_CS = bin_data(CS_bin_evts, bin_width, bin_threshold)
+    binned_CS = bin_data(CS_bin_evts, bin_width, bin_threshold).squeeze()
     # Convert CS to binary instead of binned average
     binned_CS[binned_CS > 0.0] = 1.0
 
@@ -589,7 +589,6 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     # Firing rate data is only NaN where data for a trial does not cover NN_FIT.time_window
     # So we need to find this separate from saccades and can set to 0.0 to ignore
     # We will OR this with where eye is NaN to guarantee all missing points included
-    print(binned_FR.shape, bin_eye_data.shape, binned_CS.shape)
     is_missing_data = np.isnan(binned_FR) | eye_is_nan
 
     # Need the means and stds for converting state to input
@@ -725,9 +724,9 @@ def predict_learn_model(NN_FIT, blocks, trial_sets,
                                                         learn_fit_window, blocks,
                                                         trial_sets, return_inds=True)
     # Now we need to bin the data over time
-    binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
+    binned_FR = bin_data(firing_rate, bin_width, bin_threshold).squeeze()
     bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-    binned_CS = bin_data(CS_bin_evts, bin_width, bin_threshold)
+    binned_CS = bin_data(CS_bin_evts, bin_width, bin_threshold).squeeze()
     # Convert CS to binary instead of binned average
     binned_CS[binned_CS > 0.0] = 1.0
 
