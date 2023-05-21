@@ -589,7 +589,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     # Firing rate data is only NaN where data for a trial does not cover NN_FIT.time_window
     # So we need to find this separate from saccades and can set to 0.0 to ignore
     # We will OR this with where eye is NaN to guarantee all missing points included
-    print(binned_FR.shape, binned_eye_data.shape, binned_CS.shape)
+    print(binned_FR.shape, bin_eye_data.shape, binned_CS.shape)
     is_missing_data = np.isnan(binned_FR) | eye_is_nan
 
     # Need the means and stds for converting state to input
