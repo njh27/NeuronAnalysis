@@ -454,7 +454,7 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
         CS_trial_bin = CS[trial, :] # Get CS view for this trial
 
         # Get LTD function for parallel fibers
-        # zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTD_scale']
+        zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTD_scale']
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, func_kwargs['tau_rise_CS'],
                           func_kwargs['tau_decay_CS'], param_kwargs['epsilon'],
                           0.0, zeta_f_move=None)
@@ -469,7 +469,7 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
         zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTP_scale']
         pf_LTP_funs = f_pf_CS_LTP(CS_trial_bin, func_kwargs['tau_rise_CS_LTP'],
                                     func_kwargs['tau_decay_CS_LTP'],
-                                    param_kwargs['alpha'], zeta_f_move=zeta_f_move)
+                                    param_kwargs['alpha'], zeta_f_move=None)
         # These functions add on to pf_LTP_funs in place
         pf_LTP_funs = f_pf_FR_LTP(pf_LTP_funs, arr_kwargs['fr_obs_trial'],
                                     param_kwargs['beta'], zeta_f_move=zeta_f_move)
@@ -519,9 +519,21 @@ def obj_fun(params, state_input, FR, *args):
     pf_LTP = args[8]
     func_kwargs = args[9]
 
+    # Dictionary of all possible parameters for learning model set to dummy
+    # null values that will have no effect on learning model
+    param_kwargs = {"alpha": 0.0,
+                    "beta": 0.0,
+                    "gamma": 0.0,
+                    "epsilon": 0.0,
+                    "W_max_pf": 100.,
+                    "move_LTD_scale": 0.0,
+                    "move_LTP_scale": 0.0,
+                    "pf_scale": 1.0,
+                    "mli_scale": 1.0,
+                    }
+
     # Build dictionary of params being fit to pass to learning function
     # according to the initialization dictionary param_conds
-    param_kwargs = {}
     for p in param_conds.keys():
         param_kwargs[p] = params[param_conds[p][3]]
 
@@ -562,20 +574,22 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
                  'FR_MAX': 500,
                  'UPDATE_MLI_WEIGHTS': False,
                  }
-    # Format of p0, upper, lower, index order for each variable to make this legible
-    param_conds = {"alpha": (0.01, 0, 10., 0),
-                   "beta": (0.001, 0, 1.0, 1),
-                   "gamma": (0.001, 0, 1.0, 2),
-                   "epsilon": (4000.0, 0, 400000, 3),
-                   "W_max_pf": (W_max_pf0, W_max_pf_min, 100., 4),
-                   # "move_LTD_scale": (0.001, 0.0, 0.1, 5),
-                   "move_LTP_scale": (0.001, 0.0, 0.1, 6),
-                   "pf_scale": (1.0, 0.8, 1.2, 6),
-                   "mli_scale": (1.0, 0.8, 1.2, 7),
+    # Format of p0, upper, lower,
+    param_conds = {"alpha": (0.01, 0, 10.),
+                   "beta": (0.001, 0, 1.0),
+                   "gamma": (0.001, 0, 1.0),
+                   "epsilon": (4000.0, 0, 400000),
+                   "W_max_pf": (W_max_pf0, W_max_pf_min, 100.),
+                   # "move_LTD_scale": (0.001, 0.0, 0.1),
+                   # "move_LTP_scale": (0.001, 0.0, 0.1),
+                   "pf_scale": (1.0, 0.8, 1.2),
+                   # "mli_scale": (1.0, 0.8, 1.2),
             }
+    # index order for each variable
     param_ind = 0
     for key in param_conds.keys():
-        param_conds[key][3] = param_ind
+        # Append param_ind to each tuple
+        param_conds[key] = (*param_conds[key], param_ind)
         param_ind += 1
 
     # Make sure params are in correct order and saved for input to least_squares
@@ -693,6 +707,27 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                                     workers=-1, updating='deferred', popsize=20,
                                     disp=True) # Display status messages
 
+    # Dictionary of all possible parameters for learning model set to dummy
+    # null values that will have no effect on learning model. Overwritten below
+    # if they were fit
+    learning_args = {"alpha": 0.0,
+                    "beta": 0.0,
+                    "gamma": 0.0,
+                    "epsilon": 0.0,
+                    "W_max_pf": 100.,
+                    "move_LTD_scale": 0.0,
+                    "move_LTP_scale": 0.0,
+                    "pf_scale": 1.0,
+                    "mli_scale": 1.0,
+                    }
+    # Initialize dummies in output
+    for key in learning_args.keys():
+        NN_FIT.fit_results['gauss_basis_kinematics'][key] = learning_args[key]
+
+    # Build dictionary of params being fit to pass to learning function
+    # according to the initialization dictionary param_conds
+    for p in param_conds.keys():
+        param_kwargs[p] = params[param_conds[p][3]]
     result_copy = np.copy(result.x)
     for key in param_conds.keys():
         param_ind = param_conds[key][3]
