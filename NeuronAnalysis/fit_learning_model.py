@@ -334,6 +334,9 @@ def f_mli_LTD(mli_LTD_funs, state_input_mli, W_mli=None, W_min_mli=0.0):
     return mli_LTD
 
 """ *********************************************************************** """
+def expon_decay(T, a, tau, b):
+    """ Exponential function for input decay over trials. """
+    return a * np.exp(-T/tau) + b
 
 def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
                         param_kwargs, func_kwargs, arr_kwargs={},
@@ -441,10 +444,10 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
         CS_trial_bin = CS[trial, :] # Get CS view for this trial
 
         # Get LTD function for parallel fibers
-        zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTD_scale']
+        # zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTD_scale']
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, func_kwargs['tau_rise_CS'],
                           func_kwargs['tau_decay_CS'], param_kwargs['epsilon'],
-                          0.0, zeta_f_move=zeta_f_move)
+                          0.0, zeta_f_move=None)
         # Add to pf_CS_LTD in place
         # pf_CS_LTD = f_pf_move_LTD(pf_CS_LTD, move_m_trial, param_kwargs['move_LTD_scale'])
         # Convert to LTD input for Purkinje cell
@@ -456,7 +459,7 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
         zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTP_scale']
         pf_LTP_funs = f_pf_CS_LTP(CS_trial_bin, func_kwargs['tau_rise_CS_LTP'],
                                     func_kwargs['tau_decay_CS_LTP'],
-                                    param_kwargs['alpha'], zeta_f_move=zeta_f_move)
+                                    param_kwargs['alpha'], zeta_f_move=None)
         # These functions add on to pf_LTP_funs in place
         pf_LTP_funs = f_pf_FR_LTP(pf_LTP_funs, arr_kwargs['fr_obs_trial'],
                                     param_kwargs['beta'], zeta_f_move=None)
@@ -567,10 +570,10 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
                    "gamma": (0.001, 0, 1.0),
                    "epsilon": (4000.0, 0, 400000),
                    "W_max_pf": (W_max_pf0, W_max_pf_min, 100.),
-                   "move_LTD_scale": (0.001, 0.0, 0.1),
+                   # "move_LTD_scale": (0.001, 0.0, 0.1),
                    "move_LTP_scale": (0.001, 0.0, 0.1),
                    "pf_scale": (1.0, 0.6, 1.4),
-                   # "mli_scale": (1., 0.6, 1.4),
+                   "mli_scale": (1.0, 0.6, 1.4),
             }
     # index order for each variable
     param_ind = 0
@@ -670,18 +673,6 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     #                         max_nfev=max_nfev,
     #                         loss=loss)
 
-
-    # # Create a local minimizer
-    # bounds = [(lb, ub) for lb, ub in zip(lower_bounds, upper_bounds)]
-    # minimizer_kwargs = {"method": "L-BFGS-B",
-    #                     "args": (fit_inputs, binned_FR, W_0_pf, W_0_mli, b, *lf_args),
-    #                     "bounds": bounds}
-    # # Call basinhopping
-    # result = basinhopping(learning_function, p0, minimizer_kwargs=minimizer_kwargs, niter=10, disp=True)
-    # result.residuals = learning_function(result.x, fit_inputs, binned_FR,
-    #                                 W_0_pf, W_0_mli, b, *lf_args, **func_kwargs)
-
-
     # Note that differential_evolution() does not allow method specification
     # for the minimization step because it has its own mechanism.
     # We now define the bounds as a list of (min, max) pairs for each element in x
@@ -691,7 +682,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     result = differential_evolution(func=obj_fun,
                                     bounds=bounds,
                                     args=(state_input, binned_FR, *lf_args),
-                                    workers=-1, updating='deferred', popsize=20,
+                                    workers=-1, updating='deferred', popsize=10,
                                     disp=True) # Display status messages
 
     # Dictionary of all possible parameters for learning model set to dummy
@@ -712,6 +703,17 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = learning_args[key]
     # Need param conds in output to know what was fit
     result.param_conds = param_conds
+    # And the function args but not the missing data
+    del func_kwargs['is_missing_data']
+    result.func_kwargs = func_kwargs
+    result.bin_width = bin_width
+    result.bin_threshold = bin_threshold
+    result.fitted_window = learn_fit_window
+    result.NN_fit_results = NN_FIT.fit_results['gauss_basis_kinematics']
+    result.NN_fit_results['time_window'] = NN_FIT.time_window
+    result.NN_fit_results['blocks'] = NN_FIT.blocks
+    result.NN_fit_results['trial_sets'] = NN_FIT.trial_sets
+    result.NN_fit_results['lag_range_pf'] = NN_FIT.lag_range_pf
     result_copy = np.copy(result.x)
     for key in param_conds.keys():
         param_ind = param_conds[key][3]
@@ -876,7 +878,8 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
     # test_intrinsic_rates = [x for x in np.linspace(0, 100, 5)]
     # test_intrinsic_rates[0] = None
     test_intrinsic_rates = [57.]
-    CS_wins = [ [[150, -150], [50, -50]],
+    CS_wins = [
+                # [[150, -150], [50, -50]],
                 [[100, -100],  [0, 0]],
                 # [[50, -50],     [-50, 50]],
                 # [[0, 0],     [-100, 100]],
@@ -887,8 +890,6 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
     #             [[50, 0],     [-100, 200]],
     #             ]
     min_resids = np.inf
-    best_intrinsic_rate = None
-    best_CS_wins = None
     best_result = None
     for int_rate in test_intrinsic_rates:
         # Fit NN model with current intrinsic rate starting point
@@ -904,8 +905,7 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
             # Save the results if they are best
             if result.fun < min_resids:
                 min_resids = result.fun
-                best_intrinsic_rate = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
-                best_CS_wins = curr_win
                 best_result = result
-    print("Picked rate", best_intrinsic_rate, "and windows", best_CS_wins)
-    return best_result, best_intrinsic_rate, best_CS_wins
+                best_result.CS_wins = curr_win
+    print("Picked rate", best_result.intrinsic_rate, "and windows", best_result.CS_wins)
+    return best_result
