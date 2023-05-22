@@ -4,20 +4,7 @@ from NeuronAnalysis.fit_NN_model import bin_data, FitNNModel
 from NeuronAnalysis.general import box_windows
 from NeuronAnalysis.activation_functions import eye_input_to_PC_gauss_relu, gen_linspace_gaussians
 
-# # Transform the eye data to the state_input layer activations
-# state_input = np.zeros((X_trial.shape[0], X_trial.shape[1], W_trial.shape[1]))
-# for trial in range(0, X_trial.shape[0]):
-#     # This will modify stat_input IN PLACE for each trial
-#     eye_input_to_PC_gauss_relu(X_trial[trial, :, :], gauss_means,
-#                                 gauss_stds, n_gaussians_per_dim,
-#                                 state_input[trial, :, :])
-#
-# for t_ind in range(0, X_trial.shape[0]):
-#     # Each trial update the weights for W
-#     W[:, 0] = W_trial[t_ind, :]
-#     y_hat[t_ind, :] = (np.dot(state_input[trial, :, :], W) + b).squeeze()
-#     pf_in[t_ind, :] = (np.dot(state_input[trial, :, :][:, 0:n_gaussians], W[0:n_gaussians, 0]) + b).squeeze()
-#     mli_in[t_ind, :] = (np.dot(state_input[trial, :, :][:, n_gaussians:], W[n_gaussians:, 0]) + b).squeeze()
+
 
 """ SOME FUNCTIONS FOR GETTING DATA TO PREDICT FIRING BASED ON PLASTIC WEIGHTS """
 """ ********************************************************************** """
@@ -413,7 +400,7 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
     W_pf = W_full[0:func_kwargs['n_gaussians']]
     W_pf *= param_kwargs['pf_scale']
     W_mli = W_full[func_kwargs['n_gaussians']:]
-    W_mli *= param_kwargs['pf_scale'] #param_kwargs['mli_scale']
+    W_mli *= param_kwargs['mli_scale']
     # Ensure W_pf values are within range
     W_pf[(W_pf > param_kwargs['W_max_pf'])] = param_kwargs['W_max_pf']
     W_pf[(W_pf < func_kwargs['W_min_pf'])] = func_kwargs['W_min_pf']
