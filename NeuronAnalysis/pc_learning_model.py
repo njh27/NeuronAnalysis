@@ -18,7 +18,7 @@ n_learn_trials_to_fit = 100
 weights_blocks=["Learning"]
 training_time_window = [-2100, 1450]
 
-sac_ind_cushion = 0
+sac_ind_cushion = 5
 bin_width = 10
 bin_threshold = 5
 files_to_fit = ["LearnDirTunePurk_Dandy_29", "LearnDirTunePurk_Dandy_30",
