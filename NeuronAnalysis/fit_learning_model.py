@@ -413,7 +413,7 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
     W_pf = W_full[0:func_kwargs['n_gaussians']]
     W_pf *= param_kwargs['pf_scale']
     W_mli = W_full[func_kwargs['n_gaussians']:]
-    W_mli *= param_kwargs['mli_scale']
+    W_mli *= param_kwargs['pf_scale'] #param_kwargs['mli_scale']
     # Ensure W_pf values are within range
     W_pf[(W_pf > param_kwargs['W_max_pf'])] = param_kwargs['W_max_pf']
     W_pf[(W_pf < func_kwargs['W_min_pf'])] = func_kwargs['W_min_pf']
@@ -529,7 +529,7 @@ def obj_fun(params, state_input, FR, *args):
                     "move_LTD_scale": 0.0,
                     "move_LTP_scale": 0.0,
                     "pf_scale": 1.0,
-                    "mli_scale": 1.0,
+                    # "mli_scale": 1.0,
                     }
 
     # Build dictionary of params being fit to pass to learning function
