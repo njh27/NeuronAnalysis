@@ -875,14 +875,13 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
                                 bin_width=10, bin_threshold=5):
     """ Hard code intrinsic rate starting points.
     "None" uses default near median rate."""
-    # test_intrinsic_rates = [x for x in np.linspace(0, 100, 5)]
-    # test_intrinsic_rates[0] = None
-    test_intrinsic_rates = [57.]
+    test_intrinsic_rates = [x for x in np.linspace(0, 100, 5)]
+    test_intrinsic_rates[0] = None
     CS_wins = [
-                # [[150, -150], [50, -50]],
-                [[100, -100],  [0, 0]],
-                # [[50, -50],     [-50, 50]],
-                # [[0, 0],     [-100, 100]],
+                [[150, -100], [50, 0]],
+                [[100, -50],  [0, 50]],
+                [[50, 0],     [-50, 100]],
+                [[0, 50],     [-100, 150]],
                 ]
     # test_intrinsic_rates = [x for x in np.linspace(0, 60, 1)]
     # test_intrinsic_rates[0] = None
@@ -891,6 +890,7 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
     #             ]
     min_resids = np.inf
     best_result = None
+    best_intrinsic_rate = None
     for int_rate in test_intrinsic_rates:
         # Fit NN model with current intrinsic rate starting point
         fit_basic_NNModel(NN_FIT, int_rate, bin_width, bin_threshold)
@@ -907,5 +907,6 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
                 min_resids = result.fun
                 best_result = result
                 best_result.CS_wins = curr_win
-    print("Picked rate", best_result.intrinsic_rate, "and windows", best_result.CS_wins)
+                best_intrinsic_rate = int_rate
+    print("Picked rate", best_intrinsic_rate, "and windows", best_result.CS_wins)
     return best_result

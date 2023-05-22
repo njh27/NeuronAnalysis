@@ -61,9 +61,10 @@ def root_fname(filename):
 """ Call this script to load all the files hard coded in "files_to_fit" and fit
     all the confirmed PCs found there.
 
-    pc_learning_model.py --neurons_dir "/path/to/neurons" --PL2_dir "/path/to/PL2"
+    pc_learning_model.py --save_dir "/home/nate/learn_model_pc_fits/"
+                        --neurons_dir "/path/to/neurons" --PL2_dir "/path/to/PL2"
                         --maestro_dir "/path/to/maestro"
-                        --maestro_save_dir "/path/to/save" --save_dir "my_save_name"
+                        --maestro_save_dir "/path/to/save" --save_dir "/home/nate/learn_model_pc_fits/"
     """
 if __name__ == '__main__':
     # Get all the inputs
