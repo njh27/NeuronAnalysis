@@ -529,7 +529,7 @@ def obj_fun(params, state_input, FR, *args):
                     "move_LTD_scale": 0.0,
                     "move_LTP_scale": 0.0,
                     "pf_scale": 1.0,
-                    # "mli_scale": 1.0,
+                    "mli_scale": 1.0,
                     }
 
     # Build dictionary of params being fit to pass to learning function
@@ -583,7 +583,7 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
                    "move_LTD_scale": (0.001, 0.0, 0.1),
                    "move_LTP_scale": (0.001, 0.0, 0.1),
                    "pf_scale": (1.0, 0.6, 1.4),
-                   "mli_scale": (1., 0.6, 1.4),
+                   # "mli_scale": (1., 0.6, 1.4),
             }
     # index order for each variable
     param_ind = 0
@@ -891,8 +891,8 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
     test_intrinsic_rates = [57.]
     CS_wins = [ [[150, -150], [50, -50]],
                 [[100, -100],  [0, 0]],
-                [[50, -50],     [-50, 50]],
-                [[0, 0],     [-100, 100]],
+                # [[50, -50],     [-50, 50]],
+                # [[0, 0],     [-100, 100]],
                 ]
     # test_intrinsic_rates = [x for x in np.linspace(0, 60, 1)]
     # test_intrinsic_rates[0] = None
@@ -903,8 +903,6 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
     best_intrinsic_rate = None
     best_CS_wins = None
     best_result = None
-    best_iter = None
-    n_iter = 0
     for int_rate in test_intrinsic_rates:
         # Fit NN model with current intrinsic rate starting point
         fit_basic_NNModel(NN_FIT, int_rate, bin_width, bin_threshold)
@@ -916,18 +914,11 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
                                            bin_width=bin_width, bin_threshold=bin_threshold,
                                            CS_LTD_win=curr_win[0],
                                            CS_LTP_win=curr_win[1])
-            print("RESULTS for iter", n_iter)
-            print("Cost", result.cost)
-            print("Residuals", result.residuals)
-            for i, p in enumerate(result.x):
-                print(i, " : ", p)
             # Save the results if they are best
-            if result.residuals < min_resids:
-                min_resids = result.residuals
+            if result.fun < min_resids:
+                min_resids = result.fun
                 best_intrinsic_rate = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
                 best_CS_wins = curr_win
                 best_result = result
-                best_iter = n_iter
-            n_iter += 1
-    print("Picked rate", best_intrinsic_rate, "and windows", best_CS_wins, "from iter", best_iter, "of", n_iter)
+    print("Picked rate", best_intrinsic_rate, "and windows", best_CS_wins)
     return best_result, best_intrinsic_rate, best_CS_wins
