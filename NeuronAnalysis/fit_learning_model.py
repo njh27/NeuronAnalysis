@@ -682,7 +682,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     result = differential_evolution(func=obj_fun,
                                     bounds=bounds,
                                     args=(state_input, binned_FR, *lf_args),
-                                    workers=1, updating='deferred', popsize=10,
+                                    workers=-1, updating='deferred', popsize=10,
                                     disp=True) # Display status messages
 
     # Dictionary of all possible parameters for learning model set to dummy
