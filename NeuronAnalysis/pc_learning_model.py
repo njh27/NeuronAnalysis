@@ -18,6 +18,7 @@ n_learn_trials_to_fit = 100
 weights_blocks=["Learning"]
 training_time_window = [-2100, 1450]
 
+sac_ind_cushion = 0
 bin_width = 10
 bin_threshold = 5
 files_to_fit = ["LearnDirTunePurk_Dandy_29", "LearnDirTunePurk_Dandy_30",
@@ -92,7 +93,8 @@ if __name__ == '__main__':
         # Build the session object of the PC to be fit
         ldp_sess = create_neuron_session(fname, args.neurons_dir, args.PL2_dir, args.maestro_dir,
                             save_maestro=True, maestro_save_dir=args.maestro_save_dir,
-                            rotate_eye_data=True)
+                            rotate_eye_data=True,
+                            sac_ind_cushion=sac_ind_cushion)
         # Make the Gaussian smoothed data we will fit to
         ldp_sess.gauss_convolved_FR(10, cutoff_sigma=4, series_name="_gauss")
         # Get indices of the desired n learning trials
