@@ -360,6 +360,48 @@ class FitNNModel(object):
         int_rate = np.float64(self.fit_results['gauss_basis_kinematics']['bias'])
         return W_0_pf, W_0_mli, W_full, int_rate
 
+    def add_learning_model_fit(self, result):
+        """ Assuming the current neural network fit object is initiated using
+        the correct "neuron" object that is derived from its correct session,
+        this function can fully update the model to the fitted state used to
+        fit the learning model. This includes the current fit here and
+        any extra attributes specifying the learning model fit. """
+        self.fit_results['gauss_basis_kinematics'] = {}
+        learning_args = {"alpha": 0.0,
+                        "beta": 0.0,
+                        "gamma": 0.0,
+                        "epsilon": 0.0,
+                        "W_max_pf": 100.,
+                        "move_LTD_scale": 0.0,
+                        "move_LTP_scale": 0.0,
+                        "pf_scale": 1.0,
+                        "mli_scale": 1.0,
+                        }
+        # Initialize dummies in output
+        for key in learning_args.keys():
+            self.fit_results['gauss_basis_kinematics'][key] = learning_args[key]
+
+        # Need param conds in output to know what was fit
+        result.param_conds = param_conds
+        # And the function args but not the missing data
+        del func_kwargs['is_missing_data']
+        result.func_kwargs = func_kwargs
+        result.bin_width = bin_width
+        result.bin_threshold = bin_threshold
+        result.fitted_window = learn_fit_window
+        result.NN_fit_results = NN_FIT.fit_results['gauss_basis_kinematics']
+        result.NN_fit_results['time_window'] = NN_FIT.time_window
+        result.NN_fit_results['blocks'] = NN_FIT.blocks
+        result.NN_fit_results['trial_sets'] = NN_FIT.trial_sets
+        result.NN_fit_results['lag_range_pf'] = NN_FIT.lag_range_pf
+        result_copy = np.copy(result.x)
+        for key in param_conds.keys():
+            param_ind = param_conds[key][3]
+            NN_FIT.fit_results['gauss_basis_kinematics'][key] = result_copy[param_ind]
+        for key in func_kwargs.keys():
+            NN_FIT.fit_results['gauss_basis_kinematics'][key] = func_kwargs[key]
+
+
     def get_gauss_basis_kinematics_predict_data_trial(self, blocks, trial_sets,
                                                       return_shape=False,
                                                       test_data_only=True,

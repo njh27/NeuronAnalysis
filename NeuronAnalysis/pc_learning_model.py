@@ -15,13 +15,11 @@ lag_range_eye=[-50, 150]
 
 learn_blocks=["Learning"]
 n_learn_trials_to_fit = 100
-# learn_trial_sets=None
 weights_blocks=["Learning"]
-# training_time_window = [-2100, 1450]
+training_time_window = [-2100, 1450]
 
-training_time_window = fit_time_window
-bin_width = 100
-bin_threshold = 50
+bin_width = 10
+bin_threshold = 5
 files_to_fit = ["LearnDirTunePurk_Dandy_29", "LearnDirTunePurk_Dandy_30",
                 "LearnDirTunePurk_Dandy_31", "LearnDirTunePurk_Dandy_40",
                 "LearnDirTunePurk_Dandy_44" ]
