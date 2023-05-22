@@ -1,8 +1,23 @@
 import argparse
+import sys
+import logging
 import pickle
 from LearnDirTunePurk.build_session import create_neuron_session
+from NeuronAnalysis.fit_NN_model import FitNNModel
+from NeuronAnalysis.fit_learning_model import get_intrisic_rate_and_CSwin
 
 
+fit_blocks=["StandTunePre", "StabTunePre"]
+fit_trial_sets=None
+fit_time_window=[-300, 1100]
+lag_range_eye=[-50, 150]
+
+learn_blocks=["Learning"]
+test_t_win = [ldp_sess.blocks['Learning'][0], ldp_sess.blocks['Learning'][0] + 100]
+learn_trial_sets=np.arange(test_t_win[0], test_t_win[1])
+# learn_trial_sets=None
+weights_blocks=["Learning"]
+training_time_window = [-2100, 1450]
 
 files_to_fit = ["LearnDirTunePurk_Dandy_29", "LearnDirTunePurk_Dandy_30",
                 "LearnDirTunePurk_Dandy_31", "LearnDirTunePurk_Dandy_40",
@@ -48,9 +63,7 @@ if __name__ == '__main__':
     parser.add_argument("--maestro_dir", default='/mnt/isilon/home/nathan/Data/LearnDirTunePurk/MaestroFiles/')
     parser.add_argument("--maestro_save_dir", default='/home/nate/Documents/MaestroPickles/')
     parser.add_argument("--save_name", default=None)
-
     args = parser.parse_args()
-
     neurons_dir = args.neurons_dir
     PL2_dir = args.PL2_dir
     maestro_dir = args.maestro_dir
@@ -62,7 +75,45 @@ if __name__ == '__main__':
     else:
         save_name = args.save_name
 
+    log_filename = "logfile.log"
+    logging.basicConfig(filename=log_filename, level=logging.INFO,
+                        format='%(asctime)s - %(levelname)s - %(message)s')
+    # Now we redirect stdout and stderr
+    sys.stdout = open(log_filename, 'w')
+    sys.stderr = sys.stdout
+    # Now any print statements or uncaught exceptions will go to your log file
+    print("This will go to the log file!")
+
+    logging.debug("Debug information")
+    logging.info("Useful information")
+    logging.warning("A warning")
+    logging.error("An error occurred")
+    logging.critical("A critical error occurred")
+
+
+
+
+
     # Build the session object of the PC to be fit
     ldp_sess = create_neuron_session(fname, neurons_dir, PL2_dir, maestro_dir,
                         save_maestro=True, maestro_save_dir=maestro_save_dir,
                         rotate_eye_data=True)
+
+    ldp_sess.gauss_convolved_FR(10, cutoff_sigma=4, series_name="_gauss")
+
+    test_name = "PC_00"
+    for n_name in ldp_sess.get_neuron_names():
+        if n_name[0:3] != "PC_":
+            # Not a confirmed PC so skip
+            continue
+        neuron = ldp_sess.neuron_info[n_name]
+        fit_NN = FitNNModel(neuron, time_window=fit_time_window, blocks=fit_blocks, trial_sets=fit_trial_sets,
+                    lag_range_pf=lag_range_eye, use_series=None)
+
+        result, best_intrinsic_rate, best_CS_wins = get_intrisic_rate_and_CSwin(fit_NN,
+                                                                    learn_blocks, learn_trial_sets, learn_fit_window=training_time_window,
+                                                                    bin_width=bin_width, bin_threshold=bin_threshold)
+
+    print("All Done!")
+    sys.stdout.close()
+    sys.stderr.close()
