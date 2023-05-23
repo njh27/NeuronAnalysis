@@ -61,8 +61,9 @@ def root_fname(filename):
 
 """ Call this script to load all the files hard coded in "files_to_fit" and fit
     all the confirmed PCs found there.
-
-    pc_learning_model.py --save_dir "/home/nate/learn_model_pc_fits/"
+    e.g.
+    nohup python pc_learning_model.py --save_dir "/home/nate/learn_model_pc_fits/" > /home/nate/learn_model_pc_fits/nohup.out &
+    Other input flags:
                         --neurons_dir "/path/to/neurons" --PL2_dir "/path/to/PL2"
                         --maestro_dir "/path/to/maestro"
                         --maestro_save_dir "/path/to/save" --save_dir "/home/nate/learn_model_pc_fits/"
@@ -117,10 +118,9 @@ if __name__ == '__main__':
 
             result = get_intrisic_rate_and_CSwin(fit_NN, learn_blocks,
                                     learn_trial_sets, training_time_window,
-                                    bin_width=bin_width, bin_threshold=bin_threshold,
-                                    L2_reg=False, log_trans=False)
+                                    bin_width=bin_width, bin_threshold=bin_threshold)
             logging.info(f"Done fitting {n_name} and now saving to {save_name}.")
-            with open(f"{save_name}.pickle", "wb") as fp:
+            with open(save_name, "wb") as fp:
                 pickle.dump(result, fp, protocol=-1)
             sys.stdout.close()
             sys.stderr.close()
