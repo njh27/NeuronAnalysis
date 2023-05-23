@@ -117,9 +117,10 @@ if __name__ == '__main__':
 
             result = get_intrisic_rate_and_CSwin(fit_NN, learn_blocks,
                                     learn_trial_sets, training_time_window,
-                                    bin_width=bin_width, bin_threshold=bin_threshold)
+                                    bin_width=bin_width, bin_threshold=bin_threshold,
+                                    L2_reg=False, log_trans=False)
             logging.info(f"Done fitting {n_name} and now saving to {save_name}.")
-            with open(save_name, "wb") as fp:
+            with open(f"{save_name}.pickle", "wb") as fp:
                 pickle.dump(result, fp, protocol=-1)
             sys.stdout.close()
             sys.stderr.close()

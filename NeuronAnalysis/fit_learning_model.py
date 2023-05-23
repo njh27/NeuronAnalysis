@@ -521,11 +521,15 @@ def obj_fun(params, state_input, FR, *args):
                     "pf_scale": 1.0,
                     "mli_scale": 1.0,
                     }
-
     # Build dictionary of params being fit to pass to learning function
     # according to the initialization dictionary param_conds
     for p in param_conds.keys():
-        param_kwargs[p] = params[param_conds[p][3]]
+        if func_kwargs['log_transform']:
+            # Need to undo the log transform
+            if p in func_kwargs[log_keys]:
+                param_kwargs[p] = np.exp(params[param_conds[p][3]])
+        else:
+            param_kwargs[p] = params[param_conds[p][3]]
 
     # Assign preallocated arrays for learning function to use
     arr_kwargs = {'fr_obs_trial': fr_obs_trial,
@@ -539,10 +543,20 @@ def obj_fun(params, state_input, FR, *args):
                                     param_kwargs, func_kwargs, arr_kwargs={},
                                     return_residuals=True, return_y_hat=False,
                                     return_weights=False)
+    if func_kwargs['L2_reg']:
+        # Compute the parameter sum for regularizing output and add to residuals
+        # Get some squared parameters that were fit
+        SS_params = 0.0
+        for p in param_conds.keys():
+            SS_params += param_conds[p] ** 2
+        if not np.isfinite(SS_params):
+            raise RuntimeError("We have some non finite L2s")
+        residuals += (func_kwargs['reg_strength'] * SS_params)
+
     return residuals
 
 def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
-                            W_0_pf=None, W_0_mli=None):
+                            W_0_pf=None, W_0_mli=None, log_trans=False):
     """
     """
     if W_0_pf is None:
@@ -557,12 +571,17 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
     else:
         W_0_mli0 = 10*np.amax(W_0_mli)
         W_max_mli_min = np.amax(W_0_mli)
+    # The params that are log transformed if "log_transform" is True
+    log_keys = ["alpha", "beta", "gamma", "epsilon", "W_max_pf",
+                "move_LTD_scale", "move_LTP_scale"]
     lf_kwargs = {'tau_rise_CS': int(np.around(CS_LTD_win[0] /bin_width)),
                  'tau_decay_CS': int(np.around(CS_LTD_win[1] /bin_width)),
                  'tau_rise_CS_LTP': int(np.around(CS_LTP_win[0] /bin_width)),
                  'tau_decay_CS_LTP': int(np.around(CS_LTP_win[1] /bin_width)),
                  'FR_MAX': 500,
                  'UPDATE_MLI_WEIGHTS': False,
+                 'log_transform': log_trans,
+                 'log_keys': log_keys,
                  }
     # Format of p0, upper, lower,
     param_conds = {"alpha": (0.01, 0, 10.),
@@ -575,6 +594,17 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
                    "pf_scale": (1.0, 0.6, 1.4),
                    "mli_scale": (1.0, 0.6, 1.4),
             }
+    if log_trans:
+        # Log transform the strictly positive variables
+        for key in log_keys:
+            try:
+                log_params = []
+                for ind in param_conds[key]:
+                    log_params.append(np.log(param_conds[key][ind]))
+                param_conds[key] = tuple(log_params)
+            except KeyError:
+                # Parameter "key" is not being fit so skip
+                continue
     # index order for each variable
     param_ind = 0
     for key in param_conds.keys():
@@ -591,7 +621,7 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
 
 def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                         bin_width=10, bin_threshold=5, CS_LTD_win=[25, 0],
-                        CS_LTP_win=[-100, 200]):
+                        CS_LTP_win=[-100, 200], L2_reg=False, log_trans=False):
     """ Need the trials from blocks and trial_sets to be ORDERED! Weights will
     be updated from one trial to the next as if they are ordered and will
     not check if the numbers are correct because it could fail for various
@@ -640,7 +670,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     move_magn[is_missing_data] = 0.0
 
     init_params = init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
-                                        W_0_pf, W_0_mli)
+                                        W_0_pf, W_0_mli, log_trans=log_trans)
     func_kwargs, param_conds, p0, lower_bounds, upper_bounds = init_params
     # Add extra needed args to pass in func_kwargs
     func_kwargs.update({'n_gaussians': n_gaussians,
@@ -648,6 +678,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                         'W_min_pf': 0.0,
                         'W_min_mli': 0.0,
                         'activation_out': NN_FIT.activation_out,
+                        'L2_reg': L2_reg,
+                        'reg_strength': .1
                         })
 
     # Finally append CS to inputs and get other args needed for learning function
@@ -714,10 +746,13 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     result.NN_fit_results['blocks'] = NN_FIT.blocks
     result.NN_fit_results['trial_sets'] = NN_FIT.trial_sets
     result.NN_fit_results['lag_range_pf'] = NN_FIT.lag_range_pf
-    result_copy = np.copy(result.x)
     for key in param_conds.keys():
         param_ind = param_conds[key][3]
-        NN_FIT.fit_results['gauss_basis_kinematics'][key] = result_copy[param_ind]
+        if func_kwargs['log_transform']:
+            # Need to undo the log transform
+            if key in func_kwargs[log_keys]:
+                result.x[param_ind] = np.exp(result.x[param_ind])
+        NN_FIT.fit_results['gauss_basis_kinematics'][key] = result.x[param_ind]
     for key in func_kwargs.keys():
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = func_kwargs[key]
 
@@ -772,7 +807,7 @@ def pred_run_learn_model(NN_FIT, state_input, FR, *args):
 
 def get_learned_weights(NN_FIT, blocks, trial_sets,
                         bin_width=10, bin_threshold=5, CS_LTD_win=[25, 0],
-                        CS_LTP_win=[-100, 200]):
+                        CS_LTP_win=[-100, 200], log_trans=False):
     """ Need the trials from blocks and trial_sets to be ORDERED! """
     """ Get all the binned firing rate data. Get the trial indices and use those
     to get behavior since neural data can be fewer trials. """
@@ -820,7 +855,7 @@ def get_learned_weights(NN_FIT, blocks, trial_sets,
     # Doing this is a bit repetitive and not totally necessary but I want to
     # keep these functions matched as much as possible
     init_params = init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
-                                        W_0_pf, W_0_mli)
+                                        W_0_pf, W_0_mli, log_trans=log_trans)
     func_kwargs, param_conds, p0, lower_bounds, upper_bounds = init_params
     # Add extra needed args to pass in func_kwargs
     func_kwargs.update({'n_gaussians': n_gaussians,
@@ -872,7 +907,8 @@ def fit_basic_NNModel(NN_FIT, intrinsic_rate0, bin_width, bin_threshold):
     return
 
 def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=None,
-                                bin_width=10, bin_threshold=5):
+                                bin_width=10, bin_threshold=5,
+                                L2_reg=False, log_trans=False):
     """ Hard code intrinsic rate starting points.
     "None" uses default near median rate."""
     test_intrinsic_rates = [x for x in np.linspace(0, 100, 5)]
@@ -904,7 +940,8 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
             result = fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window,
                                            bin_width=bin_width, bin_threshold=bin_threshold,
                                            CS_LTD_win=curr_win[0],
-                                           CS_LTP_win=curr_win[1])
+                                           CS_LTP_win=curr_win[1],
+                                           L2_reg=L2_reg, log_trans=log_trans)
             # Save the results if they are best
             if result.fun < min_resids:
                 min_resids = result.fun
