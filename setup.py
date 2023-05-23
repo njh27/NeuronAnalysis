@@ -4,7 +4,7 @@ from Cython.Build import cythonize
 import numpy as np
 
 
-ext  =  [Extension( "fit_learning_rates", sources=['fit_learning_rates.pyx'] )]
+ext  =  [Extension( "fit_learning_rates", sources=['NeuronAnalysis/fit_learning_rates.pyx'] )]
 setup(name='NeuronAnalysis',
       version='1.0',
       description='Basic timeseries organization of neural data.',

@@ -367,3 +367,108 @@ def eye_input_to_PC_gauss_relu(eye_data, gauss_means, gauss_stds,
                                                             eye_data[:, n_eye_dims + k],
                                                             c=0.0)
     return eye_transform
+
+# Define the model function as a linear combination of Gaussian functions
+def proj_gaussian_activation(x, fixed_means, fixed_sigmas):
+    num_gaussians = len(fixed_means)
+    x_transform = np.zeros((x.size, num_gaussians))
+    for k in range(num_gaussians):
+        x_transform[:, k] = gaussian(x, fixed_means[k], fixed_sigmas[k], scale=1.0)
+    return x_transform
+
+def proj_gen_linspace_gaussians(max_min, n_gaussians, stds_gaussians):
+    """ Returns means and standard deviations for the number of gaussians input
+    in "n_gaussians" with centers linearly spaced over max_min. """
+    if isinstance(stds_gaussians, np.ndarray):
+        if len(stds_gaussians) == 1:
+            stds_gaussians = np.full((n_gaussians, ), stds_gaussians[0])
+        if len(stds_gaussians) != n_gaussians:
+            raise ValueError("Input standard deviations must be same size as means or 1")
+    elif isinstance(stds_gaussians, list):
+        if len(stds_gaussians) == 1:
+            stds_gaussians = np.full((n_gaussians, ), stds_gaussians[0])
+        if len(stds_gaussians) != n_gaussians:
+            raise ValueError("Input standard deviations must be same size as means or 1")
+    else:
+        # We suppose gauss stds is a single numeric value
+        stds_gaussians = np.full((n_gaussians, ), stds_gaussians)
+    try:
+        if len(max_min) > 2:
+            raise ValueError("max_min must be 1 or 2 elements specifing the max and min mean for the gaussians.")
+    except TypeError:
+        # Happens if max_min does not have "len" method, usually because it's a singe number
+        max_min = [-1 * max_min, max_min]
+    means_gaussians = np.linspace(max_min[0], max_min[1], n_gaussians)
+
+    return means_gaussians, stds_gaussians
+
+def proj_gen_randuniform_gaussians(mean_max_min, std_max_min, n_gaussians):
+    """ Returns means and standard deviations for the number of gaussians input
+    in "n_gaussians" with centers chosen uniform randomly over mean_max_min and
+    standard deviations selected uniform randomly over std_max_min. """
+    try:
+        if len(mean_max_min) > 2:
+            raise ValueError("mean_max_min must be 1 or 2 elements specifing the max and min mean for the gaussian means.")
+    except TypeError:
+        # Happens if mean_max_min does not have "len" method, usually because it's a singe number
+        mean_max_min = np.abs(mean_max_min)
+        mean_max_min = [-1 * mean_max_min, mean_max_min]
+    try:
+        if len(std_max_min) > 2:
+            raise ValueError("std_max_min must be 1 or 2 elements specifing the max and min mean for the gaussian STDs.")
+    except TypeError:
+        # Happens if mean_max_min does not have "len" method, usually because it's a singe number
+        std_max_min = np.abs(std_max_min)
+        std_max_min = [1, std_max_min]
+    # STD must be > 0
+    std_max_min[0] = max(0.01, std_max_min[0])
+    means_gaussians = np.random.uniform(mean_max_min[0], mean_max_min[1], n_gaussians)
+    stds_gaussians = np.random.uniform(std_max_min[0], std_max_min[1], n_gaussians)
+
+    return means_gaussians, stds_gaussians
+
+def eye_input_proj_PC_gauss_relu(eye_data, gauss_means, gauss_stds,
+                                n_gaussians_per_dim, eye_transform=None):
+    """ Now modifies the input eye_transform IN PLACE! if not None
+    Takes the total 8 dimensional eye data input (x,y position, and
+    velocity times 2 lags) and converts it into the n_gaussians by 4 + 8 relu
+    function input model of PC input. Done point by point for n x 4
+    input "eye_data". n_gaussians_per_dim is a list/array of how many
+    gaussians are used to represent each dim so it must either match dims
+    or be equal to 1 in which case the same number of gaussians is assumed
+    for each dimension. """
+    # Currently hard coded but could change in future
+    n_eye_dims = 4
+    if len(gauss_means) != len(gauss_stds):
+        raise ValueError("Must input the same number of means and standard deviations but got {0} means and {1} standard deviations.".format(len(gauss_means), len(gauss_stds)))
+    n_features = len(gauss_means) + 8 # Total input featur to PC is gaussians + relus
+    if eye_transform is None:
+        eye_transform = np.zeros((eye_data.shape[0], n_features))
+    if (eye_transform.shape[0] != eye_data.shape[0]) or (eye_transform.shape[1] != n_features):
+        raise ValueError("eye_transform is not the correct shape!")
+    first_relu_ind = len(gauss_means)
+
+    # Transform data into "input" n_gaussians dimensional format
+    # This is effectively like taking our 4 input data features and passing
+    # them through n_guassians number of hidden layer units using a
+    # Gaussian activation function and fixed weights plus some relu units
+    dim_start = 0
+    dim_stop = 0
+    for k in range(0, n_eye_dims):
+        dim_stop += n_gaussians_per_dim[k]
+        # First do Gaussian activation on first 4 eye dims
+        dim_means = gauss_means[dim_start:dim_stop]
+        dim_stds = gauss_stds[dim_start:dim_stop]
+        eye_transform[:, dim_start:dim_stop] = proj_gaussian_activation(
+                                                                    eye_data[:, k],
+                                                                    dim_means,
+                                                                    dim_stds)
+        dim_start = dim_stop
+        # Then relu activation on second 4 eye dims
+        eye_transform[:, (first_relu_ind + 2 * k)] = negative_relu(
+                                                            eye_data[:, n_eye_dims + k],
+                                                            c=0.0)
+        eye_transform[:, (first_relu_ind + (2 * k + 1))] = reflected_negative_relu(
+                                                            eye_data[:, n_eye_dims + k],
+                                                            c=0.0)
+    return eye_transform
