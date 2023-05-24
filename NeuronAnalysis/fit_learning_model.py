@@ -737,7 +737,10 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     result.param_conds = param_conds
     # And the function args but not the missing data
     del func_kwargs['is_missing_data']
+    result.weights_0 = NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'].squeeze()
+    result.int_rate = NN_FIT.fit_results['gauss_basis_kinematics']['bias'][0]
     result.func_kwargs = func_kwargs
+    result.intrinsic_rate =
     result.bin_width = bin_width
     result.bin_threshold = bin_threshold
     result.fitted_window = learn_fit_window
