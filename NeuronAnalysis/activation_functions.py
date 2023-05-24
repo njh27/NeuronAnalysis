@@ -368,17 +368,39 @@ def eye_input_to_PC_gauss_relu(eye_data, gauss_means, gauss_stds,
                                                             c=0.0)
     return eye_transform
 
-# Define the model function as a linear combination of Gaussian functions
-def proj_gaussian_activation(x, fixed_means, fixed_sigmas):
-    num_gaussians = len(fixed_means)
-    x_transform = np.zeros((x.size, num_gaussians))
+""" Compute the activation of each unit from the 4D input x. The input
+    "proj_gaussians" is a list or tuple full of tuples, each of which defines a
+    Gaussian activation function by specifying its unit vector direction, mean
+    and STD as follows:
+        proj_gaussians[n] = (np.array[xp, yp, xv, yv], gauss_mean, gauss_std)
+        where np.array([x, y]) is a 4D unit vector spefifying the angle of
+        projection that defines the gaussian over the x and y position/velocity
+        and the remaining values specify the mean and standard deviation.
+    x must be n observations x 4 eye dimensions for each of the dimensions
+    defining the Gaussian activation functions.
+"""
+def proj_gaussian_activation(x, proj_gaussians):
+    num_gaussians = len(proj_gaussians)
+    x_transform = np.zeros((x.shape[0], num_gaussians))
     for k in range(num_gaussians):
-        x_transform[:, k] = gaussian(x, fixed_means[k], fixed_sigmas[k], scale=1.0)
+        # we must first compute the projection of x onto the unit vector
+        # defining activation function k
+        proj_x = x @ proj_gaussians[k][0]
+        x_transform[:, k] = gaussian(proj_x, proj_gaussians[k][1],
+                                     proj_gaussians[k][2], scale=1.0)
     return x_transform
 
-def proj_gen_linspace_gaussians(max_min, n_gaussians, stds_gaussians):
-    """ Returns means and standard deviations for the number of gaussians input
-    in "n_gaussians" with centers linearly spaced over max_min. """
+def proj_gen_linspace_gaussians(max_min, n_gaussians, n_vectors, stds_gaussians,
+                                data_type):
+    """ Creates the gaussian activation units for the projection gaussians for
+    a total of "n_gaussians" by "n_vectors" activation units. Each of the
+    n_vectors will be given n_gaussians to span it with means evenly spaced
+    from "max_min" and fixed standard deviations "stds_gaussians.
+    This simple implementation keeps position and velocity inputs SEPARATE! and
+    so even though each Gaussian has a 4D vector defining it they contain zeros
+    in either position or velocity as specified. The two cardinal axes are
+    always included to ensure we can span the space by n_vectors must be even
+    number to ensure 0 and pi/2 angles are covered. """
     if isinstance(stds_gaussians, np.ndarray):
         if len(stds_gaussians) == 1:
             stds_gaussians = np.full((n_gaussians, ), stds_gaussians[0])
@@ -398,9 +420,31 @@ def proj_gen_linspace_gaussians(max_min, n_gaussians, stds_gaussians):
     except TypeError:
         # Happens if max_min does not have "len" method, usually because it's a singe number
         max_min = [-1 * max_min, max_min]
+    if "pos" in data_type.lower():
+        v_dims = slice(0, 2)
+    elif "vel" in data_type.lower():
+        v_dims = slice(2, 4)
+    else:
+        raise ValueError("Unrecognized data type. Must be position or velocity.")
+    if n_vectors < 2:
+        raise ValueError("Need at least 2 vectors to span 2D eye data")
+    if n_vectors % 2 == 1:
+        # Odd number won't include pi/2 so add it
+        n_vectors += 1
     means_gaussians = np.linspace(max_min[0], max_min[1], n_gaussians)
+    angles = np.linspace(0, np.pi, n_vectors, endpoint=False)
+    proj_gaussians = []
+    for ang in angles:
+        # Create the vector that defines all units on this vector
+        vector = np.zeros(4)
+        vector[v_dims] = np.array([np.cos(ang), np.sin(ang)])
+        # Remove any numerical error from sin and cos
+        vector[np.isclose(vector, 0, atol=1e-10)] = 0
+        vector[np.isclose(vector, 1, atol=1e-10)] = 1
+        for gauss in range(0, n_gaussians):
+            proj_gaussians.append( (vector, means_gaussians[gauss], stds_gaussians[gauss]) )
 
-    return means_gaussians, stds_gaussians
+    return proj_gaussians
 
 def proj_gen_randuniform_gaussians(mean_max_min, std_max_min, n_gaussians):
     """ Returns means and standard deviations for the number of gaussians input
@@ -427,44 +471,37 @@ def proj_gen_randuniform_gaussians(mean_max_min, std_max_min, n_gaussians):
 
     return means_gaussians, stds_gaussians
 
-def eye_input_proj_PC_gauss_relu(eye_data, gauss_means, gauss_stds,
-                                n_gaussians_per_dim, eye_transform=None):
-    """ Now modifies the input eye_transform IN PLACE! if not None
+def proj_eye_input_to_PC_gauss_relu(eye_data, proj_gaussians,
+                                    eye_transform=None):
+    """ Modifies the input eye_transform IN PLACE! if not None
     Takes the total 8 dimensional eye data input (x,y position, and
-    velocity times 2 lags) and converts it into the n_gaussians by 4 + 8 relu
-    function input model of PC input. Done point by point for n x 4
-    input "eye_data". n_gaussians_per_dim is a list/array of how many
-    gaussians are used to represent each dim so it must either match dims
-    or be equal to 1 in which case the same number of gaussians is assumed
-    for each dimension. """
+    velocity times 2 lags) and converts it into the n_gaussians by 8 relu
+    function input model of PC input. The input "proj_gaussians" is a list of
+    tuple where each tuple defines the a single gaussian of the basis set
+    as follows:
+        proj_gaussians[n] = (np.array[xp, yp, xv, yv], gauss_mean, gauss_std)
+        where np.array([x, y]) is a 4D unit vector spefifying the angle of
+        projection that defines the gaussian over the x and y position/velocity
+        and the remaining values specify the mean and standard deviation.
+    """
     # Currently hard coded but could change in future
     n_eye_dims = 4
-    if len(gauss_means) != len(gauss_stds):
-        raise ValueError("Must input the same number of means and standard deviations but got {0} means and {1} standard deviations.".format(len(gauss_means), len(gauss_stds)))
-    n_features = len(gauss_means) + 8 # Total input featur to PC is gaussians + relus
+    n_features = len(proj_gaussians) + 8 # Total input featur to PC is gaussians + relus
     if eye_transform is None:
         eye_transform = np.zeros((eye_data.shape[0], n_features))
     if (eye_transform.shape[0] != eye_data.shape[0]) or (eye_transform.shape[1] != n_features):
         raise ValueError("eye_transform is not the correct shape!")
-    first_relu_ind = len(gauss_means)
+    first_relu_ind = len(proj_gaussians)
 
     # Transform data into "input" n_gaussians dimensional format
-    # This is effectively like taking our 4 input data features and passing
+    # This is effectively like taking our input data features and passing
     # them through n_guassians number of hidden layer units using a
-    # Gaussian activation function and fixed weights plus some relu units
-    dim_start = 0
-    dim_stop = 0
+    # Gaussian activation function plus some relu units
+    eye_transform[:, 0:first_relu_ind] = proj_gaussian_activation(
+                                                    eye_data[:, 0:n_eye_dims],
+                                                    proj_gaussians)
+    # Then relu activation on second 4 eye dims
     for k in range(0, n_eye_dims):
-        dim_stop += n_gaussians_per_dim[k]
-        # First do Gaussian activation on first 4 eye dims
-        dim_means = gauss_means[dim_start:dim_stop]
-        dim_stds = gauss_stds[dim_start:dim_stop]
-        eye_transform[:, dim_start:dim_stop] = proj_gaussian_activation(
-                                                                    eye_data[:, k],
-                                                                    dim_means,
-                                                                    dim_stds)
-        dim_start = dim_stop
-        # Then relu activation on second 4 eye dims
         eye_transform[:, (first_relu_ind + 2 * k)] = negative_relu(
                                                             eye_data[:, n_eye_dims + k],
                                                             c=0.0)
