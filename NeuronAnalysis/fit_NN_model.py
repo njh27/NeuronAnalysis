@@ -152,13 +152,13 @@ class FitNNModel(object):
         gauss_means = np.hstack([pos_means,
                                  pos_means,
                                  vel_means,
-                                 vel_means], dtype=np.float64)
+                                 vel_means])
         pos_stds = np.float64(self.fit_results['gauss_basis_kinematics']['pos_stds'])
         vel_stds = np.float64(self.fit_results['gauss_basis_kinematics']['vel_stds'])
         gauss_stds = np.hstack([pos_stds,
                                 pos_stds,
                                 vel_stds,
-                                vel_stds], dtype=np.float64)
+                                vel_stds])
         n_gaussians = np.int64(len(gauss_means))
         return gauss_means, gauss_stds, n_gaussians_per_dim, n_gaussians
 
