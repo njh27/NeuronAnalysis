@@ -215,7 +215,7 @@ def box_windows(spike_train, box_pre, box_post, scale=1.0):
     """Same as convolve but just does loops instead of convolution. Negative
     values indicate times BEFORE the spike event and positve values AFTER"""
     if box_post < box_pre:
-        raise ValueError(f"Post time must be greater >= pretime or else window will be backwards but got {box_pre} and {box_post}".)
+        raise ValueError(f"Post time must be greater >= pretime or else window will be backwards but got {box_pre} and {box_post}.")
     window_sig = np.zeros_like(spike_train)
     for t in range(0, spike_train.shape[0]):
         if spike_train[t] > 0:
