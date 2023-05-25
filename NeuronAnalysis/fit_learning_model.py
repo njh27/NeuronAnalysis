@@ -620,8 +620,8 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
     return lf_kwargs, param_conds, p0, lower_bounds, upper_bounds
 
 def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
-                        bin_width=10, bin_threshold=5, CS_LTD_win=[25, 0],
-                        CS_LTP_win=[-100, 200], L2_reg=False, log_trans=False):
+                        bin_width=10, bin_threshold=5, CS_LTD_win=[-25, 0],
+                        CS_LTP_win=[100, 200], L2_reg=False, log_trans=False):
     """ Need the trials from blocks and trial_sets to be ORDERED! Weights will
     be updated from one trial to the next as if they are ordered and will
     not check if the numbers are correct because it could fail for various
@@ -810,8 +810,8 @@ def pred_run_learn_model(NN_FIT, state_input, FR, *args):
     return weights
 
 def get_learned_weights(NN_FIT, blocks, trial_sets,
-                        bin_width=10, bin_threshold=5, CS_LTD_win=[25, 0],
-                        CS_LTP_win=[-100, 200], log_trans=False):
+                        bin_width=10, bin_threshold=5, CS_LTD_win=[-25, 0],
+                        CS_LTP_win=[100, 200], log_trans=False):
     """ Need the trials from blocks and trial_sets to be ORDERED! """
     """ Get all the binned firing rate data. Get the trial indices and use those
     to get behavior since neural data can be fewer trials. """
