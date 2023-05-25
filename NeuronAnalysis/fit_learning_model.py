@@ -743,11 +743,11 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     result.bin_width = bin_width
     result.bin_threshold = bin_threshold
     result.fitted_window = learn_fit_window
-    result.NN_fit_results = NN_FIT.fit_results['gauss_basis_kinematics']
-    result.NN_fit_results['time_window'] = NN_FIT.time_window
-    result.NN_fit_results['blocks'] = NN_FIT.blocks
-    result.NN_fit_results['trial_sets'] = NN_FIT.trial_sets
-    result.NN_fit_results['lag_range_pf'] = NN_FIT.lag_range_pf
+    # result.NN_fit_results = NN_FIT.fit_results['gauss_basis_kinematics']
+    # result.NN_fit_results['time_window'] = NN_FIT.time_window
+    # result.NN_fit_results['blocks'] = NN_FIT.blocks
+    # result.NN_fit_results['trial_sets'] = NN_FIT.trial_sets
+    # result.NN_fit_results['lag_range_pf'] = NN_FIT.lag_range_pf
     for key in param_conds.keys():
         param_ind = param_conds[key][3]
         if func_kwargs['log_transform']:
