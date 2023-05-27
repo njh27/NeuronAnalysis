@@ -15,7 +15,7 @@ def comp_learning_response(NN_FIT, X_trial, W_trial, return_comp=False):
     for each trial and input in W_trial.
     """
     if X_trial.shape[2] != 8:
-        raise ValueError("Gaussian basis kinematics model is fit for 8 data dimensions but input data dimension is {0}.".format(X.shape[1]))
+        raise ValueError(f"Gaussian basis kinematics model is fit for 8 data dimensions but input data dimension is {X_trial.shape[1]}.")
 
     gauss_means, gauss_stds, n_gaussians_per_dim, n_gaussians =  NN_FIT.get_all_gauss_params()
     y_hat = np.zeros((X_trial.shape[0], X_trial.shape[1]))
@@ -526,7 +526,7 @@ def obj_fun(params, state_input, FR, *args):
     for p in param_conds.keys():
         if func_kwargs['log_transform']:
             # Need to undo the log transform
-            if p in func_kwargs[log_keys]:
+            if p in func_kwargs['log_keys']:
                 param_kwargs[p] = np.exp(params[param_conds[p][3]])
         else:
             param_kwargs[p] = params[param_conds[p][3]]
@@ -754,7 +754,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
         param_ind = param_conds[key][3]
         if func_kwargs['log_transform']:
             # Need to undo the log transform
-            if key in func_kwargs[log_keys]:
+            if key in func_kwargs['log_keys']:
                 result.x[param_ind] = np.exp(result.x[param_ind])
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = result.x[param_ind]
     for key in func_kwargs.keys():
