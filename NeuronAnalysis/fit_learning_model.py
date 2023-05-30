@@ -711,7 +711,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     result = differential_evolution(func=obj_fun,
                                     bounds=bounds,
                                     args=(state_input, binned_FR, *lf_args),
-                                    workers=-1, updating='deferred', popsize=20,
+                                    workers=-1, updating='deferred', popsize=2,
                                     disp=True) # Display status messages
 
     # Dictionary of all possible parameters for learning model set to dummy
@@ -744,11 +744,11 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     result.CS_LTP_win = CS_LTP_win
     result.blocks = blocks
     result.trial_sets = trial_sets
-    # result.NN_fit_results = NN_FIT.fit_results['gauss_basis_kinematics']
-    # result.NN_fit_results['time_window'] = NN_FIT.time_window
-    # result.NN_fit_results['blocks'] = NN_FIT.blocks
-    # result.NN_fit_results['trial_sets'] = NN_FIT.trial_sets
-    # result.NN_fit_results['lag_range_pf'] = NN_FIT.lag_range_pf
+    result.NN_fit_results = NN_FIT.fit_results['gauss_basis_kinematics']
+    result.NN_time_window = NN_FIT.time_window
+    result.NN_blocks = NN_FIT.blocks
+    result.NN_trial_sets = NN_FIT.trial_sets
+    result.NN_lag_range_pf = NN_FIT.lag_range_pf
     for key in param_conds.keys():
         param_ind = param_conds[key][3]
         if func_kwargs['log_transform']:
