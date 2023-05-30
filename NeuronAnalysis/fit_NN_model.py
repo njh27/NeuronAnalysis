@@ -316,8 +316,8 @@ class FitNNModel(object):
         gaussian_units = self.fit_results['gauss_basis_kinematics']['gaussian_units']
         n_gaussians = len(gaussian_units)
         W_full = np.float64(self.fit_results['gauss_basis_kinematics']['coeffs'].squeeze())
-        W_0_pf = np.copy(W_full[0:self.fit_results['gauss_basis_kinematics']['n_gaussians']])
-        W_0_mli = np.copy(W_full[self.fit_results['gauss_basis_kinematics']['n_gaussians']:])
+        W_0_pf = np.copy(W_full[0:n_gaussians])
+        W_0_mli = np.copy(W_full[n_gaussians:])
         int_rate = np.float64(self.fit_results['gauss_basis_kinematics']['bias'])
         return gaussian_units, W_0_pf, W_0_mli, W_full, int_rate
 
