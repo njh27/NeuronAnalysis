@@ -681,8 +681,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     # Finally append CS to inputs and get other args needed for learning function
     fr_obs_trial = np.zeros((bin_eye_data.shape[1], ))
     y_hat_trial = np.zeros((bin_eye_data.shape[1], ))
-    pf_LTD = np.zeros((n_gaussians))
-    pf_LTP = np.zeros((n_gaussians))
+    pf_LTD = np.zeros((func_kwargs['n_gaussians']))
+    pf_LTP = np.zeros((func_kwargs['n_gaussians']))
     lf_args = (param_conds, weights_0, int_rate, binned_CS, move_magn,
                 fr_obs_trial, y_hat_trial, pf_LTD, pf_LTP, func_kwargs)
 
