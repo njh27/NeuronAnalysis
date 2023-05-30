@@ -280,7 +280,6 @@ class FitNNModel(object):
                                 'bias': model.layers[0].get_weights()[1],
                                 'gaussian_units': gaussian_units,
                                 'R2': None,
-                                'predict_fun': self.predict_gauss_basis_kinematics,
                                 'fit_trial_set': fit_trial_set,
                                 'test_trial_set': test_trial_set,
                                 'is_test_data': is_test_data,
