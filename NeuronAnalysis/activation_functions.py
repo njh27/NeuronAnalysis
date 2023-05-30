@@ -456,13 +456,13 @@ def proj_gen_randuniform_gaussians(mean_max_min, std_max_min, n_gaussians, data_
             raise ValueError("mean_max_min must be 1 or 2 elements specifing the max and min mean for the gaussians.")
     except TypeError:
         # Happens if mean_max_min does not have "len" method, usually because it's a singe number
-        mean_max_min = [-1 * max_min, max_min]
+        mean_max_min = [-1 * mean_max_min, mean_max_min]
     try:
         if len(std_max_min) > 2:
             raise ValueError("std_max_min must be 1 or 2 elements specifing the max and min STD for the gaussians.")
     except TypeError:
         # Happens if std_max_min does not have "len" method, usually because it's a singe number
-        std_max_min = [0.25, max_min]
+        std_max_min = [0.25, std_max_min]
     # STD can't be less than zero
     std_max_min[0] = max(std_max_min[0], 0.25)
 
