@@ -446,30 +446,47 @@ def proj_gen_linspace_gaussians(max_min, n_gaussians, n_vectors, stds_gaussians,
 
     return proj_gaussians
 
-def proj_gen_randuniform_gaussians(mean_max_min, std_max_min, n_gaussians):
-    """ Returns means and standard deviations for the number of gaussians input
-    in "n_gaussians" with centers chosen uniform randomly over mean_max_min and
-    standard deviations selected uniform randomly over std_max_min. """
+def proj_gen_randuniform_gaussians(mean_max_min, std_max_min, n_gaussians, data_type):
+    """ Returns means and standard deviations and preferred vectors that define a Gaussian input
+    unit where all values are selected random uniformly from the ranges input. Unlike the 
+    linspace version above, the random Gaussinas returns a total of n_gaussians gaussian units.
+    All of them have random mean, std, and vectors instead of spanning a given vector evenly."""
     try:
         if len(mean_max_min) > 2:
-            raise ValueError("mean_max_min must be 1 or 2 elements specifing the max and min mean for the gaussian means.")
+            raise ValueError("mean_max_min must be 1 or 2 elements specifing the max and min mean for the gaussians.")
     except TypeError:
         # Happens if mean_max_min does not have "len" method, usually because it's a singe number
-        mean_max_min = np.abs(mean_max_min)
-        mean_max_min = [-1 * mean_max_min, mean_max_min]
+        mean_max_min = [-1 * max_min, max_min]
     try:
         if len(std_max_min) > 2:
-            raise ValueError("std_max_min must be 1 or 2 elements specifing the max and min mean for the gaussian STDs.")
+            raise ValueError("std_max_min must be 1 or 2 elements specifing the max and min STD for the gaussians.")
     except TypeError:
-        # Happens if mean_max_min does not have "len" method, usually because it's a singe number
-        std_max_min = np.abs(std_max_min)
-        std_max_min = [1, std_max_min]
-    # STD must be > 0
-    std_max_min[0] = max(0.01, std_max_min[0])
+        # Happens if std_max_min does not have "len" method, usually because it's a singe number
+        std_max_min = [0.25, max_min]
+    # STD can't be less than zero
+    std_max_min[0] = max(std_max_min[0], 0.25)
+
+    if "pos" in data_type.lower():
+        v_dims = slice(0, 2)
+    elif "vel" in data_type.lower():
+        v_dims = slice(2, 4)
+    else:
+        raise ValueError("Unrecognized data type. Must be position or velocity.")
+
     means_gaussians = np.random.uniform(mean_max_min[0], mean_max_min[1], n_gaussians)
     stds_gaussians = np.random.uniform(std_max_min[0], std_max_min[1], n_gaussians)
+    angles = np.random.uniform(0, np.pi, n_gaussians)
+    proj_gaussians = []
+    for ang_i, ang in enumerate(angles):
+        # Create the vector that defines all units on this vector
+        vector = np.zeros(4)
+        vector[v_dims] = np.array([np.cos(ang), np.sin(ang)])
+        # Remove any numerical error from sin and cos
+        vector[np.isclose(vector, 0, atol=1e-10)] = 0
+        vector[np.isclose(vector, 1, atol=1e-10)] = 1
+        proj_gaussians.append( (vector, means_gaussians[ang_i], stds_gaussians[ang_i]) )
 
-    return means_gaussians, stds_gaussians
+    return proj_gaussians
 
 def proj_eye_input_to_PC_gauss_relu(eye_data, proj_gaussians,
                                     eye_transform=None):
