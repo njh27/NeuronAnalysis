@@ -2,7 +2,7 @@ import numpy as np
 from scipy.optimize import least_squares, basinhopping, differential_evolution
 from NeuronAnalysis.fit_NN_model import bin_data, FitNNModel
 from NeuronAnalysis.general import box_windows
-from NeuronAnalysis.activation_functions import proj_eye_input_to_PC_gauss_relu, gen_linspace_gaussians
+from NeuronAnalysis.activation_functions import proj_eye_input_to_PC_gauss_relu, proj_gen_linspace_gaussians
 
 
 
@@ -876,33 +876,45 @@ def get_learned_weights(NN_FIT, blocks, trial_sets,
     weights = pred_run_learn_model(NN_FIT, state_input, binned_FR, *lf_args)
     return weights, all_t_inds
 
-def fit_basic_NNModel(NN_FIT, intrinsic_rate0, bin_width, bin_threshold):
+def fit_basic_NNModel(NN_FIT, intrinsic_rate0, bin_width, bin_threshold, activation_out="relu"):
     """ Basically a helper function for get_intrisic_rate_and_CSwin that sets
-    up some simple hard coded gaussian means and stds for doing the iterative
-    fitting. The fit info is saved to the input NN_FIT object."""
-    pos_n_gaussians = 25 *3
-    vel_n_gaussians = 35 *3
-    std_gaussians = 2
-    pos_std = std_gaussians
-    vel_std = std_gaussians
-    pos_range = 25
-    vel_range = 35
+    up some simple hard coded gaussian input units. The fit info is saved to 
+    the input NN_FIT object."""
     fit_avg_data=False
     quick_lag_step=8
     train_split =1.
-    pos_means, pos_stds = gen_linspace_gaussians(pos_range, pos_n_gaussians, pos_std)
-    vel_means, vel_stds = gen_linspace_gaussians(vel_range, vel_n_gaussians, vel_std)
+    n_vectors = 4
+    n_gauss_factor = 2
 
-    NN_FIT.fit_gauss_basis_kinematics(pos_means, pos_stds, vel_means, vel_stds,
-                                    activation_out="relu",
-                                    intrinsic_rate0=intrinsic_rate0,
-                                    bin_width=bin_width, bin_threshold=bin_threshold,
-                                    fit_avg_data=fit_avg_data,
-                                    quick_lag_step=quick_lag_step,
-                                    train_split=train_split,
-                                    learning_rate=0.02,
-                                    epochs=200,
-                                    batch_size=1200)
+    max_min = 25
+    n_gaussians = max_min * n_gauss_factor
+    n_vectors = n_vectors
+    stds_gaussians = 2
+    data_type = "pos"
+    pos_proj_gaussians = proj_gen_linspace_gaussians(max_min, n_gaussians, 
+                                                    n_vectors, stds_gaussians,
+                                                    data_type)
+    max_min = 35
+    n_gaussians = max_min * n_gauss_factor
+    n_vectors = n_vectors
+    stds_gaussians = 2
+    data_type = "vel"
+    vel_proj_gaussians = proj_gen_linspace_gaussians(max_min, n_gaussians, 
+                                                    n_vectors, stds_gaussians,
+                                                    data_type)
+    proj_gaussians = pos_proj_gaussians + vel_proj_gaussians
+
+    NN_FIT.fit_gauss_basis_kinematics(proj_gaussians,
+                                        activation_out=activation_out,
+                                        intrinsic_rate0=intrinsic_rate0,
+                                        bin_width=bin_width, bin_threshold=bin_threshold,
+                                        fit_avg_data=fit_avg_data,
+                                        quick_lag_step=quick_lag_step,
+                                        train_split=train_split,
+                                        learning_rate=0.001,
+                                        epochs=200,
+                                        batch_size=1200)
+    
     return
 
 def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=None,
