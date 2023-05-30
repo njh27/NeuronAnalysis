@@ -17,19 +17,20 @@ def comp_learning_response(NN_FIT, X_trial, W_trial, return_comp=False):
     if X_trial.shape[2] != 8:
         raise ValueError(f"Gaussian basis kinematics model is fit for 8 data dimensions but input data dimension is {X_trial.shape[1]}.")
 
-    gauss_means, gauss_stds, n_gaussians_per_dim, n_gaussians =  NN_FIT.get_all_gauss_params()
+    # Get the Gaussians and fitted weights for initial starting values for model fit
+    gaussian_units, _, _, weights_0, b = NN_FIT.get_model()
+    n_gaussians = len(gaussian_units)
+    W = np.copy(weights_0)
+
     y_hat = np.zeros((X_trial.shape[0], X_trial.shape[1]))
-    W = np.copy(NN_FIT.fit_results['gauss_basis_kinematics']['coeffs'])
-    b = NN_FIT.fit_results['gauss_basis_kinematics']['bias']
     pf_in = np.zeros((X_trial.shape[0], X_trial.shape[1]))
     mli_in = np.zeros((X_trial.shape[0], X_trial.shape[1]))
 
     X_input = np.zeros((X_trial.shape[1], W_trial.shape[1]))
     for t_ind in range(0, X_trial.shape[0]):
         # Transform X_data for this trial into input space
-        X_input = eye_input_to_PC_gauss_relu(X_trial[t_ind, :, :],
-                                        gauss_means, gauss_stds,
-                                        n_gaussians_per_dim, X_input)
+        X_input = proj_eye_input_to_PC_gauss_relu(X_trial[t_ind, :, :],
+                                        gaussian_units, X_input)
         # Each trial update the weights for W
         W[:, 0] = W_trial[t_ind, :]
         y_hat[t_ind, :] = (np.dot(X_input, W) + b).squeeze()
@@ -347,7 +348,7 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
     update the weights and firing rate prediction of each trial given the
     learning parameters in learn_params dictionary. Input "input_state" is, the
     post-activation function input to the Purkinje cell being fit. e.g., the
-    output of "eye_input_to_PC_gauss_relu", organized in a 3D matrix in the
+    output of "proj_eye_input_to_PC_gauss_relu", organized in a 3D matrix in the
     same format as the usual eye data.
 
     Parameters
