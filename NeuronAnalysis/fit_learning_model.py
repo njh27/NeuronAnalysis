@@ -833,19 +833,15 @@ def get_learned_weights(NN_FIT, blocks, trial_sets,
     # We will OR this with where eye is NaN to guarantee all missing points included
     is_missing_data = np.isnan(binned_FR) | eye_is_nan
 
-    # Need the means and stds for converting state to input
-    gauss_params =  NN_FIT.get_all_gauss_params()
-    gauss_means, gauss_stds, n_gaussians_per_dim, n_gaussians = gauss_params
-    # Get the initial starting values for model fit
-    W_0_pf, W_0_mli, weights_0, int_rate = NN_FIT.get_model()
+    # Get the Gaussians and fitted weights for initial starting values for model fit
+    gaussian_units, W_0_pf, W_0_mli, weights_0, int_rate = NN_FIT.get_model()
 
     # Transform the eye data to the state_input layer activations
     state_input = np.zeros((bin_eye_data.shape[0], bin_eye_data.shape[1], weights_0.size))
     for trial in range(0, bin_eye_data.shape[0]):
-        # This will modify stat_input IN PLACE for each trial
-        eye_input_to_PC_gauss_relu(bin_eye_data[trial, :, :], gauss_means,
-                                    gauss_stds, n_gaussians_per_dim,
-                                    state_input[trial, :, :])
+        # This will modify state_input IN PLACE for each trial
+        proj_eye_input_to_PC_gauss_relu(bin_eye_data[trial, :, :], gaussian_units,
+                                        state_input[trial, :, :])
     # Compute that magnitude of the eye movement vector for scaling learning magnitude
     move_magn = np.linalg.norm(bin_eye_data[:, :, 2:4], axis=2)
 
@@ -860,7 +856,7 @@ def get_learned_weights(NN_FIT, blocks, trial_sets,
                                         W_0_pf, W_0_mli, log_trans=log_trans)
     func_kwargs, param_conds, p0, lower_bounds, upper_bounds = init_params
     # Add extra needed args to pass in func_kwargs
-    func_kwargs.update({'n_gaussians': n_gaussians,
+    func_kwargs.update({'n_gaussians': len(gaussian_units),
                         'is_missing_data': is_missing_data,
                         'W_min_pf': 0.0,
                         'W_min_mli': 0.0,
@@ -870,8 +866,8 @@ def get_learned_weights(NN_FIT, blocks, trial_sets,
     # Finally append CS to inputs and get other args needed for learning function
     fr_obs_trial = np.zeros((bin_eye_data.shape[1], ))
     y_hat_trial = np.zeros((bin_eye_data.shape[1], ))
-    pf_LTD = np.zeros((n_gaussians))
-    pf_LTP = np.zeros((n_gaussians))
+    pf_LTD = np.zeros((func_kwargs['n_gaussians']))
+    pf_LTP = np.zeros((func_kwargs['n_gaussians']))
     lf_args = (all_t_inds, binned_CS, move_magn,
                 fr_obs_trial, y_hat_trial, pf_LTD, pf_LTP,
                 func_kwargs, param_conds)
