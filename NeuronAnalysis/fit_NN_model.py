@@ -311,13 +311,15 @@ class FitNNModel(object):
         return
 
     def get_model(self):
-        """ Get the initial starting values for model fit. """
-        n_gaussians = len(self.fit_results['gauss_basis_kinematics']['gaussian_units'])
+        """ Not strictly necessary but returns simple variables for all the required components that
+         define the fit of the current Gaussian kinematic model. """
+        gaussian_units = self.fit_results['gauss_basis_kinematics']['gaussian_units']
+        n_gaussians = len(gaussian_units)
         W_full = np.float64(self.fit_results['gauss_basis_kinematics']['coeffs'].squeeze())
         W_0_pf = np.copy(W_full[0:self.fit_results['gauss_basis_kinematics']['n_gaussians']])
         W_0_mli = np.copy(W_full[self.fit_results['gauss_basis_kinematics']['n_gaussians']:])
         int_rate = np.float64(self.fit_results['gauss_basis_kinematics']['bias'])
-        return W_0_pf, W_0_mli, W_full, int_rate
+        return gaussian_units, W_0_pf, W_0_mli, W_full, int_rate
 
     # def add_learning_model_fit(self, result):
     #     """ Assuming the current neural network fit object is initiated using
