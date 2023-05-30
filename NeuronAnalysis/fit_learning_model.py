@@ -925,19 +925,16 @@ def get_intrisic_rate_and_CSwin(NN_FIT, blocks, trial_sets, learn_fit_window=Non
     test_intrinsic_rates = [x for x in np.linspace(0, 100, 5)]
     test_intrinsic_rates[0] = None
     CS_wins = [
-                [[150, -100], [50, 0]],
-                [[100, -50],  [0, 50]],
-                [[50, 0],     [-50, 100]],
-                [[0, 50],     [-100, 150]],
-                [[150, -50], [0, 100]],
-                [[100, 0],  [-50, 150]],
-                [[50, 50],     [-100, 200]],
+                [[-150, -100], [-50, 0]],
+                [[-100, -50],  [0, 50]],
+                [[-50, 0],     [50, 100]],
+                [[0, 50],     [100, 150]],
+                [[50, 100], [150, 200]],
                 ]
-    # test_intrinsic_rates = [x for x in np.linspace(0, 60, 1)]
-    # test_intrinsic_rates[0] = None
-    # CS_wins = [ [[100, -50],  [-50, 150]],
-    #             [[50, 0],     [-100, 200]],
-    #             ]
+    test_intrinsic_rates = [x for x in np.linspace(0, 60, 1)]
+    test_intrinsic_rates[0] = None
+    CS_wins = [ [[-100, -50],  [50, 150]],
+                ]
     min_resids = np.inf
     best_result = None
     best_intrinsic_rate = None
