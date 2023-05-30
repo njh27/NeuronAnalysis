@@ -587,7 +587,7 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
     param_conds = {"alpha": (0.01, 0, 10.),
                    "beta": (0.001, 0, 1.0),
                    "gamma": (0.001, 0, 1.0),
-                   "epsilon": (4000.0, 0, 400000),
+                   "epsilon": (0.1, 0, 400000),
                    "W_max_pf": (W_max_pf0, W_max_pf_min, 100.),
                    # "move_LTD_scale": (0.001, 0.0, 0.1),
                    "move_LTP_scale": (0.001, 0.0, 0.1),
@@ -745,6 +745,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     result.fitted_window = learn_fit_window
     result.CS_LTD_win = CS_LTD_win
     result.CS_LTP_win = CS_LTP_win
+    result.blocks = blocks
+    result.trial_sets = trial_sets
     # result.NN_fit_results = NN_FIT.fit_results['gauss_basis_kinematics']
     # result.NN_fit_results['time_window'] = NN_FIT.time_window
     # result.NN_fit_results['blocks'] = NN_FIT.blocks
