@@ -285,7 +285,7 @@ class FitNNModel(object):
                                 'is_test_data': is_test_data,
                                 'test_loss': test_loss,
                                 'train_loss': train_loss,
-                                'model': model}
+                                }
         # Compute R2
         if self.fit_results['gauss_basis_kinematics']['is_test_data']:
             test_firing_rate = firing_rate[~select_fit_trials, :]
