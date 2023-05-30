@@ -32,10 +32,10 @@ def comp_learning_response(NN_FIT, X_trial, W_trial, return_comp=False):
         X_input = proj_eye_input_to_PC_gauss_relu(X_trial[t_ind, :, :],
                                         gaussian_units, X_input)
         # Each trial update the weights for W
-        W[:, 0] = W_trial[t_ind, :]
+        W[:] = W_trial[t_ind, :]
         y_hat[t_ind, :] = (np.dot(X_input, W) + b).squeeze()
-        pf_in[t_ind, :] = (np.dot(X_input[:, 0:n_gaussians], W[0:n_gaussians, 0]) + b).squeeze()
-        mli_in[t_ind, :] = (np.dot(X_input[:, n_gaussians:], W[n_gaussians:, 0]) + b).squeeze()
+        pf_in[t_ind, :] = (np.dot(X_input[:, 0:n_gaussians], W[0:n_gaussians]) + b).squeeze()
+        mli_in[t_ind, :] = (np.dot(X_input[:, n_gaussians:], W[n_gaussians:]) + b).squeeze()
         if NN_FIT.activation_out == "relu":
             y_hat[t_ind, :] = np.maximum(0., y_hat[t_ind, :])
             pf_in[t_ind, :] = np.maximum(0., pf_in[t_ind, :])
