@@ -889,7 +889,7 @@ def fit_basic_NNModel(NN_FIT, intrinsic_rate0, bin_width, bin_threshold, activat
     max_min = 25
     n_gaussians = max_min * n_gauss_factor
     n_vectors = n_vectors
-    stds_gaussians = 2
+    stds_gaussians = 3
     data_type = "pos"
     pos_proj_gaussians = proj_gen_linspace_gaussians(max_min, n_gaussians, 
                                                     n_vectors, stds_gaussians,
@@ -897,7 +897,7 @@ def fit_basic_NNModel(NN_FIT, intrinsic_rate0, bin_width, bin_threshold, activat
     max_min = 35
     n_gaussians = max_min * n_gauss_factor
     n_vectors = n_vectors
-    stds_gaussians = 2
+    stds_gaussians = 3
     data_type = "vel"
     vel_proj_gaussians = proj_gen_linspace_gaussians(max_min, n_gaussians, 
                                                     n_vectors, stds_gaussians,
