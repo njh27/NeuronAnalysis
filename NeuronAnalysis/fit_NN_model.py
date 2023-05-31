@@ -418,7 +418,7 @@ class FitNNModel(object):
                                                 trial_sets=trial_sets)
         return X
 
-    def predict_gauss_basis_kinematics(self, X, return_model=False):
+    def predict_gauss_basis_kinematics(self, X):
         """
         """
         if X.shape[1] != 8:
@@ -431,11 +431,7 @@ class FitNNModel(object):
         y_hat = np.dot(X_input, W) + b
         if self.activation_out == "relu":
             y_hat = np.maximum(0, y_hat)
-        if return_model:
-            y_hat_model = self.fit_results['gauss_basis_kinematics']['model'].predict(X_input).squeeze()
-            return y_hat, y_hat_model
-        else:
-            return y_hat
+        return y_hat
 
     def predict_gauss_basis_kinematics_by_trial(self, blocks, trial_sets,
                                             test_data_only=True, verbose=False):
