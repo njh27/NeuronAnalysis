@@ -449,10 +449,10 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
         CS_trial_bin = CS[trial, :] # Get CS view for this trial
 
         # Get LTD function for parallel fibers
-        # zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTD_scale']
+        zeta_f_move = np.sqrt(move_m_trial) * param_kwargs['move_LTD_scale']
         pf_CS_LTD = f_pf_CS_LTD(CS_trial_bin, func_kwargs['tau_rise_CS'],
                           func_kwargs['tau_decay_CS'], param_kwargs['epsilon'],
-                          0.0, zeta_f_move=None)
+                          0.0, zeta_f_move=zeta_f_move)
         # Add to pf_CS_LTD in place
         # pf_CS_LTD = f_pf_move_LTD(pf_CS_LTD, move_m_trial, param_kwargs['move_LTD_scale'])
         # Convert to LTD input for Purkinje cell
