@@ -532,7 +532,7 @@ def obj_fun(params, state_input, FR, *args):
         if func_kwargs['log_transform']:
             # Need to undo the log transform
             if p in func_kwargs['log_keys']:
-                param_kwargs[p] = np.exp(params[param_conds[p][3]])
+                param_kwargs[p] = np.exp(params[param_conds[p][3]]) - 1e-20
         else:
             param_kwargs[p] = params[param_conds[p][3]]
 
@@ -605,15 +605,7 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
             try:
                 log_params = []
                 for ind in range(0, len(param_conds[key])):
-                    if param_conds[key][ind] > 0.0:
-                        log_params.append(np.log(param_conds[key][ind]))
-                    elif param_conds[key][ind] == 0.0:
-                        if ind == 0:
-                            raise ValueError(f"Cannot have initail value = 0 for log parameter {key}.")
-                        log_params.append(-np.inf)
-                    else:
-                        raise ValueError(f"All values for log parameters must be >= 0 but got {param_conds[key][ind]} for parameter {key}.")
-
+                    log_params.append(np.log(param_conds[key][ind] + 1e-20))
                 param_conds[key] = tuple(log_params)
             except KeyError:
                 # Parameter "key" is not being fit so skip
@@ -766,7 +758,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
         if func_kwargs['log_transform']:
             # Need to undo the log transform
             if key in func_kwargs['log_keys']:
-                result.x[param_ind] = np.exp(result.x[param_ind])
+                result.x[param_ind] = np.exp(result.x[param_ind]) - 1e-20
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = result.x[param_ind]
     for key in func_kwargs.keys():
         NN_FIT.fit_results['gauss_basis_kinematics'][key] = func_kwargs[key]
