@@ -604,7 +604,7 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
         for key in log_keys:
             try:
                 log_params = []
-                for ind in param_conds[key]:
+                for ind in range(0, param_conds[key]):
                     log_params.append(np.log(param_conds[key][ind]))
                 param_conds[key] = tuple(log_params)
             except KeyError:
