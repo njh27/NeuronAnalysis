@@ -332,6 +332,7 @@ class FitNNModel(object):
         self.blocks = result.NN_blocks
         self.trial_sets = result.NN_trial_sets
         self.ag_range_pf = result.NN_lag_range_pf
+        self.activation_out = result.func_kwargs['activation_out']
         for key in result.param_conds.keys():
             param_ind = result.param_conds[key][3]
             if result.func_kwargs['log_transform']:
