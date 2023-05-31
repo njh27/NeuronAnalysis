@@ -328,6 +328,7 @@ class FitNNModel(object):
         any extra attributes specifying the learning model fit. """
         self.fit_results['gauss_basis_kinematics'] = result.NN_fit_results
         self.time_window = result.NN_time_window
+        self.learn_rates_time_window = result.fitted_window
         self.blocks = result.NN_blocks
         self.trial_sets = result.NN_trial_sets
         self.ag_range_pf = result.NN_lag_range_pf
