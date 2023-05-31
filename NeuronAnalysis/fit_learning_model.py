@@ -589,10 +589,10 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
                  'log_keys': log_keys,
                  }
     # Format of p0, upper, lower,
-    param_conds = {"alpha": (0.01, 0, 0.1),
-                   "beta": (0.001, 0, 0.1),
-                   "gamma": (0.001, 0, 0.1),
-                   "epsilon": (0.1, 0, 10),
+    param_conds = {"alpha": (0.01, 0.0, 0.1),
+                   "beta": (0.001, 0.0, 0.1),
+                   "gamma": (0.001, 0.0, 0.1),
+                   "epsilon": (0.1, 0.0, 10),
                    "W_max_pf": (W_max_pf0, W_max_pf_min, 100.),
                    "move_LTD_scale": (0.001, 0.0, 0.1),
                    "move_LTP_scale": (0.001, 0.0, 0.1),
@@ -605,7 +605,15 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
             try:
                 log_params = []
                 for ind in range(0, len(param_conds[key])):
-                    log_params.append(np.log(param_conds[key][ind] + 1e-12))
+                    if param_conds[key][ind] > 0.0:
+                        log_params.append(np.log(param_conds[key][ind]))
+                    elif param_conds[key][ind] == 0.0:
+                        if ind == 0:
+                            raise ValueError(f"Cannot have initail value = 0 for log parameter {key}.")
+                        log_params.append(-np.inf)
+                    else:
+                        raise ValueError(f"All values for log parameters must be >= 0 but got {param_conds[key][ind]} for parameter {key}.")
+
                 param_conds[key] = tuple(log_params)
             except KeyError:
                 # Parameter "key" is not being fit so skip
