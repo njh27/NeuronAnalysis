@@ -61,6 +61,7 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
                             test_data_only=test_data_only, return_inds=True,
                             verbose=verbose)
     X = X.reshape(init_shape)
+    return t_inds
     # Get weights in a single matrix to pass through here according to weights_t_inds
     sel_t_inds, inds_all_t_inds, _ = np.intersect1d(weights_t_inds, t_inds, return_indices=True)
     # If the input request is valid, then it must be true that the requested
