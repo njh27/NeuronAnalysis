@@ -327,10 +327,10 @@ class FitNNModel(object):
         fit the learning model. This includes the current fit here and
         any extra attributes specifying the learning model fit. """
         self.fit_results['gauss_basis_kinematics'] = result.NN_fit_results
-        self.NN_time_window = result.time_window
-        self.NN_blocks = result.blocks
-        self.NN_trial_sets = result.trial_sets
-        self.NN_lag_range_pf = result.lag_range_pf
+        self.time_window = result.NN_time_window
+        self.blocks = result.NN_blocks
+        self.trial_sets = result.NN_trial_sets
+        self.ag_range_pf = result.NN_lag_range_pf
         for key in result.param_conds.keys():
             param_ind = result.param_conds[key][3]
             if result.func_kwargs['log_transform']:
