@@ -63,12 +63,15 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
     X = X.reshape(init_shape)
     
     # Get weights in a single matrix to pass through here according to weights_t_inds
-    sel_t_inds, inds_all_t_inds, _ = np.intersect1d(weights_t_inds, t_inds, return_indices=True)
+    sel_t_inds, inds_weights, inds_t_inds = np.intersect1d(weights_t_inds, t_inds, return_indices=True)
     # If the input request is valid, then it must be true that the requested
     # trials are a subset of the trials on which the weights have been calculated
-    if not np.all(sel_t_inds == weights_t_inds[inds_all_t_inds]):
+    if not np.all(sel_t_inds == weights_t_inds[inds_weights]):
         raise ValueError("Requested trials in blocks and trial sets are not a subset of the trial weights input in weights_t_inds.")
-    W_trial = weights_by_trial[inds_all_t_inds, :]
+    # Trim the weights and eye data to include only the trials were weights are available
+    W_trial = weights_by_trial[inds_weights, :]
+    X = X[inds_t_inds, :]
+    # Then pass data into 'comp_learning_response' and return as requested
     if return_comp:
         y_hat, pf_in, mli_in = comp_learning_response(NN_FIT, X, W_trial,
                                                         return_comp=return_comp)
