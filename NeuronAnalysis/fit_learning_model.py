@@ -66,8 +66,7 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
     sel_t_inds, inds_all_t_inds, _ = np.intersect1d(weights_t_inds, t_inds, return_indices=True)
     # If the input request is valid, then it must be true that the requested
     # trials are a subset of the trials on which the weights have been calculated
-    return t_inds, sel_t_inds, inds_all_t_inds
-    if not np.all(sel_t_inds == t_inds):
+    if not np.all(sel_t_inds == weights_t_inds[inds_all_t_inds]):
         raise ValueError("Requested trials in blocks and trial sets are not a subset of the trial weights input in weights_t_inds.")
     W_trial = weights_by_trial[inds_all_t_inds, :]
     if return_comp:
