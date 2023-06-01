@@ -51,6 +51,13 @@ def bin_data(data, bin_width, bin_threshold=0):
 
     return binned_data
 
+def comp_block_scaling_factors(neuron, primary_block, scaled_blocks):
+    """ Takes a given neuron and performs a linear fit on the primary block.
+    Then computes the optimum scaling factor between the primary block
+    fit and a linear fit on each block input in "scaled_blocks.
+    """
+    pass
+
 
 class FitNeuronToEye(object):
     """ Class that fits neuron firing rates to eye data and is capable of
