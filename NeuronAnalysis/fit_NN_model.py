@@ -168,6 +168,8 @@ class FitNNModel(object):
         # Setup all the indices for which trials we will be using and which
         # subset of trials will be used as training vs. test data
         firing_rate, all_t_inds = self.get_firing_traces(return_inds=True)
+        if len(firing_rate) == 0:
+            raise ValueError("No trial data found for input blocks and trial sets.")
         n_fit_trials = np.int64(np.around(firing_rate.shape[0] * train_split))
         if n_fit_trials < 1:
             raise ValueError("Proportion to fit 'train_split' is too low to fit the minimum of 1 trial out of {0} total trials available.".format(firing_rate.shape[0]))
