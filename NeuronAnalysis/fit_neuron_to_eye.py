@@ -51,12 +51,45 @@ def bin_data(data, bin_width, bin_threshold=0):
 
     return binned_data
 
-def comp_block_scaling_factors(neuron, primary_block, scaled_blocks):
-    """ Takes a given neuron and performs a linear fit on the primary block.
-    Then computes the optimum scaling factor between the primary block
-    fit and a linear fit on each block input in "scaled_blocks.
-    """
-    pass
+
+def quick_fit_piecewise_acc(firing_rate, eye_data, fit_constant=True):
+        """ A quick fitting function that does not require a class or input neuron
+        object but rather directly takes the firing rate and eye data to be fit
+        and performs the fit without the extra overhead/management.
+
+        Input: firing_rate and corresponding eye_data samples where dim 0 is 
+        samples and dim 1 is the eye data dimensions in the order:
+            position pursuit, position learning, velocity pursuit,
+            velocity learning, acceleration pursuit, acceleration learning
+        This function will automatically split the function to "pieces" and
+        remove any "nan" data points according to eye_data.
+        Output: Fitted Coefficients in the order:
+
+        """
+        s_dim2 = 13 if fit_constant else 12
+        # Initialize empty eye_data array that we can fill from slices of all data
+        eye_data_piece = np.ones((eye_data.shape[0], s_dim2))
+        # Need to copy each dim of eye_data over twice so we can get +/- pieces
+        in_dim = 0
+        for dim in range(0, 12):
+            eye_data_piece[:, dim] = eye_data[:, in_dim]
+            if dim % 2 == 1:
+                # Need to rectify the pieces every other loop while we are at it
+                select_pursuit = eye_data[:, in_dim] >= 0.0
+                eye_data_piece[~select_pursuit, dim-1] = 0.0 # Less than zero dim = 0
+                eye_data_piece[select_pursuit, dim] = 0.0 # Greater than zero dim = 0
+                in_dim += 1 # Increment every other loop
+        select_good = ~np.any(np.isnan(eye_data_piece), axis=1)
+        eye_data_piece = eye_data_piece[select_good, :]
+        firing_rate_nonan = firing_rate[select_good] # This should generally return a copy
+        coefficients = np.linalg.lstsq(eye_data_piece, firing_rate_nonan, rcond=None)[0]
+        y_mean = np.mean(firing_rate_nonan)
+        y_predicted = np.matmul(eye_data_piece, coefficients)
+        sum_squares_error = np.nansum((firing_rate_nonan - y_predicted) ** 2)
+        sum_squares_total = np.nansum((firing_rate_nonan - y_mean) ** 2)
+        R2 = 1 - sum_squares_error/(sum_squares_total)
+
+        return coefficients, R2
 
 
 class FitNeuronToEye(object):

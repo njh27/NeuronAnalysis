@@ -60,7 +60,7 @@ class FitNNModel(object):
         to the fixed firing rate window. """
 
     def __init__(self, Neuron, time_window=[0, 800], blocks=None, trial_sets=None,
-                    lag_range_pf=[-25, 25], use_series=None):
+                    lag_range_pf=[-50, 150], use_series=None):
         self.neuron = Neuron
         if use_series is not None:
             if use_series != Neuron.use_series:
