@@ -52,6 +52,28 @@ def bin_data(data, bin_width, bin_threshold=0):
     return binned_data
 
 
+def piece_wise_eye_data(eye_data, add_constant=False):
+    """ Given the n observations by dims input of eye data, the data are
+    expanded into a piecewise/rectified version centered on 0.
+    """
+    # Initialize empty eye_data array that we can fill from slices of all data
+    piece_dims = eye_data.shape[1] * 2
+    if add_constant:
+        piece_dims += 1
+    eye_data_piece = np.ones((eye_data.shape[0], piece_dims))
+    # Need to copy each dim of eye_data over twice so we can get +/- pieces
+    in_dim = 0
+    for dim in range(0, eye_data.shape[1] * 2):
+        eye_data_piece[:, dim] = eye_data[:, in_dim]
+        if dim % 2 == 1:
+            # Need to rectify the pieces every other loop while we are at it
+            select_pursuit = eye_data[:, in_dim] >= 0.0
+            eye_data_piece[~select_pursuit, dim-1] = 0.0 # Less than zero dim = 0
+            eye_data_piece[select_pursuit, dim] = 0.0 # Greater than zero dim = 0
+            in_dim += 1 # Increment every other loop
+    return eye_data_piece
+
+
 def quick_fit_piecewise_acc(firing_rate, eye_data, fit_constant=True):
         """ A quick fitting function that does not require a class or input neuron
         object but rather directly takes the firing rate and eye data to be fit
@@ -66,20 +88,9 @@ def quick_fit_piecewise_acc(firing_rate, eye_data, fit_constant=True):
         Output: Fitted Coefficients in the order:
 
         """
-        s_dim2 = 13 if fit_constant else 12
-        # Initialize empty eye_data array that we can fill from slices of all data
-        eye_data_piece = np.ones((eye_data.shape[0], s_dim2))
-        # Need to copy each dim of eye_data over twice so we can get +/- pieces
-        in_dim = 0
-        for dim in range(0, 12):
-            eye_data_piece[:, dim] = eye_data[:, in_dim]
-            if dim % 2 == 1:
-                # Need to rectify the pieces every other loop while we are at it
-                select_pursuit = eye_data[:, in_dim] >= 0.0
-                eye_data_piece[~select_pursuit, dim-1] = 0.0 # Less than zero dim = 0
-                eye_data_piece[select_pursuit, dim] = 0.0 # Greater than zero dim = 0
-                in_dim += 1 # Increment every other loop
+        eye_data_piece = piece_wise_eye_data(eye_data, add_constant=fit_constant)
         select_good = ~np.any(np.isnan(eye_data_piece), axis=1)
+        select_good = select_good & ~np.isnan(firing_rate)
         eye_data_piece = eye_data_piece[select_good, :]
         firing_rate_nonan = firing_rate[select_good] # This should generally return a copy
         coefficients = np.linalg.lstsq(eye_data_piece, firing_rate_nonan, rcond=None)[0]
