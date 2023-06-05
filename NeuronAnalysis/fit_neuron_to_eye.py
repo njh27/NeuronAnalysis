@@ -1,55 +1,9 @@
 import numpy as np
 from numpy import linalg as la
-from scipy.optimize import minimize
 import warnings
-from NeuronAnalysis.general import bin_xy_func_z
+from NeuronAnalysis.general import bin_xy_func_z, bin_data
 from SessionAnalysis.utils import eye_data_series
 
-
-
-def bin_data(data, bin_width, bin_threshold=0):
-    """ Gets the nan average of each bin in data for bins in which the number
-        of non nan data points is greater than bin_threshold.  Bins less than
-        bin threshold non nan data points are returned as nan. Data are binned
-        from the first entries over time (axis=1), so if the number of bins
-        implied by binwidth exceeds data.shape[1] the last bin will be cut short.
-        Input data is assumed to have the shape as output by get_eye_data_traces,
-        trial x time x variable and are binned along the time axis.
-        bin_threshold must be <= bin_width. """
-    if bin_threshold > bin_width:
-        raise ValueError("bin_threshold cannot exceed the bin_width")
-    if ( (bin_width < 1) or (not isinstance(bin_width, int)) ):
-        raise ValueError("bin_width must be positive integer value")
-
-    if data.ndim == 1:
-        out_shape = (1, data.shape[0] // bin_width, 1)
-        data = data.reshape(1, data.shape[0], 1)
-    elif data.ndim == 2:
-        out_shape = (data.shape[0], data.shape[1] // bin_width, 1)
-        data = data.reshape(data.shape[0], data.shape[1], 1)
-    elif data.ndim == 3:
-        out_shape = (data.shape[0], data.shape[1] // bin_width, data.shape[2])
-    else:
-        raise ValueError("Unrecognized data input shape. Input data must be in the form as output by data functions.")
-    if bin_width == 1:
-        # Nothing to bin over time so just return possibly reshaped data COPY
-        return np.copy(data)
-
-    binned_data = np.full(out_shape, np.nan)
-    n = 0
-    bin_start = 0
-    bin_stop = bin_start + bin_width
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", category=RuntimeWarning)
-        while n < out_shape[1]:
-            n_good = np.count_nonzero(~np.isnan(data[:, bin_start:bin_stop, :]), axis=1)
-            binned_data[:, n, :] = np.nanmean(data[:, bin_start:bin_stop, :], axis=1)
-            binned_data[:, n, :][n_good < bin_threshold] = np.nan
-            n += 1
-            bin_start += bin_width
-            bin_stop = bin_start + bin_width
-
-    return binned_data
 
 
 def piece_wise_eye_data(eye_data, add_constant=False):

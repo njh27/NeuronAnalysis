@@ -1,841 +1,312 @@
 import numpy as np
-from numpy import linalg as la
-from scipy import signal
-from scipy import stats
-from scipy.optimize import minimize
-import warnings
+from NeuronAnalysis.general import gauss_convolve
+from NeuronAnalysis.fit_neuron_to_eye import bin_data, quick_fit_piecewise_acc, piece_wise_eye_data
+from SessionAnalysis.utils import eye_data_series
 
 
 
-def firing_rate_window(maestro_PL2_data, time_window, neuron, rate_name):
-    """ Will convert time_window to be integer values.
-        Returns - time_window by len(maestro_PL2_data) array of firing rate. """
+def fit_pcwise_lin_eye_kinematics(self, bin_width=10, bin_threshold=1,
+                                fit_constant=True, fit_avg_data=False,
+                                quick_lag_step=10, knees=[0., 0.]):
+        """ Fits the input neuron eye data to position, velocity, acceleration
+        linear model (in 2 dimensions -- one pursuit axis and one learing axis)
+        for the blocks and trial_sets input.
+        Output "coeffs" are in order: position pursuit, position learning
+                                      velocity pursuit, velocity learning
+                                      acceleration pursuit, acceleration learning
+                                      constant offset
+        """
+        quick_lag_step = int(np.around(quick_lag_step))
+        if quick_lag_step < 1:
+            raise ValueError("quick_lag_step must be positive integer")
+        if quick_lag_step > (self.lag_range_eye[1] - self.lag_range_eye[0]):
+            raise ValueError("quick_lag_step is too large relative to lag_range_eye")
+        half_lag_step = np.int32(np.around(quick_lag_step / 2))
+        lags = np.arange(self.lag_range_eye[0], self.lag_range_eye[1] + half_lag_step + 1, quick_lag_step)
+        lags[-1] = self.lag_range_eye[1]
 
-    if not isinstance(maestro_PL2_data, list):
-        maestro_PL2_data = [maestro_PL2_data]
-    time_window[0], time_window[1] = int(time_window[0]), int(time_window[1])
-    if time_window[1] <= time_window[0]:
-        raise ValueError("time_window[1] must be greater than time_window[0]")
-
-    firing_rate = np.full((time_window[1] - time_window[0], len(maestro_PL2_data)), np.nan)
-    for trial in range(0, len(maestro_PL2_data)):
-        time_index = maestro_PL2_data[trial]['time_series'].find_index_range(time_window[0], time_window[1])
-        if time_index is None:
-            # Entire trial window is beyond available data
-            continue
-        if round(maestro_PL2_data[trial]['time_series'].start) - time_window[0] > 0:
-            # Window start is beyond available data
-            out_start = round(maestro_PL2_data[trial]['time_series'].start) - time_window[0]
-        else:
-            out_start = 0
-        if round(maestro_PL2_data[trial]['time_series'].stop) - time_window[1] < 0:
-            # Window stop is beyond available data
-            out_stop = firing_rate.shape[0] - (time_window[1] - round(maestro_PL2_data[trial]['time_series'].stop))
-        else:
-            out_stop = firing_rate.shape[0]
-        output_index = np.arange(out_start, out_stop, 1)
-        firing_rate[output_index, trial] = maestro_PL2_data[trial][rate_name][neuron][time_index]
-
-    firing_rate = np.squeeze(firing_rate)
-    return firing_rate
-
-
-def eye_data_window(maestro_PL2_data, time_window):
-    """ Will convert time_window to be integer values.
-        Returns - time_window by len(maestro_PL2_data) by 4 array of eye data.
-                  3rd dimension of array is ordered as horizontal, vertical
-                  position, then horizontal, vertical velocity. """
-
-    if not isinstance(maestro_PL2_data, list):
-        maestro_PL2_data = [maestro_PL2_data]
-    time_window[0], time_window[1] = int(time_window[0]), int(time_window[1])
-    if time_window[1] <= time_window[0]:
-        raise ValueError("time_window[1] must be greater than time_window[0]")
-
-    eye_data = np.full((time_window[1] - time_window[0], len(maestro_PL2_data), 4), np.nan)
-    for trial in range(0, len(maestro_PL2_data)):
-        time_index = maestro_PL2_data[trial]['time_series'].find_index_range(time_window[0], time_window[1])
-        if time_index is None:
-            # Entire trial window is beyond available data
-            continue
-        if round(maestro_PL2_data[trial]['time_series'].start) - time_window[0] > 0:
-            # Window start is beyond available data
-            out_start = round(maestro_PL2_data[trial]['time_series'].start) - time_window[0]
-        else:
-            out_start = 0
-        if round(maestro_PL2_data[trial]['time_series'].stop) - time_window[1] < 0:
-            # Window stop is beyond available data
-            out_stop = eye_data.shape[0] - (time_window[1] - round(maestro_PL2_data[trial]['time_series'].stop))
-        else:
-            out_stop = eye_data.shape[0]
-        output_index = np.arange(out_start, out_stop, 1)
-        eye_data[output_index, trial, 0:2] = maestro_PL2_data[trial]['eye_position'][:, time_index].T
-        eye_data[output_index, trial, 2:4] = maestro_PL2_data[trial]['eye_velocity'][:, time_index].T
-
-    eye_data = np.squeeze(eye_data)
-    return eye_data
-
-
-def slip_data_window(maestro_PL2_data, time_window):
-    """ Will convert time_window to be integer values.
-        Returns - time_window by len(maestro_PL2_data) by 2 array of slip data.
-                  3rd dimension of array is ordered as horizontal, vertical slip. """
-
-    if not isinstance(maestro_PL2_data, list):
-        maestro_PL2_data = [maestro_PL2_data]
-    time_window[0], time_window[1] = int(time_window[0]), int(time_window[1])
-    if time_window[1] <= time_window[0]:
-        raise ValueError("time_window[1] must be greater than time_window[0]")
-
-    slip_data = np.full((time_window[1] - time_window[0], len(maestro_PL2_data), 2), np.nan)
-    for trial in range(0, len(maestro_PL2_data)):
-        time_index = maestro_PL2_data[trial]['time_series'].find_index_range(time_window[0], time_window[1])
-        if time_index is None:
-            # Entire trial window is beyond available data
-            continue
-        if round(maestro_PL2_data[trial]['time_series'].start) - time_window[0] > 0:
-            # Window start is beyond available data
-            out_start = round(maestro_PL2_data[trial]['time_series'].start) - time_window[0]
-        else:
-            out_start = 0
-        if round(maestro_PL2_data[trial]['time_series'].stop) - time_window[1] < 0:
-            # Window stop is beyond available data
-            out_stop = slip_data.shape[0] - (time_window[1] - round(maestro_PL2_data[trial]['time_series'].stop))
-        else:
-            out_stop = slip_data.shape[0]
-        output_index = np.arange(out_start, out_stop, 1)
-        slip_data[output_index, trial, :] = maestro_PL2_data[trial]['retinal_velocity'][:, time_index].T
-
-    slip_data = np.squeeze(slip_data)
-    return slip_data
-
-
-def nan_sac_data_window(maestro_PL2_data, time_window, *data):
-    """ Will convert time_window to be integer values.
-        data is a numpy array as output from firing_rate_window, eye_data_window
-        or slip_data_window.  This will Nan the saccade times corresponding to time_window
-        for every point along the third dimension.  time_window[1] - time_window[0] must
-        equal data_window.shape[0]
-        Returns - Original input 'data' with saccade times in time_window marked as np.nan
-                  along the entire 3rd dimension of 'data'.  Each element of data can be
-                  returned separately in output tuple in the order entered. """
-    if not isinstance(maestro_PL2_data, list):
-        maestro_PL2_data = [maestro_PL2_data]
-    time_window[0], time_window[1] = int(time_window[0]), int(time_window[1])
-    if time_window[1] <= time_window[0]:
-        raise ValueError("time_window[1] must be greater than time_window[0]")
-    n_data_out = []
-    data = list(data)
-    for d in range(0, len(data)):
-        if time_window[1] - time_window[0] != data[d].shape[0]:
-            raise ValueError("Time window must correspond to data.shape[0]")
-        if data[d].ndim > 1:
-            if data[d].shape[1] != len(maestro_PL2_data):
-                data[d] = data[d].reshape((data[d].shape[0], -1, data[d].shape[1]))
-                if data[d].shape[1] != len(maestro_PL2_data):
-                    raise ValueError("Number of trials in maestro_PL2_data must equal those in data.shape[1]")
-        else:
-            data[d] = data[d].reshape(data[d].shape[0], 1, 1)
-        if data[d].ndim < 3:
-            n_data_out.append(1)
-        else:
-            n_data_out.append(data[d].shape[2])
-
-    all_data = np.dstack(data)
-    nan_data = np.zeros(all_data.shape[0]).astype('bool')
-    for trial in range(0, len(maestro_PL2_data)):
-        time_index = maestro_PL2_data[trial]['time_series'].find_index_range(time_window[0], time_window[1])
-        if time_index is None:
-            # Entire trial window is beyond available data
-            continue
-        if round(maestro_PL2_data[trial]['time_series'].start) - time_window[0] > 0:
-            # Window start is beyond available data
-            out_start = round(maestro_PL2_data[trial]['time_series'].start) - time_window[0]
-        else:
-            out_start = 0
-        if round(maestro_PL2_data[trial]['time_series'].stop) - time_window[1] < 0:
-            # Window stop is beyond available data
-            out_stop = nan_data.shape[0] - (time_window[1] - round(maestro_PL2_data[trial]['time_series'].stop))
-        else:
-            out_stop = nan_data.shape[0]
-        output_index = np.arange(out_start, out_stop, 1)
-        nan_data[output_index] = maestro_PL2_data[trial]['saccade_index'][time_index]
-        all_data[nan_data, trial, :] = np.nan
-
-    start_ind = 0
-    out_data = []
-    for d in range(0, len(n_data_out)):
-        out_data.append(all_data[:, :, start_ind:start_ind+n_data_out[d]])
-        out_data[d] = np.squeeze(out_data[d])
-        start_ind += n_data_out[d]
-    if len(n_data_out) == 1:
-        out_data = out_data[0]
-    else:
-        out_data = tuple(out_data)
-    return out_data
-
-
-def bin_data(data, bin_width, bin_threshold=0):
-    """ Gets the nan average of each bin in data for bins in which the number
-        of non nan data points is greater than bin_threshold.  Bins less than
-        bin threshold non nan data points are returned as nan. Data are binned
-        from the first entries, so if the number of bins implied by binwidth
-        exceeds data.shape[0] the last bin will be cut short. Input data is
-        assumed to have the shape as output by the data_window functions. """
-
-    if data.ndim == 1:
-        out_shape = (data.shape[0] // bin_width, 1, 1)
-        data = data.reshape(data.shape[0], 1, 1)
-    elif data.ndim == 2:
-        out_shape = (data.shape[0] // bin_width, data.shape[1], 1)
-        data = data.reshape(data.shape[0], data.shape[1], 1)
-    elif data.ndim == 3:
-        out_shape = (data.shape[0] // bin_width, data.shape[1], data.shape[2])
-        data = data.reshape(data.shape[0], data.shape[1], data.shape[2])
-    else:
-        raise ValueError("Unrecognized data input shape. Input data must be in the form as output by data functions.")
-
-    binned_data = np.full(out_shape, np.nan)
-    n = 0
-    bin_start = 0
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", category=RuntimeWarning)
-        while n < out_shape[0]:
-            n_good = np.count_nonzero(~np.isnan(data[bin_start:bin_start+bin_width, :, :]), axis=0)
-            binned_data[n, :, :] = np.nanmean(data[bin_start:bin_start+bin_width, :, :], axis=0)
-            binned_data[n, n_good < bin_threshold] = np.nan
-            n += 1
-            bin_start += bin_width
-
-    binned_data = np.squeeze(binned_data)
-    return binned_data
-
-
-def acc_from_vel(velocity, filter_win):
-    """ Computes the acceleration from the velocity.  Velocity is assumed to be
-        in the format as output by eye_data_window and acceleration will be
-        computed along the columns. """
-    velocity[np.isnan(velocity)] = 0
-    return signal.savgol_filter(velocity, filter_win, 1, deriv=1, axis=0) * 1000
-
-
-class FitNeuronToEye(object):
-    """ Class that fits neuron firing rates to eye data and is capable of
-        calculating and outputting some basic info and predictions. Time window
-        indicates the FIRING RATE time window, other data will be lagged relative
-        to the fixed firing rate window. """
-
-    def __init__(self, maestro_PL2_data, neuron=0, FR_name='bin_FR', time_window=[0, 400], lag_range_eye=[-25, 25], lag_range_slip=[60, 120], slip_target_num=1):
-        if not isinstance(maestro_PL2_data, list):
-            maestro_PL2_data = [maestro_PL2_data]
-        self.data = maestro_PL2_data
-        self.neuron = neuron
-        self.FR_name = FR_name
-        self.time_window = np.array(time_window)
-        self.lag_range_eye = lag_range_eye
-        self.lag_range_slip = lag_range_slip
-        self.slip_target_num = slip_target_num
-        self.fit_result = {}
-        self.fit_result['model_type'] = None
-        self.FR = None
-        self.eye = None
-        self.slip = None
-
-    def do_eye_lags(self, lag_range_eye):
-        if lag_range_eye is not None:
-            if lag_range_eye[0:2] != self.lag_range_eye:
-                print("Lag range was reset from {} to {}".format(self.lag_range_eye, lag_range_eye[0:2]))
-                self.lag_range_eye = lag_range_eye[0:2]
-            if len(lag_range_eye) == 3:
-                eye_step = lag_range_eye[2]
-            else:
-                eye_step = 1
-        else:
-            eye_step = 1
-        return eye_step
-
-    def do_slip_lags(self, lag_range_slip):
-        if lag_range_slip is not None:
-            if lag_range_slip[0:2] != self.lag_range_slip:
-                print("Slip lag range was reset from {} to {}".format(self.lag_range_slip, lag_range_slip[0:2]))
-                self.lag_range_slip = lag_range_slip[0:2]
-            if len(lag_range_slip) == 3:
-                slip_step = lag_range_slip[2]
-            else:
-                slip_step = 1
-        else:
-            slip_step = 1
-        return slip_step
-
-    def set_eye_fit_data(self, lag=0, bin_width=1):
-        self.eye = eye_data_window(self.data, self.time_window + lag)
-        self.eye = np.dstack((self.eye, acc_from_vel(self.eye[:, :, 2:4], max(self.data[0]['saccade_time_cushion'] - 1, 9))))
-        self.eye = nan_sac_data_window(self.data, self.time_window + lag, self.eye)
-        self.eye = bin_data(self.eye, bin_width, bin_threshold=0)
-        self.eye = self.eye.reshape(self.eye.shape[0]*self.eye.shape[1], self.eye.shape[2], order='F')
-        self.eye = self.eye[np.all(~np.isnan(self.eye), axis=1), :]
-
-    def set_slip_fit_data(self, lag=0, bin_width=1):
-        self.slip = eye_data_window(self.data, self.time_window + lag)
-        self.slip = np.dstack((self.slip, slip_data_window(self.data, self.time_window + lag)))
-        self.slip = nan_sac_data_window(self.data, self.time_window + self.fit_result['eye_lag'], self.slip)
-        self.slip = bin_data(self.slip, bin_width, bin_threshold=0)
-        self.slip = self.slip.reshape(self.slip.shape[0]*self.slip.shape[1], self.slip.shape[2], order='F')
-        self.slip = self.slip[np.all(~np.isnan(self.slip), axis=1), :]
-
-    def set_FR_fit_data(self, bin_width=1):
-        self.FR = firing_rate_window(self.data, self.time_window, self.neuron, self.FR_name)
-        self.FR = nan_sac_data_window(self.data, self.time_window + self.fit_result['eye_lag'], self.FR)
-        self.FR = bin_data(self.FR, bin_width, bin_threshold=0)
-        self.FR = self.FR.reshape(self.FR.shape[0]*self.FR.shape[1], order='F')
-        self.FR = self.FR[~np.isnan(self.FR)]
-
-    def fit_piece_linear(self, lag_range_eye=None, bin_width=1, constant=False):
-        # The pieces are for x < 0 and x>= 0 for each column of eye data and the
-        # output coefficients for eye data with n dimension swill be x[0] =>
-        # x[0]+, x[1] => x[1]+, x[n+1] => x[0]-, x[n+2] => x[1]-, ...
-
-        if lag_range_eye is not None:
-            if lag_range_eye != self.lag_range_eye:
-                print("Lag range was reset from {} to {}".format(self.lag_range_eye, lag_range_eye))
-                self.lag_range_eye = lag_range_eye
-
-        lags = np.arange(self.lag_range_eye[0], self.lag_range_eye[1] + 1)
         R2 = []
         coefficients = []
-        firing_rate = firing_rate_window(self.data, self.time_window, self.neuron, self.FR_name)
+        s_dim2 = 9 if fit_constant else 8
+        firing_rate = self.get_firing_traces()
+        if not fit_constant:
+            dc_trial_rate = np.mean(firing_rate[:, self.dc_inds[0]:self.dc_inds[1]], axis=1)
+            firing_rate = firing_rate - dc_trial_rate[:, None]
+        if fit_avg_data:
+            firing_rate = np.nanmean(firing_rate, axis=0, keepdims=True)
+        binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
+        eye_data_all_lags = self.get_eye_data_traces_all_lags()
+        # Initialize empty eye_data array that we can fill from slices of all data
+        eye_data = np.ones((eye_data_all_lags.shape[0], self.fit_dur, s_dim2))
+        # First loop over lags using quick_lag_step intervals
         for lag in lags:
-            eye_data = eye_data_window(self.data, self.time_window + lag)
-            eye_data = np.dstack((eye_data, acc_from_vel(eye_data[:, :, 2:4], max(self.data[0]['saccade_time_cushion'] - 1, 9))))
-            # Nan saccades
-            temp_FR, eye_data = nan_sac_data_window(self.data, self.time_window + lag, firing_rate, eye_data)
-            temp_FR = bin_data(temp_FR, bin_width, bin_threshold=0)
-            eye_data = bin_data(eye_data, bin_width, bin_threshold=0)
-            eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='F')
-            temp_FR = temp_FR.flatten(order='F')
-            keep_index = np.all(~np.isnan(np.column_stack((eye_data, temp_FR))), axis=1)
-            eye_data = eye_data[keep_index, :]
-            temp_FR = temp_FR[keep_index]
+            eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
+            # Copy over velocity data to make room for positions
+            eye_data[:, :, 4:6] = eye_data[:, :, 2:4]
+            eye_data[:, :, 2:4] = eye_data[:, :, 0:2]
+            eye_data[:, :, 6:8] = eye_data_series.acc_from_vel(eye_data[:, :, 4:6],
+                            filter_win=self.neuron.session.saccade_ind_cushion)
+            # Use bin smoothing on data before fitting
+            bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
+            if fit_avg_data:
+                bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
 
-            if constant:
-                piece_eye = np.zeros((eye_data.shape[0], 2 * eye_data.shape[1] + 1))
-                piece_eye[:, -1] = 1
-            else:
-                piece_eye = np.zeros((eye_data.shape[0], 2 * eye_data.shape[1]))
-            for column in range(0, eye_data.shape[1]):
-                plus_index = eye_data[:, column] >= 0
-                piece_eye[plus_index, column] = eye_data[plus_index, column]
-                piece_eye[~plus_index, column + eye_data.shape[1]] = eye_data[~plus_index, column]
-            coefficients.append(np.linalg.lstsq(piece_eye, temp_FR, rcond=None)[0])
+            # Need to get the +/- position data separate AFTER BINNING AND MEAN!
+            select_pursuit = bin_eye_data[:, :, 0] >= knees[0]
+            bin_eye_data[~select_pursuit, 0] = 0.0 # Less than knee dim0 = 0
+            bin_eye_data[select_pursuit, 2] = 0.0 # Less than knee dim2 = 0
+            select_learning = bin_eye_data[:, :, 1] >= knees[1]
+            bin_eye_data[~select_learning, 1] = 0.0 # Less than knee dim1 = 0
+            bin_eye_data[select_learning, 3] = 0.0 # Less than knee dim3 = 0
+
+            bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
+            temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
+            select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+            bin_eye_data = bin_eye_data[select_good, :]
+            temp_FR = temp_FR[select_good]
+            coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
             y_mean = np.mean(temp_FR)
-            y_predicted = np.matmul(piece_eye, coefficients[-1])
-            sum_squares_error = ((temp_FR - y_predicted) ** 2).sum()
-            sum_squares_total = ((temp_FR - y_mean) ** 2).sum()
+            y_predicted = np.matmul(bin_eye_data, coefficients[-1])
+            sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+            sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
             R2.append(1 - sum_squares_error/(sum_squares_total))
 
-        # Choose peak R2 value with minimum absolute value lag
+        if quick_lag_step > 1:
+            # Do fine resolution loop
+            max_ind = np.where(R2 == np.amax(R2))[0]
+            max_ind = max_ind[np.argmin(np.abs(lags[max_ind]))]
+            best_lag = lags[max_ind]
+            # Make new lags centered on this best_lag
+            lag_start = max(lags[0], best_lag - quick_lag_step)
+            lag_stop = min(lags[-1], best_lag + quick_lag_step)
+            lags = np.arange(lag_start, lag_stop + 1, 1)
+            # Reset fit measures
+            R2 = []
+            coefficients = []
+            for lag in lags:
+                eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
+                # Copy over velocity data to make room for positions
+                eye_data[:, :, 4:6] = eye_data[:, :, 2:4]
+                eye_data[:, :, 2:4] = eye_data[:, :, 0:2]
+                eye_data[:, :, 6:8] = eye_data_series.acc_from_vel(eye_data[:, :, 4:6],
+                                filter_win=self.neuron.session.saccade_ind_cushion)
+                # Use bin smoothing on data before fitting
+                bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
+                if fit_avg_data:
+                    bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
+
+                # Need to get the +/- position data separate AFTER BINNING AND MEAN!
+                select_pursuit = bin_eye_data[:, :, 0] >= knees[0]
+                bin_eye_data[~select_pursuit, 0] = 0.0 # Less than knee dim0 = 0
+                bin_eye_data[select_pursuit, 2] = 0.0 # Less than knee dim2 = 0
+                select_learning = bin_eye_data[:, :, 1] >= knees[1]
+                bin_eye_data[~select_learning, 1] = 0.0 # Less than knee dim1 = 0
+                bin_eye_data[select_learning, 3] = 0.0 # Less than knee dim3 = 0
+
+
+                bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
+                temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
+                select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+                bin_eye_data = bin_eye_data[select_good, :]
+                temp_FR = temp_FR[select_good]
+                coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
+                y_mean = np.mean(temp_FR)
+                y_predicted = np.matmul(bin_eye_data, coefficients[-1])
+                sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+                sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
+                R2.append(1 - sum_squares_error/(sum_squares_total))
+
+    # Choose peak R2 value with minimum absolute value lag
         max_ind = np.where(R2 == np.amax(R2))[0]
         max_ind = max_ind[np.argmin(np.abs(lags[max_ind]))]
+        dc_offset = coefficients[max_ind][-1] if fit_constant else 0.
+        self.fit_results['pcwise_lin_eye_kinematics'] = {
+                                'eye_lag': lags[max_ind],
+                                'slip_lag': None,
+                                'coeffs': coefficients[max_ind],
+                                'R2': R2[max_ind],
+                                'all_R2': R2,
+                                'use_constant': fit_constant,
+                                'dc_offset': dc_offset,
+                                'predict_fun': self.predict_pcwise_lin_eye_kinematics,
+                                'knees': knees}
 
-        self.fit_result['eye_lag'] = lags[max_ind]
-        self.fit_result['slip_lag'] = None
-        self.fit_result['coeffs'] = coefficients[max_ind]
-        self.fit_result['R2'] = R2[max_ind]
-        self.fit_result['all_R2'] = R2
-        self.fit_result['model_type'] = 'piece_linear'
-        self.fit_result['use_constant'] = constant
-        self.set_FR_fit_data(bin_width)
-        self.set_eye_fit_data(self.fit_result['eye_lag'], bin_width)
 
-    def fit_slip_lag(self, trial_names=None, lag_range_slip=None):
-        # Split data by trial name
-        trials_by_type = {}
-        for trial in range(0, len(self.data)):
-            if trial_names is not None:
-                if self.data[trial]['trial_name'] not in trial_names:
-                    continue
-            if self.data[trial]['trial_name'] not in trials_by_type:
-                trials_by_type[self.data[trial]['trial_name']] = []
-            trials_by_type[self.data[trial]['trial_name']].append(self.data[trial])
-        if 'eye_lag' not in self.fit_result:
-            eye_lag = 0
+def get_fr_eye_data(neuron, blocks, trial_sets, bin_width, bin_threshold, time_window, 
+                    lag=0, acc_filter_win=31, return_inds=False, fr_offsets_by_trial=None):
+    """ Helper function that returns the firing rate and eye data as requested in the format
+    needed to fit in linear regression with acceleration terms and binning.
+    """
+    # Get firing rate in standard window
+    firing_rate, fr_inds = neuron.get_firing_traces(time_window, blocks,
+                                                    trial_sets, return_inds=True)
+    if fr_offsets_by_trial is not None:
+        assert len(fr_offsets_by_trial) == len(fr_inds)
+        firing_rate -= fr_offsets_by_trial[:, None]
+    firing_rate = bin_data(firing_rate, bin_width, bin_threshold)
+    firing_rate = firing_rate.reshape(firing_rate.shape[0]*firing_rate.shape[1], order="C")
+    # Get eye data in LAG window
+    lagged_t_window = [time_window[0] + lag, time_window[1] + lag]
+    pos_p, pos_l = neuron.session.get_xy_traces("eye position",
+                            lagged_t_window, blocks, fr_inds,
+                            return_inds=False)
+    vel_p, vel_l = neuron.session.get_xy_traces("eye velocity",
+                            lagged_t_window, blocks, fr_inds,
+                            return_inds=False)
+    # Stack with exra vel slots for acceleration
+    eye_data = np.stack((pos_p, pos_l, vel_p, vel_l, vel_p, vel_l), axis=2)
+    eye_data[:, :, 4:6] = eye_data_series.acc_from_vel(eye_data[:, :, 2:4],
+                                                        filter_win=acc_filter_win)
+    # Now bin and reshape to 2D
+    eye_data = bin_data(eye_data, bin_width, bin_threshold)
+    eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order="C")
+    if return_inds:
+        return firing_rate, eye_data, fr_inds
+    return firing_rate, eye_data
+
+
+def nan_lstsq(x, y):
+    """ Quick linear regression that removes nans from x and y.
+    """
+    if x.ndim == 1:
+        x = np.expand_dims(x, axis=1)
+    select_good = ~np.isnan(y)
+    select_good = select_good & ~np.any(np.isnan(x), axis=1)
+    x_nonan = x[select_good, :]
+    y_nonan = y[select_good] # This should generally return a copy
+    coefficients = np.linalg.lstsq(x_nonan, y_nonan, rcond=None)[0]
+    y_mean = np.mean(y_nonan)
+    y_predicted = np.matmul(x_nonan, coefficients)
+    sum_squares_error = np.nansum((y_nonan - y_predicted) ** 2)
+    sum_squares_total = np.nansum((y_nonan - y_mean) ** 2)
+    R2 = 1 - sum_squares_error/(sum_squares_total)
+
+    return coefficients, R2
+
+
+def get_fix_by_block_gauss(neuron, blocks, fix_time_window, sigma, cutoff_sigma=4, zscore_sigma=np.inf):
+    """
+    """
+    if not isinstance(blocks, list):
+        blocks = [blocks]
+    all_fr_fix = []
+    all_t_inds = []
+    for b_name in blocks:
+        fr_fix, t_inds = neuron.get_firing_traces(fix_time_window, b_name,
+                                                    None, return_inds=True)
+        fr_fix = np.nanmean(fr_fix, axis=1)
+        # Compute the z-score
+        fr_fix_zscore = (fr_fix - np.nanmean(fr_fix)) / np.nanstd(fr_fix)
+        # Set values over 4 standard deviations from the mean to np.nan
+        fr_fix[np.abs(fr_fix_zscore) > zscore_sigma] = np.nan
+        if sigma*cutoff_sigma >= fr_fix.shape[0]:
+            # Just use block mean if it's shorter than trial win
+            fr_fix[:] = np.nanmean(fr_fix)
         else:
-            eye_lag = self.fit_result['eye_lag']
-
-        slip_step = self.do_slip_lags(lag_range_slip)
-        slip_lags = np.arange(self.lag_range_slip[0], self.lag_range_slip[1] + 1, slip_step)
-        R2 = np.zeros(slip_lags.size)
-        coefficients = np.zeros((slip_lags.size, 5))
-        n_s_lags = -1
-        for s_lag in slip_lags:
-            n_s_lags += 1
-            # Get spikes and slip data separate for each trial name
-            all_slip = []
-            all_rate = []
-            for trial_name in trials_by_type:
-                _, _, slip, firing_rate, _ = get_slip_data(trials_by_type[trial_name], self.time_window, eye_lag, s_lag, self.FR_name, self.neuron, bin_width=1, avg='trial')
-                all_slip.append(slip)
-                all_rate.append(firing_rate)
-            all_slip = np.vstack(all_slip)
-            all_rate = np.concatenate(all_rate)
-            keep_index = np.all(~np.isnan(np.column_stack((all_slip, all_rate))), axis=1)
-            all_slip = all_slip[keep_index, :]
-            all_rate = all_rate[keep_index]
-
-            piece_slip = np.zeros((all_slip.shape[0], 5))
-            for column in range(0, 2):
-                plus_index = all_slip[:, column] >= 0
-                piece_slip[plus_index, column] = all_slip[plus_index, column]
-                piece_slip[~plus_index, column + 2] = all_slip[~plus_index, column]
-            piece_slip[:, -1] = 1
-            piece_slip[:, 0:2] = np.log(piece_slip[:, 0:2] + 1)
-            piece_slip[:, 2:4] = -1 * np.log(-1 * piece_slip[:, 2:4] + 1)
-
-            coefficients[n_s_lags, :] = np.linalg.lstsq(piece_slip, all_rate, rcond=None)[0]
-            y_mean = np.mean(all_rate)
-            y_predicted = np.matmul(piece_slip, coefficients[n_s_lags])
-            sum_squares_error = ((all_rate - y_predicted) ** 2).sum()
-            sum_squares_total = ((all_rate - y_mean) ** 2).sum()
-            R2[n_s_lags] = 1 - sum_squares_error/(sum_squares_total)
-
-        # Choose peak R2 value FROM SMOOTHED DATA with minimum absolute value lag
-        # low_filt = 50
-        # b_filt, a_filt = signal.butter(8, low_filt/500)
-        # smooth_R2 = signal.filtfilt(b_filt, a_filt, R2, axis=0, padlen=int(.25 * len(R2)))
-        sigma = 2
-        gauss_filter = signal.gaussian(sigma*3*2 + 1, sigma)
-        gauss_filter = gauss_filter / np.sum(gauss_filter)
-        smooth_R2 = np.convolve(R2, gauss_filter, mode='same')
-        max_ind = np.where(smooth_R2 == np.amax(smooth_R2))[0]
-        max_ind = max_ind[np.argmin(np.abs(slip_lags[max_ind]))]
-        self.fit_result['slip_lag'] = slip_lags[max_ind]
-        self.fit_result['model_type'] = 'slip_lag'
-        self.fit_result['R2'] = R2
-        self.fit_result['smooth_R2'] = smooth_R2
-
-    def fit_eye_lag(self, slip_lag=None, trial_names=None, lag_range_eye=None):
-
-        if slip_lag is not None:
-            n_coeffs = 13
-            use_slip = True
-        else:
-            n_coeffs = 9
-            use_slip = False
-            slip_lag = 0
-
-        # Split data by trial name
-        trials_by_type = {}
-        for trial in range(0, len(self.data)):
-            if trial_names is not None:
-                if self.data[trial]['trial_name'] not in trial_names:
-                    continue
-            if self.data[trial]['trial_name'] not in trials_by_type:
-                trials_by_type[self.data[trial]['trial_name']] = []
-            trials_by_type[self.data[trial]['trial_name']].append(self.data[trial])
-
-        eye_step = self.do_eye_lags(lag_range_eye)
-        eye_lags = np.arange(self.lag_range_eye[0], self.lag_range_eye[1] + 1, eye_step)
-        R2 = np.zeros(eye_lags.size)
-        coefficients = np.zeros((eye_lags.size, n_coeffs))
-        n_e_lags = -1
-        for e_lag in eye_lags:
-            n_e_lags += 1
-            # Get spikes and eye data separate for each trial name
-            all_eye = []
-            all_rate = []
-            for trial_name in trials_by_type:
-                position, velocity, slip, firing_rate, _ = get_slip_data(trials_by_type[trial_name], self.time_window, e_lag, slip_lag, self.FR_name, self.neuron, bin_width=1, avg='trial')
-                all_eye.append(np.hstack((position, velocity, slip)))
-                all_rate.append(firing_rate)
-            all_eye = np.vstack(all_eye)
-            if not use_slip:
-                all_eye = all_eye[:, 0:4]
-            all_rate = np.concatenate(all_rate)
-            keep_index = np.all(~np.isnan(np.column_stack((all_eye, all_rate))), axis=1)
-            all_eye = all_eye[keep_index, :]
-            all_rate = all_rate[keep_index]
-            piece_eye = np.zeros((all_eye.shape[0], n_coeffs))
-            for column in range(0, int((n_coeffs-1)/2)):
-                plus_index = all_eye[:, column] >= 0
-                piece_eye[plus_index, column] = all_eye[plus_index, column]
-                piece_eye[~plus_index, column + int((n_coeffs-1)/2)] = all_eye[~plus_index, column]
-            piece_eye[:, -1] = 1
-            ind_end = int((n_coeffs-1)/2)
-            if n_coeffs > 9:
-                piece_eye[:, 4:6] = np.log(piece_eye[:, 4:6] + 1)
-                piece_eye[:, 10:12] = -1 * np.log(-1 * piece_eye[:, 10:12] + 1)
-            # piece_eye[:, 0:ind_end] = np.log(piece_eye[:, 0:ind_end] + 1)
-            # piece_eye[:, ind_end:n_coeffs-1] = -1 * np.log(-1 * piece_eye[:, ind_end:n_coeffs-1] + 1)
-
-            coefficients[n_e_lags, :] = np.linalg.lstsq(piece_eye, all_rate, rcond=None)[0]
-            y_mean = np.mean(all_rate)
-            y_predicted = np.matmul(piece_eye, coefficients[n_e_lags])
-            sum_squares_error = ((all_rate - y_predicted) ** 2).sum()
-            sum_squares_total = ((all_rate - y_mean) ** 2).sum()
-            R2[n_e_lags] = 1 - sum_squares_error/(sum_squares_total)
-
-        # Choose peak R2 value FROM SMOOTHED DATA with minimum absolute value lag
-        sigma = 2
-        gauss_filter = signal.gaussian(sigma*3*2 + 1, sigma)
-        gauss_filter = gauss_filter / np.sum(gauss_filter)
-        smooth_R2 = np.convolve(R2, gauss_filter, mode='same')
-        max_ind = np.where(smooth_R2 == np.amax(smooth_R2))[0]
-        max_ind = max_ind[np.argmin(np.abs(eye_lags[max_ind]))]
-        self.fit_result['eye_lag'] = eye_lags[max_ind]
-        self.fit_result['model_type'] = 'eye_lag'
-        self.fit_result['R2'] = R2
-        self.fit_result['smooth_R2'] = smooth_R2
-
-    def fit_piece_linear_interaction_fixlag(self, eye_lag, slip_lag, bin_width=1, constant=False):
-        # The pieces are for x < 0 and x>= 0 for each column of eye data and the
-        # output coefficients for eye data with n dimension swill be x[0] =>
-        # x[0]+, x[1] => x[1]+, x[n+1] => x[0]-, x[n+2] => x[1]-, ...
-
-        firing_rate = firing_rate_window(self.data, self.time_window, self.neuron, self.FR_name)
-        eye_data = eye_data_window(self.data, self.time_window + eye_lag)
-        slip_data = slip_data_window(self.data, self.time_window + slip_lag)
-        all_data = np.dstack((eye_data, slip_data))
-        firing_rate, all_data = nan_sac_data_window(self.data, self.time_window + eye_lag, firing_rate, all_data)
-
-        firing_rate = bin_data(firing_rate, bin_width, bin_threshold=0)
-        all_data = bin_data(all_data, bin_width, bin_threshold=0)
-        firing_rate = firing_rate.flatten(order='F')
-        all_data = all_data.reshape(all_data.shape[0]*all_data.shape[1], all_data.shape[2], order='F')
-        keep_index = np.all(~np.isnan(np.column_stack((all_data, firing_rate))), axis=1)
-        firing_rate = firing_rate[keep_index]
-        all_data = all_data[keep_index, :]
-
-        if constant:
-            piece_slip = np.zeros((all_data.shape[0], 2 * all_data.shape[1] + 61))
-            piece_slip[:, -1] = 1
-        else:
-            piece_slip = np.zeros((all_data.shape[0], 2 * all_data.shape[1] + 60))
-        for column in range(0, all_data.shape[1]):
-            plus_index = all_data[:, column] >= 0
-            piece_slip[plus_index, column] = all_data[plus_index, column]
-            piece_slip[~plus_index, column + all_data.shape[1]] = all_data[~plus_index, column]
-
-        piece_slip[:, 4:6] = np.log(piece_slip[:, 4:6] + 1)
-        piece_slip[:, 10:12] = -1 * np.log(-1 * piece_slip[:, 10:12] + 1)
-        # piece_slip[:, 0:6] = np.log(piece_slip[:, 0:6] + 1)
-        # piece_slip[:, 6:12] = -1 * np.log(-1 * piece_slip[:, 6:12] + 1)
-
-        n_interaction = 2 * all_data.shape[1] - 1
-        for column1 in range(0, 2 * all_data.shape[1]):
-            for column2 in range(column1 + 1, 2 * all_data.shape[1]):
-                if column2 == column1 + 6:
-                    # This is an impossible interaction by definition so skip
-                    continue
-                n_interaction += 1
-                piece_slip[:, n_interaction] = piece_slip[:, column1] * piece_slip[:, column2]
-
-        coefficients = np.linalg.lstsq(piece_slip, firing_rate, rcond=None)[0]
-        y_mean = np.mean(firing_rate)
-        y_predicted = np.matmul(piece_slip, coefficients)
-        sum_squares_error = ((firing_rate - y_predicted) ** 2).sum()
-        sum_squares_total = ((firing_rate - y_mean) ** 2).sum()
-        R2 = 1 - sum_squares_error/(sum_squares_total)
-
-        self.fit_result['eye_lag'] = eye_lag
-        self.fit_result['slip_lag'] = slip_lag
-        self.fit_result['coeffs'] = coefficients
-        self.fit_result['R2'] = R2
-        self.fit_result['model_type'] = 'piece_linear'
-        self.fit_result['use_constant'] = constant
-        self.set_FR_fit_data(bin_width)
-        self.set_slip_fit_data(self.fit_result['slip_lag'], bin_width)
-
-    def predict_piece_linear(self, x_predict):
-
-        if self.fit_result['model_type'] != "piece_linear":
-            raise RuntimeError("piecewise linear model must be the current model fit to use this prediction")
-
-        if self.eye is not None:
-            if x_predict.shape[1] != self.eye.shape[1]:
-                x_predict = x_predict.transpose()
-            if x_predict.shape[1] != self.eye.shape[1]:
-                raise ValueError("Input points for computing predictions must have the same dimension as eye fitted data")
-
-        if self.slip is not None:
-            if x_predict.shape[1] != self.slip.shape[1]:
-                x_predict = x_predict.transpose()
-            if x_predict.shape[1] != self.slip.shape[1]:
-                raise ValueError("Input points for computing predictions must have the same dimension as slip fitted data")
-
-        if self.fit_result['use_constant']:
-            piece_eye = np.zeros((x_predict.shape[0], 2 * x_predict.shape[1] + 1))
-            piece_eye[:, -1] = 1
-        else:
-            piece_eye = np.zeros((x_predict.shape[0], 2 * x_predict.shape[1]))
-        for column in range(0, x_predict.shape[1]):
-            plus_index = x_predict[:, column] >= 0
-            piece_eye[plus_index, column] = x_predict[plus_index, column]
-            piece_eye[~plus_index, column + x_predict.shape[1]] = x_predict[~plus_index, column]
-
-        y_hat = np.matmul(piece_eye, self.fit_result['coeffs'])
-
-        return y_hat
-
-
-    def predict_piece_linear_interaction(self, x_predict):
-
-        if self.fit_result['model_type'] != "piece_linear":
-            raise RuntimeError("piecewise linear model must be the current model fit to use this prediction")
-
-        if self.eye is not None:
-            if x_predict.shape[1] != self.eye.shape[1]:
-                x_predict = x_predict.transpose()
-            if x_predict.shape[1] != self.eye.shape[1]:
-                raise ValueError("Input points for computing predictions must have the same dimension as eye fitted data")
-
-        if self.slip is not None:
-            if x_predict.shape[1] != self.slip.shape[1]:
-                x_predict = x_predict.transpose()
-            if x_predict.shape[1] != self.slip.shape[1]:
-                raise ValueError("Input points for computing predictions must have the same dimension as slip fitted data")
-
-        if self.fit_result['use_constant']:
-            piece_slip = np.zeros((x_predict.shape[0], 2 * x_predict.shape[1] + 61))
-            piece_slip[:, -1] = 1
-        else:
-            piece_slip = np.zeros((x_predict.shape[0], 2 * x_predict.shape[1] + 60))
-        for column in range(0, x_predict.shape[1]):
-            plus_index = x_predict[:, column] >= 0
-            piece_slip[plus_index, column] = x_predict[plus_index, column]
-            piece_slip[~plus_index, column + x_predict.shape[1]] = x_predict[~plus_index, column]
-
-        piece_slip[:, 4:6] = np.log(piece_slip[:, 4:6] + 1)
-        piece_slip[:, 10:12] = -1 * np.log(-1 * piece_slip[:, 10:12] + 1)
-        # piece_slip[:, 0:6] = np.log(piece_slip[:, 0:6] + 1)
-        # piece_slip[:, 6:12] = -1 * np.log(-1 * piece_slip[:, 6:12] + 1)
-
-        n_interaction = 2 * self.slip.shape[1] - 1
-        for column1 in range(0, 2 * self.slip.shape[1]):
-            for column2 in range(column1 + 1, 2 * self.slip.shape[1]):
-                if column2 == column1 + 6:
-                    # This is an impossible interaction by definition so skip
-                    continue
-                n_interaction += 1
-                piece_slip[:, n_interaction] = piece_slip[:, column1] * piece_slip[:, column2]
-
-        y_hat = np.matmul(piece_slip, self.fit_result['coeffs'])
-
-        return y_hat
-
-
-def get_eye_data(maestro_PL2_data, time_window, eye_lag, rate_name, neuron, bin_width=1, avg=None):
-
-    time_window = np.array(time_window)
-
-    firing_rate = firing_rate_window(maestro_PL2_data, time_window, neuron, rate_name)
-    eye_data = eye_data_window(maestro_PL2_data, time_window + eye_lag)
-    eye_data = np.dstack((eye_data, acc_from_vel(eye_data[:, :, 2:4], max(maestro_PL2_data[0]['saccade_time_cushion'] - 1, 9))))
-    firing_rate, eye_data = nan_sac_data_window(maestro_PL2_data, time_window + eye_lag, firing_rate, eye_data)
-    firing_rate = bin_data(firing_rate, bin_width, bin_threshold=0)
-    eye_data = bin_data(eye_data, bin_width, bin_threshold=0)
-
-    # return firing_rate, eye_data
-
-    if avg is not None:
-        if avg == 'trial':
-            avg_axis = 1
-        elif avg == 'time':
-            avg_axis = 0
-        else:
-            raise ValueError("Unrecognized input for 'avg'.  Must be None, 'trial', or 'time'")
-        # Supress the nanmean warning "RuntimeWarning: Mean of empty slice" that is generated if all values on axis=avg_axis are nan
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=RuntimeWarning)
-            position = np.nanmean(eye_data[:, :, 0:2], axis=avg_axis)
-            velocity = np.nanmean(eye_data[:, :, 2:4], axis=avg_axis)
-            acceleration = np.nanmean(eye_data[:, :, 4:6], axis=avg_axis)
-            firing_rate = np.nanmean(firing_rate, axis=avg_axis)
-    else:
-        position = eye_data[:, :, 0:2]
-        velocity = eye_data[:, :, 2:4]
-        acceleration = eye_data[:, :, 4:6]
-
-    bin_centers = np.arange(time_window[0], time_window[1], bin_width) + bin_width/2
-    return position, velocity, acceleration, firing_rate, bin_centers
-
-
-def get_slip_data(maestro_PL2_data, time_window, eye_lag, slip_lag, rate_name, neuron, bin_width, avg=None):
-
-    time_window = np.array(time_window)
-
-    firing_rate = firing_rate_window(maestro_PL2_data, time_window, neuron, rate_name)
-    eye_data = eye_data_window(maestro_PL2_data, time_window + eye_lag)
-    slip_data = slip_data_window(maestro_PL2_data, time_window + slip_lag)
-    firing_rate, eye_data, slip_data = nan_sac_data_window(maestro_PL2_data, time_window + eye_lag, firing_rate, eye_data, slip_data)
-    firing_rate = bin_data(firing_rate, bin_width, bin_threshold=0)
-    eye_data = bin_data(eye_data, bin_width, bin_threshold=0)
-    slip_data = bin_data(slip_data, bin_width, bin_threshold=0)
-
-    if avg is not None:
-        if avg == 'trial':
-            avg_axis = 1
-        elif avg == 'time':
-            avg_axis = 0
-        else:
-            raise ValueError("Unrecognized input for 'avg'.  Must be None, 'trial', or 'time'")
-        # Supress the nanmean warning "RuntimeWarning: Mean of empty slice" that is generated if all values on axis=avg_axis are nan
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=RuntimeWarning)
-            position = np.nanmean(eye_data[:, :, 0:2], axis=avg_axis)
-            velocity = np.nanmean(eye_data[:, :, 2:4], axis=avg_axis)
-            slip = np.nanmean(slip_data, axis=avg_axis)
-            firing_rate = np.nanmean(firing_rate, axis=avg_axis)
-    else:
-        position = eye_data[:, :, 0:2]
-        velocity = eye_data[:, :, 2:4]
-        slip = slip_data
-
-    bin_centers = np.arange(time_window[0], time_window[1], bin_width) + bin_width/2
-    return position, velocity, slip, firing_rate, bin_centers
-
-
-def subtract_trial_fix_FR(maestro_PL2_data, fix_win, eye_lag, rate_name, neuron):
-    position, _, _, firing_rate, _ = get_eye_data(maestro_PL2_data, fix_win, eye_lag, rate_name, neuron, avg='time')
-    pos_coeffs = np.linalg.lstsq(np.hstack((position, np.ones((position.shape[0], 1)))), firing_rate, rcond=None)[0]
-    exp_fix_FR = np.matmul(np.hstack((position, np.ones((position.shape[0], 1)))), pos_coeffs)
-    for trial in range(0, len(maestro_PL2_data)):
-        maestro_PL2_data[trial][rate_name][neuron] = maestro_PL2_data[trial][rate_name][neuron] - exp_fix_FR[trial]
-
-    return maestro_PL2_data
-
-
-def adjust_trial_FR_range(maestro_PL2_data, fix_win, eye_lag, rate_name, neuron):
-    _, _, _, fix_rates, _ = get_eye_data(maestro_PL2_data, fix_win, eye_lag, rate_name, neuron, avg='time')
-    if np.any(np.isnan(fix_rates)):
-        raise RuntimeError('At least one fix rate is nan in this window, I should FIX THIS')
-    sigma = 10
-    gauss_filter = signal.gaussian(sigma*3*2 + 1, sigma)
-    gauss_filter = gauss_filter / np.sum(gauss_filter)
-    pad_fix_rates = np.concatenate((np.repeat(np.mean(fix_rates[0:sigma*3]), sigma*3), fix_rates, np.repeat(np.mean(fix_rates[-sigma*3:]), sigma*3)))
-    est_fix_rate = np.convolve(pad_fix_rates, gauss_filter, mode='valid')
-    mean_fix_rate = np.mean(est_fix_rate)
-    for trial in range(0, len(maestro_PL2_data)):
-        maestro_PL2_data[trial][rate_name][neuron] = (maestro_PL2_data[trial][rate_name][neuron] - est_fix_rate[trial]) * (mean_fix_rate / est_fix_rate[trial])
-
-    return maestro_PL2_data
-
-
-def learning_actual_vs_expected_FR(maestro_PL2_data, neuron, rate_name, learn_trial_name, neuron_fit, time_window=[100, 300], n_bin_size=50):
-    """ Returns the actual and expected firing rate in bins defined by the number of LEARNING TRIALS that have occurred.
-        e.g. the first bin with n_bin_size=50 will contain firing rates for each trial condition that occurred within
-        the first 50 learning trials, regardless of the total number of trials that had occurred. Data are returned
-        as dictionaries with each trial name as a key, and each key contains a numpy array where axis=0 corresponds
-        to timepoints and axis=1 corresponds to bin number.  Data in each element are the np.nanmean of all data
-        in the corresponding trial bins. """
-
-    time_window = np.array(time_window)
-
-    firing_rate = firing_rate_window(maestro_PL2_data, time_window, neuron, rate_name)
-    eye_data = eye_data_window(maestro_PL2_data, time_window + neuron_fit.fit_result['eye_lag'])
-    slip_data = slip_data_window(maestro_PL2_data, time_window + neuron_fit.fit_result['slip_lag'])
-    firing_rate, eye_data, slip_data = nan_sac_data_window(maestro_PL2_data, time_window + neuron_fit.fit_result['eye_lag'], firing_rate, eye_data, slip_data)
-
-    n_learn = 0
-    n_bin = 0
-    act_rate = {}
-    exp_rate = {}
-    for trial in range(0, len(maestro_PL2_data)):
-        if maestro_PL2_data[trial]['trial_name'] not in act_rate.keys():
-            act_rate[maestro_PL2_data[trial]['trial_name']] = [[] for x in range(0, n_bin + 1)]
-            exp_rate[maestro_PL2_data[trial]['trial_name']] = [[] for x in range(0, n_bin + 1)]
-
-        if maestro_PL2_data[trial]['trial_name'] == learn_trial_name:
-            n_learn += 1
-            if n_learn % n_bin_size == 0:
-                n_bin += 1
-                for name in act_rate.keys():
-                    act_rate[name].append([])
-                    exp_rate[name].append([])
-
-        position = eye_data[:, trial, 0:2]
-        velocity = eye_data[:, trial, 2:4]
-        slip = slip_data[:, trial, 0:2]
-        act_rate[maestro_PL2_data[trial]['trial_name']][n_bin].append(firing_rate[:, trial])
-        exp_rate[maestro_PL2_data[trial]['trial_name']][n_bin].append(neuron_fit.predict_piece_linear_interaction(np.hstack((position, velocity, slip))))
-
-    # The following averages each of the bins above and transforms data from above lists to numpy arrays
-    for trial_name in act_rate.keys():
-        for bin in range(0, len(act_rate[trial_name])):
-            if len(act_rate[trial_name][bin]) > 0:
-                # Supress the nanmean warning "RuntimeWarning: Mean of empty slice" that is generated if all values on axis=0 are nan
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore", category=RuntimeWarning)
-                    act_rate[trial_name][bin] = np.nanmean(np.array(act_rate[trial_name][bin]), axis=0)
-                    exp_rate[trial_name][bin] = np.nanmean(np.array(exp_rate[trial_name][bin]), axis=0)
-            else:
-                act_rate[trial_name][bin] = np.full(time_window[1] - time_window[0], np.nan)
-                exp_rate[trial_name][bin] = np.full(time_window[1] - time_window[0], np.nan)
-
-        act_rate[trial_name] = np.array(act_rate[trial_name]).T
-        exp_rate[trial_name] = np.array(exp_rate[trial_name]).T
-
-    return act_rate, exp_rate
-
-
-def trial_actual_vs_expected_FR(maestro_PL2_data, neuron_fit, time_window=[100, 300], n_bin_size=25):
-    """ Returns the actual and expected firing rate in bins defined by the number of trials, regardless of their type,
-        that have occurred.  In contrast to "learning_actual_vs_expected_FR" above, this function bins by the number of
-        trials without regard to the number of learning trials.  Although trials are binned by the total number of any
-        trial name, THEY ARE BINNED BY EACH TRIAL NAME! """
-
-    n_bin = 0
-    act_rate = {}
-    exp_rate = {}
-    for trial in range(0, len(maestro_PL2_data)):
-        if maestro_PL2_data[trial]['trial_name'] not in act_rate.keys():
-            act_rate[maestro_PL2_data[trial]['trial_name']] = [[] for x in range(0, n_bin + 1)]
-            exp_rate[maestro_PL2_data[trial]['trial_name']] = [[] for x in range(0, n_bin + 1)]
-
-        if trial % n_bin_size == 0 and trial != 0:
-            n_bin += 1
-            for name in act_rate.keys():
-                # if len(act_rate[name]) <= n_bin:
-                act_rate[name].append([])
-                exp_rate[name].append([])
-
-        position, velocity, acceleration = get_average_eye([maestro_PL2_data[trial]], time_window=time_window)
-        act_rate[maestro_PL2_data[trial]['trial_name']][n_bin].append(get_average_ISI_FR([maestro_PL2_data[trial]], time_window=time_window+neuron_fit.fit_result['lag']))
-        exp_rate[maestro_PL2_data[trial]['trial_name']][n_bin].append(neuron_fit.predict_piece_linear(np.hstack((position, velocity, acceleration))))
-
-    # The following averages each of the bins above and transforms data from above lists to numpy arrays
-    for trial_name in act_rate.keys():
-        for bin in range(0, len(act_rate[trial_name])):
-            if len(act_rate[trial_name][bin]) > 0:
-                # Supress the nanmean warning "RuntimeWarning: Mean of empty slice" that is generated if all values on axis=0 are nan
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore", category=RuntimeWarning)
-                    act_rate[trial_name][bin] = np.nanmean(np.array(act_rate[trial_name][bin]), axis=0)
-                    exp_rate[trial_name][bin] = np.nanmean(np.array(exp_rate[trial_name][bin]), axis=0)
-            else:
-                act_rate[trial_name][bin] = np.full(time_window[1] - time_window[0], np.nan)
-                exp_rate[trial_name][bin] = np.full(time_window[1] - time_window[0], np.nan)
-
-        act_rate[trial_name] = np.array(act_rate[trial_name]).T
-        exp_rate[trial_name] = np.array(exp_rate[trial_name]).T
-
-    return act_rate, exp_rate
-
-
-def any_actual_vs_expected_FR(maestro_PL2_data, neuron_fit, time_window=[100, 300], n_bin_size=25):
-    """ Returns the actual and expected firing rate in bins defined by the number of trials, regardless of their type,
-        that have occurred.  ALL TRIAL TYPES ARE BINNED TOGETHER AS ONE IN THE SAME! """
-
-    n_bin = 0
-    act_rate = [[]]
-    exp_rate = [[]]
-    for trial in range(0, len(maestro_PL2_data)):
-        if trial % n_bin_size == 0 and trial != 0:
-            n_bin += 1
-            act_rate[name].append([])
-            exp_rate[name].append([])
-
-        position, velocity, acceleration = get_average_eye([maestro_PL2_data[trial]], time_window=time_window)
-        act_rate[maestro_PL2_data[trial]['trial_name']][n_bin].append(get_average_ISI_FR([maestro_PL2_data[trial]], time_window=time_window+neuron_fit.fit_result['lag']))
-        exp_rate[maestro_PL2_data[trial]['trial_name']][n_bin].append(neuron_fit.predict_piece_linear(np.hstack((position, velocity, acceleration))))
-
-    return act_rate, exp_rate
+            fr_fix = gauss_convolve(fr_fix, sigma, cutoff_sigma, pad_data=True)
+        all_fr_fix.append(fr_fix)
+        all_t_inds.append(t_inds)
+        
+    # Now combine and order everything for output
+    all_fr_fix = np.hstack(all_fr_fix)
+    all_t_inds = np.hstack(all_t_inds)
+    t_order = np.argsort(all_t_inds)
+    all_t_inds = all_t_inds[t_order]
+    all_fr_fix = all_fr_fix[t_order]
+    
+    return all_fr_fix, all_t_inds
+
+
+def comp_block_scaling_factors(primary_blocks, scaled_blocks, neuron, time_window=[-100, 900], 
+                               fix_time_window=[-300, 0], lag_range_eye=[-50, 150], 
+                               trial_sets=None, bin_width=10, bin_threshold=5, quick_lag_step=10):
+    """ Takes a given neuron and performs a linear fit on the primary block.
+    Then computes the optimum scaling factor between the primary block
+    fit and a linear fit on each block input in "scaled_blocks" such that
+    the responses of the scaled blocks are DC shifted and multiplicatively
+    scaled to "match" the primary block in a linear least squares sense.
+    """
+    # Make sure input blocks are lists and primary blocks are not in blocks to be scaled
+    if not isinstance(primary_blocks, list):
+        primary_blocks = [primary_blocks]
+    if not isinstance(scaled_blocks, list):
+        scaled_blocks = [scaled_blocks]
+    for ind, block in reversed(list(enumerate(scaled_blocks))):
+        for pblock in primary_blocks:
+            if pblock == block:
+                del scaled_blocks[ind]
+                break
+    
+    quick_lag_step = int(round(quick_lag_step))
+    if quick_lag_step < 1:
+        raise ValueError("quick_lag_step must be positive integer")
+    if quick_lag_step > (lag_range_eye[1] - lag_range_eye[0]):
+        raise ValueError("quick_lag_step is too large relative to lag_range_eye")
+    half_lag_step = int(round(quick_lag_step / 2))
+    lags = np.arange(lag_range_eye[0], lag_range_eye[1] + half_lag_step + 1, quick_lag_step)
+    lags[-1] = lag_range_eye[1]
+
+    # Get fixation data for all trials and smoothed value for adjusting Offset drift
+    all_blocks = primary_blocks + scaled_blocks
+    fr_fix, fr_inds_all = get_fix_by_block_gauss(neuron, all_blocks, fix_time_window, sigma=12.5, 
+                                                 cutoff_sigma=4, zscore_sigma=3.0)
+
+    # Get the fixation offset for the primary trials
+    fr_inds_prim = neuron.session._parse_blocks_trial_sets(primary_blocks, trial_sets)
+    _, _, fix_inds = np.intersect1d(fr_inds_prim, fr_inds_all, return_indices=True)
+    prim_offsets = fr_fix[fix_inds]
+    # Single value fixation average for primary block is used as constant for all
+    bias_constant = np.nanmean(prim_offsets)
+
+    R2 = []
+    coefficients = []
+    # First loop over lags using quick_lag_step intervals
+    for lag in lags:
+        firing_rate, eye_data = get_fr_eye_data(neuron, primary_blocks, trial_sets, bin_width, 
+                                                bin_threshold, time_window, lag=lag,
+                                                fr_offsets_by_trial=prim_offsets)
+        coeffs, r2 = quick_fit_piecewise_acc(firing_rate, eye_data, fit_constant=True)
+        coefficients.append(coeffs)
+        R2.append(r2)
+    if quick_lag_step > 1:
+        # Do fine resolution loop
+        max_ind = np.where(R2 == np.amax(R2))[0][0]
+        # max_ind = max_ind[np.argmin(np.abs(lags[max_ind]))]
+        best_lag = lags[max_ind]
+        # Make new lags centered on this best_lag
+        lag_start = max(lags[0], best_lag - quick_lag_step)
+        lag_stop = min(lags[-1], best_lag + quick_lag_step)
+        lags = np.arange(lag_start, lag_stop + 1, 1)
+        # Reset fit measures
+        R2 = []
+        coefficients = []
+        for lag in lags:
+            firing_rate, eye_data = get_fr_eye_data(neuron, primary_blocks, trial_sets, bin_width, 
+                                                    bin_threshold, time_window, lag=lag,
+                                                    fr_offsets_by_trial=prim_offsets)
+            coeffs, r2 = quick_fit_piecewise_acc(firing_rate, eye_data, fit_constant=True)
+            coefficients.append(coeffs)
+            R2.append(r2)
+    # Choose peak R2 value with minimum absolute value lag and get best params
+    max_ind = np.where(R2 == np.amax(R2))[0][0]
+    # max_ind = max_ind[np.argmin(np.abs(lags[max_ind]))]
+    coefficients = coefficients[max_ind]
+    eye_lag = lags[max_ind]
+    R2 = R2[max_ind]
+
+    # Now that we have a fit for the primary block, get scaling factors for other blocks
+    block_scaling_factors = {}
+    for block_name in scaled_blocks:
+        # Get predicted value for these trials given the primary fit (not using constant term here)
+        cur_t_inds = neuron.session._parse_blocks_trial_sets(block_name, trial_sets)
+        _, _, fix_inds = np.intersect1d(cur_t_inds, fr_inds_all, return_indices=True)
+        curr_offsets = fr_fix[fix_inds]
+        firing_rate, eye_data = get_fr_eye_data(neuron, [block_name], trial_sets, bin_width, 
+                                                bin_threshold, time_window, lag=eye_lag, return_inds=False,
+                                                fr_offsets_by_trial=curr_offsets)
+        eye_data_piece = piece_wise_eye_data(eye_data, add_constant=False)
+        fr_y_hat = np.dot(eye_data_piece, coefficients[0:-1])
+        coeffs, r2 = nan_lstsq(fr_y_hat, firing_rate)
+        block_scaling_factors[block_name] = (coeffs, r2, bias_constant)
+
+    return block_scaling_factors, fr_fix, fr_inds_all
