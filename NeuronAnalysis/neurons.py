@@ -578,50 +578,6 @@ class PurkinjeCell(Neuron):
     #     return CS_spikes_ms
 
 
-
-def zero_phase_kernel(x, x_center):
-    """ Zero pads the 1D kernel x, so that it is aligned with the current element
-        of x located at x_center.  This ensures that convolution with the kernel
-        x will be zero phase with respect to x_center.
-    """
-
-    kernel_offset = x.size - 2 * x_center - 1 # -1 To center ON the x_center index
-    kernel_size = np.abs(kernel_offset) + x.size
-    if kernel_size // 2 == 0: # Kernel must be odd
-        kernel_size -= 1
-        kernel_offset -= 1
-    kernel = np.zeros(kernel_size)
-    if kernel_offset > 0:
-        kernel_slice = slice(kernel_offset, kernel.size)
-    elif kernel_offset < 0:
-        kernel_slice = slice(0, kernel.size + kernel_offset)
-    else:
-        kernel_slice = slice(0, kernel.size)
-    kernel[kernel_slice] = x
-
-    return kernel
-
-
-def gauss_convolve(data, sigma, cutoff_sigma=4, pad_data=True):
-    """ Uses Gaussian kernel to smooth "data" with width cutoff_sigma"""
-    if cutoff_sigma > 0.5*len(data):
-        raise ValueError("{0} data points is not enough for cutoff sigma of {1}.".format(len(data), cutoff_sigma))
-    x_win = int(np.around(sigma * cutoff_sigma))
-    xvals = np.arange(-1 * x_win, x_win + 1)
-    kernel = np.exp(-.5 * (xvals / sigma) ** 2)
-    kernel = kernel / np.sum(kernel)
-    kernel = zero_phase_kernel(kernel, x_win)
-    if pad_data:
-        # Mirror edge data points
-        padded = np.hstack([data[x_win-1::-1], data, data[-1:-x_win-1:-1]])
-        # padded = np.hstack([[data[0]]*x_win, data, [data[-1]]*x_win])
-        convolved_data = np.convolve(padded, kernel, mode='same')
-        convolved_data = convolved_data[x_win:-x_win]
-    else:
-        convolved_data = np.convolve(data, kernel, mode='same')
-
-    return convolved_data
-
 def fit_pcwise_lin_eye_kinematics(self, bin_width=10, bin_threshold=1,
                                 fit_constant=True, fit_avg_data=False,
                                 quick_lag_step=10, knees=[0., 0.]):

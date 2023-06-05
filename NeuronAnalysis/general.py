@@ -160,14 +160,79 @@ def gauss_convolve(data, sigma, cutoff_sigma=4, pad_data=True):
     kernel = np.exp(-.5 * (xvals / sigma) ** 2)
     kernel = kernel / np.sum(kernel)
     kernel = zero_phase_kernel(kernel, x_win)
+    # Create a mask of the nan locations.
+    nan_mask = np.isnan(data)
+    # Copy data so we don't overwrite the input
+    no_nan_data = np.copy(data)
+    no_nan_data[nan_mask] = 0.0
     if pad_data:
-        padded = np.hstack([[data[0]]*int(np.ceil(cutoff_sigma)), data, [data[-1]]*int(np.ceil(cutoff_sigma))])
+        # Mirror edge data points
+        padded = np.hstack([no_nan_data[x_win-1::-1], no_nan_data, no_nan_data[-1:-x_win-1:-1]])
+        padded_mask = np.hstack([nan_mask[x_win-1::-1], nan_mask, nan_mask[-1:-x_win-1:-1]])
         convolved_data = np.convolve(padded, kernel, mode='same')
-        convolved_data = convolved_data[cutoff_sigma:-cutoff_sigma]
+        count = np.convolve(1 - padded_mask, kernel, mode='same')
+        convolved_data = convolved_data[x_win:-x_win]
+        count = count[x_win:-x_win]
     else:
-        convolved_data = np.convolve(data, kernel, mode='same')
+        convolved_data = np.convolve(no_nan_data, kernel, mode='same')
+        count = np.convolve(1 - nan_mask, kernel, mode='same')
+    # Correct the data_convolved values by dividing by the count.
+    convolved_data /= count
+    # Where count is zero, we set data to nan.
+    convolved_data[count == 0] = np.nan
 
     return convolved_data
+
+
+def boxcar_convolve(data, window_size, pad_data=True):
+    """ Uses boxcar kernel to smooth "data" with width "window_size"."""
+    if window_size > len(data):
+        raise ValueError("{0} data points is not enough for window size of {1}.".format(len(data), window_size))
+    # Create the boxcar kernel
+    kernel = np.ones(window_size) / window_size
+    half_window = window_size // 2
+    # Create a mask of the nan locations.
+    nan_mask = np.isnan(data)
+    # Copy data so we don't overwrite the input
+    no_nan_data = np.copy(data)
+    no_nan_data[nan_mask] = 0.0    
+    if pad_data:
+        # Mirror edge data points
+        padded = np.hstack([no_nan_data[half_window-1::-1], no_nan_data, no_nan_data[-1:-half_window-1:-1]])
+        padded_mask = np.hstack([nan_mask[half_window-1::-1], nan_mask, nan_mask[-1:-half_window-1:-1]])
+        convolved_data = np.convolve(padded, kernel, mode='same')
+        count = np.convolve(1 - padded_mask, kernel, mode='same')
+        convolved_data = convolved_data[half_window:-half_window]
+        count = count[half_window:-half_window]
+    else:
+        convolved_data = np.convolve(no_nan_data, kernel, mode='same')
+        count = np.convolve(1 - nan_mask, kernel, mode='same')
+        
+    # Correct the data_convolved values by dividing by the count.
+    convolved_data /= count
+    # Where count is zero, we set data to nan.
+    convolved_data[count == 0] = np.nan
+
+    return convolved_data
+
+
+def box_windows(spike_train, box_pre, box_post, scale=1.0):
+    """Same as convolve but just does loops instead of convolution. Negative
+    values indicate times BEFORE the spike event and positve values AFTER"""
+    if box_post < box_pre:
+        raise ValueError(f"Post time must be greater >= pretime or else window will be backwards but got {box_pre} and {box_post}.")
+    window_sig = np.zeros_like(spike_train)
+    for t in range(0, spike_train.shape[0]):
+        if spike_train[t] > 0:
+            w_start = max(0, t+box_pre)
+            if w_start >= window_sig.shape[0]:
+                continue
+            w_stop = min(window_sig.shape[0], t+box_post+1)
+            if w_stop < 0:
+                continue
+            for w_t in range(w_start, w_stop):
+                window_sig[w_t] = scale
+    return window_sig
 
 
 def postsynaptic_decay_FR(spike_train, tau_rise=1., tau_decay=2.5,
@@ -179,6 +244,7 @@ def postsynaptic_decay_FR(spike_train, tau_rise=1., tau_decay=2.5,
         "min_val". """
 
     # Build kernel over 'xvals'
+    raise RuntimeError("Update this function and handle padding and nan like in 'gauss_convole'")
     xvals = np.arange(0, len(spike_train))
     kernel = np.exp(- 1 * xvals / tau_decay) - np.exp(- 1 * xvals / tau_rise)
     if np.any(kernel < 0.0):
@@ -198,36 +264,6 @@ def postsynaptic_decay_FR(spike_train, tau_rise=1., tau_decay=2.5,
 
     return psp_decay_FR
 
-def boxcar_convolve(spike_train, box_pre, box_post, scale=1.0):
-    """ Converts events in spike train to box shape windows of duration pre-event
-    equal to box_pre and duration after event box_post. Negative box indices
-    will shift the window away from events. If box indices overlap positive/
-    negative in the wrong way this will return all zeros. e.g. if box_pre > 0
-    and box_post < 0 and abs(box_post) > box_pre. pre == post == 0 returns
-    single point values where spike_train == 1"""
-    center_ind = max(abs(box_pre), abs(box_post)) + 1 # plus 1 for cushion on ends
-    kernel = np.zeros(2*center_ind + 1)
-    kernel[center_ind-box_pre:center_ind+box_post+1] = scale
-    filtered_sig = np.convolve(spike_train, kernel, mode='same')
-    return filtered_sig
-
-def box_windows(spike_train, box_pre, box_post, scale=1.0):
-    """Same as convolve but just does loops instead of convolution. Negative
-    values indicate times BEFORE the spike event and positve values AFTER"""
-    if box_post < box_pre:
-        raise ValueError(f"Post time must be greater >= pretime or else window will be backwards but got {box_pre} and {box_post}.")
-    window_sig = np.zeros_like(spike_train)
-    for t in range(0, spike_train.shape[0]):
-        if spike_train[t] > 0:
-            w_start = max(0, t+box_pre)
-            if w_start >= window_sig.shape[0]:
-                continue
-            w_stop = min(window_sig.shape[0], t+box_post+1)
-            if w_stop < 0:
-                continue
-            for w_t in range(w_start, w_stop):
-                window_sig[w_t] = scale
-    return window_sig
 
 def gaussian(x, mu, sigma):
     return (1 / (np.sqrt(2 * np.pi * sigma ** 2))) * np.exp(-0.5 * ((x - mu) / sigma) ** 2)
