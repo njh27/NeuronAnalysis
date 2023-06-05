@@ -1,6 +1,7 @@
 import numpy as np
 import warnings
 from NeuronAnalysis.general import fit_cos_fixed_freq, gauss_convolve
+from NeuronAnalysis.neuron_tuning import comp_block_scaling_factors
 
 
 
@@ -202,6 +203,46 @@ class Neuron(object):
             fr = np.nanmean(fr, axis=0)
         if return_inds:
             return fr, t
+        else:
+            return fr
+
+    def get_firing_traces_block_adj(self, time_window, blocks, trial_sets, primary_block, 
+                                   fix_time_window=[-300, 0], bin_width=10, bin_threshold=5, 
+                                   lag_range_eye=[-50, 150], quick_lag_step=10, return_inds=False):
+        """ Gets all the firing rate traces for blocks and trial sets, and then linearly
+        scales them to match the best linear fit found during the "primary_block" using
+        neuron_tuning.comp_block_scaling_factors.
+        """
+        if not isinstance(blocks, list):
+            blocks = [blocks]
+        fr, fr_inds = self.get_firing_traces(time_window, blocks, trial_sets,
+                                                return_inds=True)
+        block_scaling_factors, fr_fix, fr_inds_all = comp_block_scaling_factors(primary_block, 
+                                                                                blocks, self, 
+                                                                                time_window=time_window, 
+                                                                                fix_time_window=fix_time_window, 
+                                                                                lag_range_eye=lag_range_eye, 
+                                                                                trial_sets=None, bin_width=bin_width, 
+                                                                                bin_threshold=bin_threshold, 
+                                                                                quick_lag_step=quick_lag_step)
+        _, _, fix_scale_inds = np.intersect1d(fr_inds, fr_inds_all, return_indices=True)
+        # Now that we have the fix rate adjustment for each trial in fit firing rate traces
+        # loop through and adjust them
+        matched_trials = fr_inds_all[fix_scale_inds]
+        matched_fr_fix = fr_fix[fix_scale_inds]
+        if not np.all(matched_trials == fr_inds):
+            raise ValueError("Trials to adjust did not align")
+        for i_ind, t_ind in enumerate(fr_inds):
+            fr[i_ind, :] -= matched_fr_fix[i_ind]
+            for b_name in blocks:
+                if ( (t_ind >= self.session.blocks[b_name][0]) 
+                    and (t_ind < self.session.blocks[b_name][1]) ):
+                    # This trial was in this block so scale accordingly
+                    fr[i_ind, :] *= block_scaling_factors[b_name][0][0]
+                    fr[i_ind, :] += block_scaling_factors[b_name][2]
+
+        if return_inds:
+            return fr, fr_inds
         else:
             return fr
 

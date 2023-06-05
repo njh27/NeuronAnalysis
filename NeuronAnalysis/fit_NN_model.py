@@ -51,31 +51,11 @@ class FitNNModel(object):
         scales them to match the best linear fit found during the "primary_block" using
         neurons.comp_block_scaling_factors.
         """
-        fr, fr_inds = self.get_firing_traces(return_inds=True)
-        block_scaling_factors, fr_fix, fr_inds_all = comp_block_scaling_factors(primary_block, 
-                                                                                self.blocks, self.neuron, 
-                                                                                time_window=self.time_window, 
-                                                                                fix_time_window=fix_time_window, 
-                                                                                lag_range_eye=self.lag_range_pf, 
-                                                                                trial_sets=None, bin_width=bin_width, 
-                                                                                bin_threshold=bin_threshold, 
-                                                                                quick_lag_step=quick_lag_step)
-        _, _, fix_scale_inds = np.intersect1d(fr_inds, fr_inds_all, return_indices=True)
-        # Now that we have the fix rate adjustment for each trial in fit firing rate traces
-        # loop through and adjust them
-        matched_trials = fr_inds_all[fix_scale_inds]
-        matched_fr_fix = fr_fix[fix_scale_inds]
-        if not np.all(matched_trials == fr_inds):
-            raise ValueError("Trials to adjust did not align")
-        for i_ind, t_ind in enumerate(fr_inds):
-            fr[i_ind, :] -= matched_fr_fix[i_ind]
-            for b_name in self.blocks:
-                if ( (t_ind >= self.neuron.session.blocks[b_name][0]) 
-                    and (t_ind < self.neuron.session.blocks[b_name][1]) ):
-                    # This trial was in this block so scale accordingly
-                    fr[i_ind, :] *= block_scaling_factors[b_name][0][0]
-                    fr[i_ind, :] += block_scaling_factors[b_name][2]
-
+        fr, fr_inds = self.neuron.get_firing_traces_block_adj(self.time_window, self.blocks, 
+                                    self.trial_sets, primary_block, fix_time_window=fix_time_window, 
+                                    bin_width=bin_width, bin_threshold=bin_threshold, 
+                                    lag_range_eye=self.lag_range_pf, quick_lag_step=quick_lag_step, 
+                                    return_inds=True)
         if return_inds:
             return fr, fr_inds
         else:
@@ -167,7 +147,6 @@ class FitNNModel(object):
                                                                     quick_lag_step=quick_lag_step, return_inds=True)
         else:
             firing_rate, all_t_inds = self.get_firing_traces(return_inds=True)
-        return firing_rate, all_t_inds
         if len(firing_rate) == 0:
             raise ValueError("No trial data found for input blocks and trial sets.")
         n_fit_trials = np.int64(np.around(firing_rate.shape[0] * train_split))

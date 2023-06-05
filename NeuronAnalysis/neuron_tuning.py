@@ -5,133 +5,6 @@ from SessionAnalysis.utils import eye_data_series
 
 
 
-def fit_pcwise_lin_eye_kinematics(self, bin_width=10, bin_threshold=1,
-                                fit_constant=True, fit_avg_data=False,
-                                quick_lag_step=10, knees=[0., 0.]):
-        """ Fits the input neuron eye data to position, velocity, acceleration
-        linear model (in 2 dimensions -- one pursuit axis and one learing axis)
-        for the blocks and trial_sets input.
-        Output "coeffs" are in order: position pursuit, position learning
-                                      velocity pursuit, velocity learning
-                                      acceleration pursuit, acceleration learning
-                                      constant offset
-        """
-        quick_lag_step = int(np.around(quick_lag_step))
-        if quick_lag_step < 1:
-            raise ValueError("quick_lag_step must be positive integer")
-        if quick_lag_step > (self.lag_range_eye[1] - self.lag_range_eye[0]):
-            raise ValueError("quick_lag_step is too large relative to lag_range_eye")
-        half_lag_step = np.int32(np.around(quick_lag_step / 2))
-        lags = np.arange(self.lag_range_eye[0], self.lag_range_eye[1] + half_lag_step + 1, quick_lag_step)
-        lags[-1] = self.lag_range_eye[1]
-
-        R2 = []
-        coefficients = []
-        s_dim2 = 9 if fit_constant else 8
-        firing_rate = self.get_firing_traces()
-        if not fit_constant:
-            dc_trial_rate = np.mean(firing_rate[:, self.dc_inds[0]:self.dc_inds[1]], axis=1)
-            firing_rate = firing_rate - dc_trial_rate[:, None]
-        if fit_avg_data:
-            firing_rate = np.nanmean(firing_rate, axis=0, keepdims=True)
-        binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
-        eye_data_all_lags = self.get_eye_data_traces_all_lags()
-        # Initialize empty eye_data array that we can fill from slices of all data
-        eye_data = np.ones((eye_data_all_lags.shape[0], self.fit_dur, s_dim2))
-        # First loop over lags using quick_lag_step intervals
-        for lag in lags:
-            eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
-            # Copy over velocity data to make room for positions
-            eye_data[:, :, 4:6] = eye_data[:, :, 2:4]
-            eye_data[:, :, 2:4] = eye_data[:, :, 0:2]
-            eye_data[:, :, 6:8] = eye_data_series.acc_from_vel(eye_data[:, :, 4:6],
-                            filter_win=self.neuron.session.saccade_ind_cushion)
-            # Use bin smoothing on data before fitting
-            bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-            if fit_avg_data:
-                bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
-
-            # Need to get the +/- position data separate AFTER BINNING AND MEAN!
-            select_pursuit = bin_eye_data[:, :, 0] >= knees[0]
-            bin_eye_data[~select_pursuit, 0] = 0.0 # Less than knee dim0 = 0
-            bin_eye_data[select_pursuit, 2] = 0.0 # Less than knee dim2 = 0
-            select_learning = bin_eye_data[:, :, 1] >= knees[1]
-            bin_eye_data[~select_learning, 1] = 0.0 # Less than knee dim1 = 0
-            bin_eye_data[select_learning, 3] = 0.0 # Less than knee dim3 = 0
-
-            bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
-            temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-            select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
-            bin_eye_data = bin_eye_data[select_good, :]
-            temp_FR = temp_FR[select_good]
-            coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
-            y_mean = np.mean(temp_FR)
-            y_predicted = np.matmul(bin_eye_data, coefficients[-1])
-            sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
-            sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
-            R2.append(1 - sum_squares_error/(sum_squares_total))
-
-        if quick_lag_step > 1:
-            # Do fine resolution loop
-            max_ind = np.where(R2 == np.amax(R2))[0]
-            max_ind = max_ind[np.argmin(np.abs(lags[max_ind]))]
-            best_lag = lags[max_ind]
-            # Make new lags centered on this best_lag
-            lag_start = max(lags[0], best_lag - quick_lag_step)
-            lag_stop = min(lags[-1], best_lag + quick_lag_step)
-            lags = np.arange(lag_start, lag_stop + 1, 1)
-            # Reset fit measures
-            R2 = []
-            coefficients = []
-            for lag in lags:
-                eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
-                # Copy over velocity data to make room for positions
-                eye_data[:, :, 4:6] = eye_data[:, :, 2:4]
-                eye_data[:, :, 2:4] = eye_data[:, :, 0:2]
-                eye_data[:, :, 6:8] = eye_data_series.acc_from_vel(eye_data[:, :, 4:6],
-                                filter_win=self.neuron.session.saccade_ind_cushion)
-                # Use bin smoothing on data before fitting
-                bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-                if fit_avg_data:
-                    bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
-
-                # Need to get the +/- position data separate AFTER BINNING AND MEAN!
-                select_pursuit = bin_eye_data[:, :, 0] >= knees[0]
-                bin_eye_data[~select_pursuit, 0] = 0.0 # Less than knee dim0 = 0
-                bin_eye_data[select_pursuit, 2] = 0.0 # Less than knee dim2 = 0
-                select_learning = bin_eye_data[:, :, 1] >= knees[1]
-                bin_eye_data[~select_learning, 1] = 0.0 # Less than knee dim1 = 0
-                bin_eye_data[select_learning, 3] = 0.0 # Less than knee dim3 = 0
-
-
-                bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
-                temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-                select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
-                bin_eye_data = bin_eye_data[select_good, :]
-                temp_FR = temp_FR[select_good]
-                coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
-                y_mean = np.mean(temp_FR)
-                y_predicted = np.matmul(bin_eye_data, coefficients[-1])
-                sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
-                sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
-                R2.append(1 - sum_squares_error/(sum_squares_total))
-
-    # Choose peak R2 value with minimum absolute value lag
-        max_ind = np.where(R2 == np.amax(R2))[0]
-        max_ind = max_ind[np.argmin(np.abs(lags[max_ind]))]
-        dc_offset = coefficients[max_ind][-1] if fit_constant else 0.
-        self.fit_results['pcwise_lin_eye_kinematics'] = {
-                                'eye_lag': lags[max_ind],
-                                'slip_lag': None,
-                                'coeffs': coefficients[max_ind],
-                                'R2': R2[max_ind],
-                                'all_R2': R2,
-                                'use_constant': fit_constant,
-                                'dc_offset': dc_offset,
-                                'predict_fun': self.predict_pcwise_lin_eye_kinematics,
-                                'knees': knees}
-
-
 def get_fr_eye_data(neuron, blocks, trial_sets, bin_width, bin_threshold, time_window, 
                     lag=0, acc_filter_win=31, return_inds=False, fr_offsets_by_trial=None):
     """ Helper function that returns the firing rate and eye data as requested in the format
@@ -217,7 +90,7 @@ def get_fix_by_block_gauss(neuron, blocks, fix_time_window, sigma, cutoff_sigma=
     return all_fr_fix, all_t_inds
 
 
-def comp_block_scaling_factors(primary_blocks, scaled_blocks, neuron, time_window=[-100, 900], 
+def comp_block_scaling_factors(primary_blocks, adj_blocks, neuron, time_window=[-100, 900], 
                                fix_time_window=[-300, 0], lag_range_eye=[-50, 150], 
                                trial_sets=None, bin_width=10, bin_threshold=5, quick_lag_step=10):
     """ Takes a given neuron and performs a linear fit on the primary block.
@@ -229,14 +102,18 @@ def comp_block_scaling_factors(primary_blocks, scaled_blocks, neuron, time_windo
     # Make sure input blocks are lists and primary blocks are not in blocks to be scaled
     if not isinstance(primary_blocks, list):
         primary_blocks = [primary_blocks]
-    if not isinstance(scaled_blocks, list):
-        scaled_blocks = [scaled_blocks]
-    for ind, block in reversed(list(enumerate(scaled_blocks))):
+    if not isinstance(adj_blocks, list):
+        raise ValueError("adj_blocks must be a list of block names")
+    # Make a new list instead of changing the input, ensuring it does not contain primary block
+    scaled_blocks = []
+    for block in adj_blocks:
+        add_block = True
         for pblock in primary_blocks:
             if pblock == block:
-                del scaled_blocks[ind]
+                add_block = False
                 break
-    
+        if add_block:
+            scaled_blocks.append(block)    
     quick_lag_step = int(round(quick_lag_step))
     if quick_lag_step < 1:
         raise ValueError("quick_lag_step must be positive integer")
@@ -296,6 +173,8 @@ def comp_block_scaling_factors(primary_blocks, scaled_blocks, neuron, time_windo
 
     # Now that we have a fit for the primary block, get scaling factors for other blocks
     block_scaling_factors = {}
+    for block_name in primary_blocks:
+        block_scaling_factors[block_name] = (np.array([[1.0]]), 1.0, bias_constant)
     for block_name in scaled_blocks:
         # Get predicted value for these trials given the primary fit (not using constant term here)
         cur_t_inds = neuron.session._parse_blocks_trial_sets(block_name, trial_sets)
