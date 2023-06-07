@@ -238,6 +238,7 @@ def f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, static_weight_LTP, zeta_f_move=None)
 def f_pf_FR_LTP(pf_LTP_funs, PC_FR, PC_FR_weight_LTP, zeta_f_move=None):
     """
     """
+    stuff = 0
     # Add a term with firing rate times weight of constant LTP
     pf_LTP_funs += (PC_FR * PC_FR_weight_LTP)
     if zeta_f_move is not None:
