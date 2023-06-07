@@ -1,5 +1,4 @@
 import numpy as np
-from NeuronAnalysis.general import gauss_convolve
 from NeuronAnalysis.fit_neuron_to_eye import bin_data, quick_fit_piecewise_acc, piece_wise_eye_data
 from SessionAnalysis.utils import eye_data_series
 
@@ -57,39 +56,6 @@ def nan_lstsq(x, y):
     return coefficients, R2
 
 
-def get_fix_by_block_gauss(neuron, blocks, fix_time_window, sigma, cutoff_sigma=4, zscore_sigma=np.inf):
-    """
-    """
-    if not isinstance(blocks, list):
-        blocks = [blocks]
-    all_fr_fix = []
-    all_t_inds = []
-    for b_name in blocks:
-        fr_fix, t_inds = neuron.get_firing_traces(fix_time_window, b_name,
-                                                    None, return_inds=True)
-        fr_fix = np.nanmean(fr_fix, axis=1)
-        # Compute the z-score
-        fr_fix_zscore = (fr_fix - np.nanmean(fr_fix)) / np.nanstd(fr_fix)
-        # Set values over 4 standard deviations from the mean to np.nan
-        fr_fix[np.abs(fr_fix_zscore) > zscore_sigma] = np.nan
-        if sigma*cutoff_sigma >= fr_fix.shape[0]:
-            # Just use block mean if it's shorter than trial win
-            fr_fix[:] = np.nanmean(fr_fix)
-        else:
-            fr_fix = gauss_convolve(fr_fix, sigma, cutoff_sigma, pad_data=True)
-        all_fr_fix.append(fr_fix)
-        all_t_inds.append(t_inds)
-        
-    # Now combine and order everything for output
-    all_fr_fix = np.hstack(all_fr_fix)
-    all_t_inds = np.hstack(all_t_inds)
-    t_order = np.argsort(all_t_inds)
-    all_t_inds = all_t_inds[t_order]
-    all_fr_fix = all_fr_fix[t_order]
-    
-    return all_fr_fix, all_t_inds
-
-
 def comp_block_scaling_factors(primary_blocks, adj_blocks, neuron, time_window=[-100, 900], 
                                fix_time_window=[-300, 0], lag_range_eye=[-50, 150], 
                                trial_sets=None, bin_width=10, bin_threshold=5, quick_lag_step=10):
@@ -125,8 +91,8 @@ def comp_block_scaling_factors(primary_blocks, adj_blocks, neuron, time_window=[
 
     # Get fixation data for all trials and smoothed value for adjusting Offset drift
     all_blocks = primary_blocks + scaled_blocks
-    fr_fix, fr_inds_all = get_fix_by_block_gauss(neuron, all_blocks, fix_time_window, sigma=12.5, 
-                                                 cutoff_sigma=4, zscore_sigma=3.0)
+    fr_fix, fr_inds_all = neuron.get_fix_by_block_gauss(all_blocks, fix_time_window, sigma=12.5, 
+                                                        cutoff_sigma=4, zscore_sigma=3.0)
 
     # Get the fixation offset for the primary trials
     fr_inds_prim = neuron.session._parse_blocks_trial_sets(primary_blocks, trial_sets)

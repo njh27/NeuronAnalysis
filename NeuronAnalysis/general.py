@@ -1,6 +1,6 @@
 import numpy as np
-import warnings
 import operator
+import warnings
 from scipy.optimize import leastsq
 
 

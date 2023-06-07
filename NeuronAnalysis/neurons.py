@@ -205,13 +205,75 @@ class Neuron(object):
             return fr, t
         else:
             return fr
+        
+    def get_fix_by_block_gauss(self, blocks, fix_time_window, sigma=12.5, cutoff_sigma=4, 
+                               zscore_sigma=np.inf):
+        """ Returns the fixation firing rate estimate blockwise for "blocks" using a Gaussian
+        smoothing kernel over the mean rates for trials in "fix_time_window".
+        """
+        if not isinstance(blocks, list):
+            blocks = [blocks]
+        all_fr_fix = []
+        all_t_inds = []
+        for b_name in blocks:
+            fr_fix, t_inds = self.get_firing_traces(fix_time_window, b_name,
+                                                        None, return_inds=True)
+            fr_fix = np.nanmean(fr_fix, axis=1)
+            # Compute the z-score
+            fr_fix_zscore = (fr_fix - np.nanmean(fr_fix)) / np.nanstd(fr_fix)
+            # Set values over zscore_sigma standard deviations from the mean to np.nan
+            fr_fix[np.abs(fr_fix_zscore) > zscore_sigma] = np.nan
+            if sigma*cutoff_sigma >= fr_fix.shape[0]:
+                # Just use block mean if it's shorter than trial win
+                fr_fix[:] = np.nanmean(fr_fix)
+            else:
+                fr_fix = gauss_convolve(fr_fix, sigma, cutoff_sigma, pad_data=True)
+            all_fr_fix.append(fr_fix)
+            all_t_inds.append(t_inds)
+            
+        # Now combine and order everything for output
+        all_fr_fix = np.hstack(all_fr_fix)
+        all_t_inds = np.hstack(all_t_inds)
+        t_order = np.argsort(all_t_inds)
+        all_t_inds = all_t_inds[t_order]
+        all_fr_fix = all_fr_fix[t_order]
+        
+        return all_fr_fix, all_t_inds
+        
+    def get_firing_traces_fix_adj(self, time_window, blocks, trial_sets, fix_time_window=[-300, 0], 
+                                  sigma=12.5, cutoff_sigma=4, zscore_sigma=3.0, rate_offset=None,
+                                  return_inds=False):
+        """ Gets requested firing rate traces then adjusts them using the fixation firing rate
+        computed in "fix_time_window" using "self.get_fix_by_block_gauss". Done by subtracting
+        the estimate for each trial and adding back the mean rate offset if no offset is given.
+        """
+        fr, fr_inds = self.get_firing_traces(time_window, blocks, trial_sets, return_inds=True)
+        fr_fix, fr_inds_all = self.get_fix_by_block_gauss(blocks, fix_time_window, sigma=sigma,
+                                                          cutoff_sigma=cutoff_sigma, 
+                                                          zscore_sigma=zscore_sigma)
+        # Match the fixation rate trial indices with the firing rate trace indices
+        # and perform the subtraction adjustment
+        _, _, fix_adj_inds = np.intersect1d(fr_inds, fr_inds_all, return_indices=True)
+        matched_trials = fr_inds_all[fix_adj_inds]
+        if not np.all(matched_trials == fr_inds):
+            raise ValueError("Trials to adjust did not align")
+        matched_rates = fr_fix[matched_trials]
+        rate_offset = np.nanmean(matched_rates) if rate_offset is None else rate_offset
+        matched_rates -= rate_offset
+        fr -= matched_rates[:, None]
+
+        if return_inds:
+            return fr, fr_inds
+        else:
+            return fr
 
     def get_firing_traces_block_adj(self, time_window, blocks, trial_sets, primary_block, 
                                    fix_time_window=[-300, 0], bin_width=10, bin_threshold=5, 
                                    lag_range_eye=[-50, 150], quick_lag_step=10, return_inds=False):
         """ Gets all the firing rate traces for blocks and trial sets, and then linearly
         scales them to match the best linear fit found during the "primary_block" using
-        neuron_tuning.comp_block_scaling_factors.
+        neuron_tuning.comp_block_scaling_factors. This is done after subtracts the 
+        fixation rate.
         """
         if not isinstance(blocks, list):
             blocks = [blocks]
