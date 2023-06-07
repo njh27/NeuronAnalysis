@@ -257,7 +257,7 @@ class Neuron(object):
         matched_trials = fr_inds_all[fix_adj_inds]
         if not np.all(matched_trials == fr_inds):
             raise ValueError("Trials to adjust did not align")
-        matched_rates = fr_fix[matched_trials]
+        matched_rates = fr_fix[fix_adj_inds]
         rate_offset = np.nanmean(matched_rates) if rate_offset is None else rate_offset
         matched_rates -= rate_offset
         fr -= matched_rates[:, None]
@@ -291,9 +291,9 @@ class Neuron(object):
         # Now that we have the fix rate adjustment for each trial in fit firing rate traces
         # loop through and adjust them
         matched_trials = fr_inds_all[fix_scale_inds]
-        matched_fr_fix = fr_fix[fix_scale_inds]
         if not np.all(matched_trials == fr_inds):
             raise ValueError("Trials to adjust did not align")
+        matched_fr_fix = fr_fix[fix_scale_inds]
         for i_ind, t_ind in enumerate(fr_inds):
             fr[i_ind, :] -= matched_fr_fix[i_ind]
             for b_name in blocks:

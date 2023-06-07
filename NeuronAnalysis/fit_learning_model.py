@@ -135,14 +135,21 @@ def get_plasticity_data_trial_win(NN_FIT, blocks, trial_sets, time_window,
         return eye_data
 
 
-def get_firing_eye_by_trial(NN_FIT, time_window, blocks, trial_sets, return_inds=False):
+def get_firing_eye_by_trial(NN_FIT, time_window, blocks, trial_sets, return_inds=False,
+                            fix_rate_adjusted=False):
     """ Get all the firing rate and eye data for the neuron fit in the NN_fit
     obejct Returned as a 3D array of trials x time x data_dim.
     """
-    #Get the trial indices and use those to get behavior since neural data
+    # Get the trial indices and use those to get behavior since neural data
     # can be fewer trials.
-    firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(time_window,
-                                        blocks, trial_sets, return_inds=True)
+    if fix_rate_adjusted:
+        firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces_fix_adj(time_window,
+                                        blocks, trial_sets, fix_time_window=[-300, 0], 
+                                        sigma=12.5, cutoff_sigma=4, zscore_sigma=3.0, 
+                                        rate_offset=None, return_inds=True)
+    else:
+        firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(time_window,
+                                            blocks, trial_sets, return_inds=True)
     CS_bin_evts = NN_FIT.neuron.get_CS_dataseries_by_trial(time_window,
                                 blocks, all_t_inds, nan_sacc=False)
 
@@ -413,6 +420,7 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
     W_pf[(W_pf > param_kwargs['W_max_pf'])] = param_kwargs['W_max_pf']
     W_pf[(W_pf < func_kwargs['W_min_pf'])] = func_kwargs['W_min_pf']
     W_mli[(W_mli < func_kwargs['W_min_mli'])] = func_kwargs['W_min_mli']
+    int_rate_offset = int_rate + param_kwargs['int_rate_offset']
 
     residuals = 0.0
     for trial in range(0, input_state.shape[0]):
@@ -424,7 +432,7 @@ def run_learning_model(weights_0, input_state, FR, CS, move_magn, int_rate,
         # Expected rate this trial given updated weights. Updated in-place to
         # preallocated array y_hat_trial
         np.dot(state_trial, W_full, out=arr_kwargs['y_hat_trial'])
-        arr_kwargs['y_hat_trial'] += int_rate # Add the bias term
+        arr_kwargs['y_hat_trial'] += int_rate_offset # Add the bias term
         if func_kwargs['activation_out'] == "relu":
             # Set maximum IN PLACE
             np.maximum(0., arr_kwargs['y_hat_trial'], out=arr_kwargs['y_hat_trial'])
@@ -525,6 +533,7 @@ def obj_fun(params, state_input, FR, *args):
                     "move_LTP_scale": 0.0,
                     "pf_scale": 1.0,
                     "mli_scale": 1.0,
+                    "int_rate_offset": 0.0,
                     }
     # Build dictionary of params being fit to pass to learning function
     # according to the initialization dictionary param_conds
@@ -545,7 +554,7 @@ def obj_fun(params, state_input, FR, *args):
 
     residuals = run_learning_model(weights_0, state_input, FR, binned_CS,
                                     move_magn, int_rate,
-                                    param_kwargs, func_kwargs, arr_kwargs={},
+                                    param_kwargs, func_kwargs, arr_kwargs=arr_kwargs,
                                     return_residuals=True, return_y_hat=False,
                                     return_weights=False)
     if func_kwargs['L2_reg']:
@@ -598,6 +607,7 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
                    "move_LTP_scale": (0.001, 0.0, 0.1),
                    "pf_scale": (1.0, 0.6, 1.4),
                    "mli_scale": (1.0, 0.6, 1.4),
+                   "int_rate_offset": (0.0, -50.0, 50.0),
             }
     if log_trans:
         # Log transform the strictly positive variables
@@ -626,7 +636,8 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
 
 def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                         bin_width=10, bin_threshold=5, CS_LTD_win=[-25, 0],
-                        CS_LTP_win=[100, 200], L2_reg=False, log_trans=False):
+                        CS_LTP_win=[100, 200], fix_rate_adjusted=True, 
+                        L2_reg=False, log_trans=False):
     """ Need the trials from blocks and trial_sets to be ORDERED! Weights will
     be updated from one trial to the next as if they are ordered and will
     not check if the numbers are correct because it could fail for various
@@ -637,7 +648,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
 
     # Get firing rate and eye data for trials to be fit
     firing_rate, eye_data, CS_bin_evts = get_firing_eye_by_trial(NN_FIT,
-                                            learn_fit_window, blocks, trial_sets)
+                                        learn_fit_window, blocks, trial_sets,
+                                        fix_rate_adjusted=fix_rate_adjusted)
     # Now we need to bin the data over time
     binned_FR = bin_data(firing_rate, bin_width, bin_threshold).squeeze()
     bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
@@ -710,12 +722,12 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     # for the minimization step because it has its own mechanism.
     # We now define the bounds as a list of (min, max) pairs for each element in x
     bounds = [(lb, ub) for lb, ub in zip(lower_bounds, upper_bounds)]
-
+    print("USING A POPSIZE OF ONLY 2!!!!!!!!!")
     # differential_evolution function takes the objective function and the bounds as main arguments.
     result = differential_evolution(func=obj_fun,
                                     bounds=bounds,
                                     args=(state_input, binned_FR, *lf_args),
-                                    workers=-1, updating='deferred', popsize=20,
+                                    workers=-1, updating='deferred', popsize=2,
                                     disp=True) # Display status messages
 
     # Dictionary of all possible parameters for learning model set to dummy
@@ -730,6 +742,7 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                     "move_LTP_scale": 0.0,
                     "pf_scale": 1.0,
                     "mli_scale": 1.0,
+                    "int_rate_offset": 0.0,
                     }
     # Initialize dummies in output
     for key in learning_args.keys():
@@ -790,6 +803,7 @@ def pred_run_learn_model(NN_FIT, state_input, FR, *args):
                     "move_LTP_scale": 0.0,
                     "pf_scale": 1.0,
                     "mli_scale": 1.0,
+                    "int_rate_offset": 0.0,
                     }
 
     # Overwrite default param args with the fitted result ones
@@ -807,7 +821,7 @@ def pred_run_learn_model(NN_FIT, state_input, FR, *args):
 
     weights = run_learning_model(weights_0, state_input, FR, binned_CS,
                                     move_magn, int_rate,
-                                    param_kwargs, func_kwargs, arr_kwargs={},
+                                    param_kwargs, func_kwargs, arr_kwargs=arr_kwargs,
                                     return_residuals=False, return_y_hat=False,
                                     return_weights=True)
     return weights
