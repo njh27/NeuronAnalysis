@@ -49,9 +49,9 @@ def comp_learning_response(NN_FIT, X_trial, W_trial, return_comp=False):
 
 
 def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_trial,
-                                        weights_t_inds,
-                                        return_comp=False, test_data_only=False,
-                                        verbose=False, return_inds=False):
+                                        weights_t_inds, return_comp=False, 
+                                        test_data_only=False, verbose=False, 
+                                        return_inds=False):
     """ Given the input array of weights in weights_by_trial which is an n trials
     by d input dimensions array of the weights for the NN_FIT model, this
     computes the expected firing rate at each trial requested in blocks and
@@ -137,17 +137,18 @@ def get_plasticity_data_trial_win(NN_FIT, blocks, trial_sets, time_window,
 
 
 def get_firing_eye_by_trial(NN_FIT, time_window, blocks, trial_sets, return_inds=False,
-                            fix_rate_adjusted=False):
+                            fix_rate_adjusted=True):
     """ Get all the firing rate and eye data for the neuron fit in the NN_fit
     obejct Returned as a 3D array of trials x time x data_dim.
     """
     # Get the trial indices and use those to get behavior since neural data
     # can be fewer trials.
     if fix_rate_adjusted:
+        rate_offset = None # NN_FIT.fit_results['gauss_basis_kinematics']['bias']
         firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces_fix_adj(time_window,
                                         blocks, trial_sets, fix_time_window=[-300, 0], 
                                         sigma=12.5, cutoff_sigma=4, zscore_sigma=3.0, 
-                                        rate_offset=None, return_inds=True)
+                                        rate_offset=rate_offset, return_inds=True)
     else:
         firing_rate, all_t_inds = NN_FIT.neuron.get_firing_traces(time_window,
                                             blocks, trial_sets, return_inds=True)
@@ -693,7 +694,8 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
                         'W_min_mli': 0.0,
                         'activation_out': NN_FIT.activation_out,
                         'L2_reg': L2_reg,
-                        'reg_strength': .1
+                        'reg_strength': .1,
+                        'fix_rate_adjusted': fix_rate_adjusted
                         })
 
     # Finally append CS to inputs and get other args needed for learning function
@@ -723,12 +725,12 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     # for the minimization step because it has its own mechanism.
     # We now define the bounds as a list of (min, max) pairs for each element in x
     bounds = [(lb, ub) for lb, ub in zip(lower_bounds, upper_bounds)]
-    print("USING A POPSIZE OF ONLY 15!!!!!!!!!")
+    print("USING A POPSIZE OF ONLY 12!!!!!!!!!")
     # differential_evolution function takes the objective function and the bounds as main arguments.
     result = differential_evolution(func=obj_fun,
                                     bounds=bounds,
                                     args=(state_input, binned_FR, *lf_args),
-                                    workers=-1, updating='deferred', popsize=15,
+                                    workers=-1, updating='deferred', popsize=12,
                                     disp=True) # Display status messages
 
     # Dictionary of all possible parameters for learning model set to dummy
@@ -829,15 +831,17 @@ def pred_run_learn_model(NN_FIT, state_input, FR, *args):
 
 def get_learned_weights(NN_FIT, blocks, trial_sets,
                         bin_width=10, bin_threshold=5, CS_LTD_win=[-25, 0],
-                        CS_LTP_win=[100, 200], log_trans=False):
+                        CS_LTP_win=[100, 200]):
     """ Need the trials from blocks and trial_sets to be ORDERED! """
     """ Get all the binned firing rate data. Get the trial indices and use those
     to get behavior since neural data can be fewer trials. """
     # Get firing rate and eye data for trials to be fit
+    fix_rate_adjusted = NN_FIT.fit_results['gauss_basis_kinematics']['fix_rate_adjusted']
     firing_rate, eye_data, CS_bin_evts, all_t_inds = get_firing_eye_by_trial(NN_FIT,
                                                         NN_FIT.learn_rates_time_window,
                                                         blocks, trial_sets,
-                                                        return_inds=True)
+                                                        return_inds=True,
+                                                        fix_rate_adjusted=fix_rate_adjusted)
     # Now we need to bin the data over time
     binned_FR = bin_data(firing_rate, bin_width, bin_threshold).squeeze()
     bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
@@ -873,7 +877,8 @@ def get_learned_weights(NN_FIT, blocks, trial_sets,
     # Doing this is a bit repetitive and not totally necessary but I want to
     # keep these functions matched as much as possible
     init_params = init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
-                                        W_0_pf, W_0_mli, log_trans=log_trans)
+                                        W_0_pf, W_0_mli, 
+                                        log_trans=NN_FIT.fit_results['gauss_basis_kinematics']['log_transform'])
     func_kwargs, param_conds, p0, lower_bounds, upper_bounds = init_params
     # Add extra needed args to pass in func_kwargs
     func_kwargs.update({'n_gaussians': len(gaussian_units),
