@@ -900,7 +900,8 @@ def get_learned_weights(NN_FIT, blocks, trial_sets,
     weights = pred_run_learn_model(NN_FIT, state_input, binned_FR, *lf_args)
     return weights, all_t_inds
 
-def fit_basic_NNModel(NN_FIT, intrinsic_rate0, bin_width, bin_threshold, activation_out="relu"):
+def fit_basic_NNModel(NN_FIT, intrinsic_rate0, bin_width, bin_threshold, 
+                      activation_out="relu", adjust_block_data=None):
     """ Basically a helper function for get_intrisic_rate_and_CSwin that sets
     up some simple hard coded gaussian input units. The fit info is saved to 
     the input NN_FIT object."""
@@ -937,7 +938,8 @@ def fit_basic_NNModel(NN_FIT, intrinsic_rate0, bin_width, bin_threshold, activat
                                         train_split=train_split,
                                         learning_rate=0.001,
                                         epochs=200,
-                                        batch_size=1200)
+                                        batch_size=1200,
+                                        adjust_block_data=adjust_block_data)
     
     return
 
