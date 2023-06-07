@@ -1,7 +1,6 @@
 import numpy as np
-from scipy.optimize import least_squares, basinhopping, differential_evolution
-from NeuronAnalysis.fit_NN_model import bin_data, FitNNModel
-from NeuronAnalysis.general import box_windows
+from scipy.optimize import least_squares, differential_evolution
+from NeuronAnalysis.general import bin_data, box_windows
 from NeuronAnalysis.activation_functions import proj_eye_input_to_PC_gauss_relu, proj_gen_linspace_gaussians
 
 
@@ -21,6 +20,8 @@ def comp_learning_response(NN_FIT, X_trial, W_trial, return_comp=False):
     gaussian_units, _, _, weights_0, b = NN_FIT.get_model()
     n_gaussians = len(gaussian_units)
     W = np.copy(weights_0)
+    # Intrinsic rate offset needs to be adjusted by fit value
+    int_rate_adj = b + NN_FIT.fit_results['gauss_basis_kinematics']['int_rate_offset']
 
     y_hat = np.zeros((X_trial.shape[0], X_trial.shape[1]))
     pf_in = np.zeros((X_trial.shape[0], X_trial.shape[1]))
@@ -33,9 +34,9 @@ def comp_learning_response(NN_FIT, X_trial, W_trial, return_comp=False):
                                         gaussian_units, X_input)
         # Each trial update the weights for W
         W[:] = W_trial[t_ind, :]
-        y_hat[t_ind, :] = (np.dot(X_input, W) + b).squeeze()
-        pf_in[t_ind, :] = (np.dot(X_input[:, 0:n_gaussians], W[0:n_gaussians]) + b).squeeze()
-        mli_in[t_ind, :] = (np.dot(X_input[:, n_gaussians:], W[n_gaussians:]) + b).squeeze()
+        y_hat[t_ind, :] = (np.dot(X_input, W) + int_rate_adj).squeeze()
+        pf_in[t_ind, :] = (np.dot(X_input[:, 0:n_gaussians], W[0:n_gaussians]) + int_rate_adj).squeeze()
+        mli_in[t_ind, :] = (np.dot(X_input[:, n_gaussians:], W[n_gaussians:]) + int_rate_adj).squeeze()
         if NN_FIT.activation_out == "relu":
             y_hat[t_ind, :] = np.maximum(0., y_hat[t_ind, :])
             pf_in[t_ind, :] = np.maximum(0., pf_in[t_ind, :])
@@ -68,7 +69,7 @@ def predict_learning_response_by_trial(NN_FIT, blocks, trial_sets, weights_by_tr
     # trials are a subset of the trials on which the weights have been calculated
     if not np.all(sel_t_inds == weights_t_inds[inds_weights]):
         raise ValueError("Requested trials in blocks and trial sets are not a subset of the trial weights input in weights_t_inds.")
-    # Trim the weights and eye data to include only the trials were weights are available
+    # Trim the weights and eye data to include only the trials where weights are available
     W_trial = weights_by_trial[inds_weights, :]
     X = X[inds_t_inds, :]
     # Then pass data into 'comp_learning_response' and return as requested
@@ -238,7 +239,6 @@ def f_pf_static_LTP(pf_LTP_funs, pf_CS_LTD, static_weight_LTP, zeta_f_move=None)
 def f_pf_FR_LTP(pf_LTP_funs, PC_FR, PC_FR_weight_LTP, zeta_f_move=None):
     """
     """
-    stuff = 0
     # Add a term with firing rate times weight of constant LTP
     pf_LTP_funs += (PC_FR * PC_FR_weight_LTP)
     if zeta_f_move is not None:
@@ -723,12 +723,12 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     # for the minimization step because it has its own mechanism.
     # We now define the bounds as a list of (min, max) pairs for each element in x
     bounds = [(lb, ub) for lb, ub in zip(lower_bounds, upper_bounds)]
-    print("USING A POPSIZE OF ONLY 2!!!!!!!!!")
+    print("USING A POPSIZE OF ONLY 15!!!!!!!!!")
     # differential_evolution function takes the objective function and the bounds as main arguments.
     result = differential_evolution(func=obj_fun,
                                     bounds=bounds,
                                     args=(state_input, binned_FR, *lf_args),
-                                    workers=-1, updating='deferred', popsize=2,
+                                    workers=-1, updating='deferred', popsize=15,
                                     disp=True) # Display status messages
 
     # Dictionary of all possible parameters for learning model set to dummy
