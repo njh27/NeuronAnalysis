@@ -725,12 +725,11 @@ def fit_learning_rates(NN_FIT, blocks, trial_sets, learn_fit_window=None,
     # for the minimization step because it has its own mechanism.
     # We now define the bounds as a list of (min, max) pairs for each element in x
     bounds = [(lb, ub) for lb, ub in zip(lower_bounds, upper_bounds)]
-    print("USING A POPSIZE OF ONLY 12!!!!!!!!!")
     # differential_evolution function takes the objective function and the bounds as main arguments.
     result = differential_evolution(func=obj_fun,
                                     bounds=bounds,
                                     args=(state_input, binned_FR, *lf_args),
-                                    workers=-1, updating='deferred', popsize=12,
+                                    workers=-1, updating='deferred', popsize=15,
                                     disp=True) # Display status messages
 
     # Dictionary of all possible parameters for learning model set to dummy

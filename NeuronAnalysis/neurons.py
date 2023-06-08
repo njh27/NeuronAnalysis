@@ -218,6 +218,9 @@ class Neuron(object):
         for b_name in blocks:
             fr_fix, t_inds = self.get_firing_traces(fix_time_window, b_name,
                                                         None, return_inds=True)
+            if len(fr_fix) == 0:
+                # No data for this block
+                continue
             fr_fix = np.nanmean(fr_fix, axis=1)
             # Compute the z-score
             fr_fix_zscore = (fr_fix - np.nanmean(fr_fix)) / np.nanstd(fr_fix)
@@ -230,7 +233,9 @@ class Neuron(object):
                 fr_fix = gauss_convolve(fr_fix, sigma, cutoff_sigma, pad_data=True)
             all_fr_fix.append(fr_fix)
             all_t_inds.append(t_inds)
-            
+        if len(all_fr_fix) == 0:
+            # No data found so return empty arrays
+            return np.array([]), np.array([])
         # Now combine and order everything for output
         all_fr_fix = np.hstack(all_fr_fix)
         all_t_inds = np.hstack(all_t_inds)
