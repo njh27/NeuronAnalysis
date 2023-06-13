@@ -347,7 +347,11 @@ class Neuron(object):
         rate within 'time_window'. """
         theta, rho = self.compute_tuning_by_condition(time_window,
                                                         block=block)
-        amp, phase, offset = fit_cos_fixed_freq(theta, rho)
+        if theta.size > 0:
+            # We found spike data to fit
+            amp, phase, offset = fit_cos_fixed_freq(theta, rho)
+        else:
+            amp, phase, offset = 0, 0, 0
         self.optimal_cos_funs[block] = lambda x: (amp * (np.cos(x + phase)) + offset)
         self.optimal_cos_vectors[block] = -1 * phase
         self.optimal_cos_time_window[block] = time_window
@@ -673,7 +677,11 @@ class PurkinjeCell(Neuron):
         # Modified functions for getting CS vectors
         theta, rho = self.compute_cs_tuning_by_condition(cs_time_window,
                                                         block=block)
-        amp, phase, offset = fit_cos_fixed_freq(theta, rho)
+        if theta.size > 0:
+            # We found CS data to fit
+            amp, phase, offset = fit_cos_fixed_freq(theta, rho)
+        else:
+            amp, phase, offset = 0, 0, 0
         self.optimal_cos_funs_cs[block] = lambda x: (amp * (np.cos(x + phase)) + offset)
         self.optimal_cos_vectors_cs[block] = -1 * phase
         self.optimal_cos_time_window_cs[block] = cs_time_window
