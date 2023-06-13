@@ -291,24 +291,24 @@ def postsynaptic_decay_FR(spike_train, tau_rise=1., tau_decay=2.5,
 
     # Build kernel over 'xvals'
     raise RuntimeError("Update this function and handle padding and nan like in 'gauss_convole'")
-    xvals = np.arange(0, len(spike_train))
-    kernel = np.exp(- 1 * xvals / tau_decay) - np.exp(- 1 * xvals / tau_rise)
-    if np.any(kernel < 0.0):
-        raise ValueError("Kernel is negative. I think tau_rise must be smaller than decay?")
-    # Normalize the kernel peak to kernel_max
-    kernel = kernel_max * kernel / np.amax(kernel)
+    # xvals = np.arange(0, len(spike_train))
+    # kernel = np.exp(- 1 * xvals / tau_decay) - np.exp(- 1 * xvals / tau_rise)
+    # if np.any(kernel < 0.0):
+    #     raise ValueError("Kernel is negative. I think tau_rise must be smaller than decay?")
+    # # Normalize the kernel peak to kernel_max
+    # kernel = kernel_max * kernel / np.amax(kernel)
 
-    # Pad the input data with zeros
-    pad_size = len(kernel) - 1
-    if reverse:
-        kernel = kernel[-1::-1]
-        padded_x = np.pad(spike_train, (0, pad_size), mode='constant')
-    else:
-        padded_x = np.pad(spike_train, (pad_size, 0), mode='constant')
+    # # Pad the input data with zeros
+    # pad_size = len(kernel) - 1
+    # if reverse:
+    #     kernel = kernel[-1::-1]
+    #     padded_x = np.pad(spike_train, (0, pad_size), mode='constant')
+    # else:
+    #     padded_x = np.pad(spike_train, (pad_size, 0), mode='constant')
 
-    psp_decay_FR = np.convolve(padded_x, kernel, mode='valid') + min_val
+    # psp_decay_FR = np.convolve(padded_x, kernel, mode='valid') + min_val
 
-    return psp_decay_FR
+    # return psp_decay_FR
 
 
 def gaussian(x, mu, sigma):

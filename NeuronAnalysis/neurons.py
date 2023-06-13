@@ -206,8 +206,8 @@ class Neuron(object):
         else:
             return fr
         
-    def get_fix_by_block_gauss(self, blocks, fix_time_window, sigma=12.5, cutoff_sigma=4, 
-                               zscore_sigma=np.inf):
+    def get_smooth_fr_by_block_gauss(self, blocks, fix_time_window, sigma=12.5, cutoff_sigma=4, 
+                                        zscore_sigma=np.inf):
         """ Returns the fixation firing rate estimate blockwise for "blocks" using a Gaussian
         smoothing kernel over the mean rates for trials in "fix_time_window".
         """
@@ -215,6 +215,7 @@ class Neuron(object):
             blocks = [blocks]
         all_fr_fix = []
         all_t_inds = []
+
         for b_name in blocks:
             fr_fix, t_inds = self.get_firing_traces(fix_time_window, b_name,
                                                         None, return_inds=True)
@@ -249,11 +250,11 @@ class Neuron(object):
                                   sigma=12.5, cutoff_sigma=4, zscore_sigma=3.0, rate_offset=None,
                                   return_inds=False):
         """ Gets requested firing rate traces then adjusts them using the fixation firing rate
-        computed in "fix_time_window" using "self.get_fix_by_block_gauss". Done by subtracting
+        computed in "fix_time_window" using "self.get_smooth_fr_by_block_gauss". Done by subtracting
         the estimate for each trial and adding back the mean rate offset if no offset is given.
         """
         fr, fr_inds = self.get_firing_traces(time_window, blocks, trial_sets, return_inds=True)
-        fr_fix, fr_inds_all = self.get_fix_by_block_gauss(blocks, fix_time_window, sigma=sigma,
+        fr_fix, fr_inds_all = self.get_smooth_fr_by_block_gauss(blocks, fix_time_window, sigma=sigma,
                                                           cutoff_sigma=cutoff_sigma, 
                                                           zscore_sigma=zscore_sigma)
         # Match the fixation rate trial indices with the firing rate trace indices
