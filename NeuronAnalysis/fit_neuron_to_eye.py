@@ -247,7 +247,7 @@ class FitNeuronToEye(object):
         for lag in lags:
             eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
             eye_data[:, :, 4:6] = eye_data_series.acc_from_vel(eye_data[:, :, 2:4],
-                            filter_win=self.neuron.session.saccade_ind_cushion)
+                            filter_win=self.neuron.session.saccade_ind_cushion, axis=1)
             # Use bin smoothing on data before fitting
             bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
             if fit_avg_data:
@@ -256,9 +256,22 @@ class FitNeuronToEye(object):
             bin_eye_data = piece_wise_eye_data(bin_eye_data, add_constant=fit_constant)
 
             temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-            select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+            select_good = ~np.any(np.isnan(bin_eye_data), axis=1) & ~np.any(np.isnan(temp_FR))
             bin_eye_data = bin_eye_data[select_good, :]
             temp_FR = temp_FR[select_good]
+            if temp_FR.shape[0] == 0:
+                print("No data available, cannot fit, setting coefficients to zeros.")
+                coeff_size = 13 if fit_constant else 12
+                self.fit_results['pcwise_lin_eye_kinematics'] = {
+                                                'eye_lag': lag,
+                                                'slip_lag': None,
+                                                'coeffs': np.zeros((coeff_size)),
+                                                'R2': 0.,
+                                                'all_R2': [0],
+                                                'use_constant': fit_constant,
+                                                'dc_offset': 0.,
+                                                'predict_fun': self.predict_pcwise_lin_eye_kinematics}
+                return
             coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
             y_mean = np.mean(temp_FR)
             y_predicted = np.matmul(bin_eye_data, coefficients[-1])
@@ -281,7 +294,7 @@ class FitNeuronToEye(object):
             for lag in lags:
                 eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
                 eye_data[:, :, 4:6] = eye_data_series.acc_from_vel(eye_data[:, :, 2:4],
-                            filter_win=self.neuron.session.saccade_ind_cushion)
+                            filter_win=self.neuron.session.saccade_ind_cushion, axis=1)
                 # Use bin smoothing on data before fitting
                 bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
                 if fit_avg_data:
@@ -291,7 +304,7 @@ class FitNeuronToEye(object):
                 bin_eye_data = piece_wise_eye_data(bin_eye_data, add_constant=fit_constant)
                 
                 temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-                select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+                select_good = ~np.any(np.isnan(bin_eye_data), axis=1) & ~np.any(np.isnan(temp_FR))
                 bin_eye_data = bin_eye_data[select_good, :]
                 temp_FR = temp_FR[select_good]
                 coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
@@ -400,7 +413,7 @@ class FitNeuronToEye(object):
                 bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
             bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
             temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-            select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+            select_good = ~np.any(np.isnan(bin_eye_data), axis=1) & ~np.any(np.isnan(temp_FR))
             bin_eye_data = bin_eye_data[select_good, :]
             temp_FR = temp_FR[select_good]
             coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
@@ -435,7 +448,7 @@ class FitNeuronToEye(object):
                     bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
                 bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
                 temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-                select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+                select_good = ~np.any(np.isnan(bin_eye_data), axis=1) & ~np.any(np.isnan(temp_FR))
                 bin_eye_data = bin_eye_data[select_good, :]
                 temp_FR = temp_FR[select_good]
                 coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
@@ -577,7 +590,7 @@ class FitNeuronToEye(object):
 
                 bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
                 temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-                select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+                select_good = ~np.any(np.isnan(bin_eye_data), axis=1) & ~np.any(np.isnan(temp_FR))
                 bin_eye_data = bin_eye_data[select_good, :]
                 temp_FR = temp_FR[select_good]
 
@@ -646,7 +659,7 @@ class FitNeuronToEye(object):
 
                     bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
                     temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-                    select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+                    select_good = ~np.any(np.isnan(bin_eye_data), axis=1) & ~np.any(np.isnan(temp_FR))
                     bin_eye_data = bin_eye_data[select_good, :]
                     temp_FR = temp_FR[select_good]
 
@@ -827,7 +840,7 @@ class FitNeuronToEye(object):
                 bin_eye_data[:, :, 6:8] *= bin_eye_data[:, :, 2:4]
                 bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
                 temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-                select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+                select_good = ~np.any(np.isnan(bin_eye_data), axis=1) & ~np.any(np.isnan(temp_FR))
                 bin_eye_data = bin_eye_data[select_good, :]
                 temp_FR = temp_FR[select_good]
 
@@ -873,7 +886,7 @@ class FitNeuronToEye(object):
                     bin_eye_data[:, :, 6:8] *= bin_eye_data[:, :, 2:4]
                     bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
                     temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-                    select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+                    select_good = ~np.any(np.isnan(bin_eye_data), axis=1) & ~np.any(np.isnan(temp_FR))
                     bin_eye_data = bin_eye_data[select_good, :]
                     temp_FR = temp_FR[select_good]
 
@@ -1004,7 +1017,7 @@ class FitNeuronToEye(object):
                 bin_eye_data[:, :, 8:10] *= bin_eye_data[:, :, 2:4]
                 bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
                 temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-                select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+                select_good = ~np.any(np.isnan(bin_eye_data), axis=1) & ~np.any(np.isnan(temp_FR))
                 bin_eye_data = bin_eye_data[select_good, :]
                 temp_FR = temp_FR[select_good]
                 coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
@@ -1053,7 +1066,7 @@ class FitNeuronToEye(object):
                     bin_eye_data[:, :, 8:10] *= bin_eye_data[:, :, 2:4]
                     bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
                     temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-                    select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+                    select_good = ~np.any(np.isnan(bin_eye_data), axis=1) & ~np.any(np.isnan(temp_FR))
                     bin_eye_data = bin_eye_data[select_good, :]
                     temp_FR = temp_FR[select_good]
                     coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
@@ -1180,7 +1193,7 @@ class FitNeuronToEye(object):
                 bin_eye_data[:, :, 6:8] *= bin_eye_data[:, :, 2:4]
                 bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
                 temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-                select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+                select_good = ~np.any(np.isnan(bin_eye_data), axis=1) & ~np.any(np.isnan(temp_FR))
                 bin_eye_data = bin_eye_data[select_good, :]
                 temp_FR = temp_FR[select_good]
 
@@ -1226,7 +1239,7 @@ class FitNeuronToEye(object):
                     bin_eye_data[:, :, 6:8] *= bin_eye_data[:, :, 2:4]
                     bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
                     temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
-                    select_good = ~np.any(np.isnan(bin_eye_data), axis=1)
+                    select_good = ~np.any(np.isnan(bin_eye_data), axis=1) & ~np.any(np.isnan(temp_FR))
                     bin_eye_data = bin_eye_data[select_good, :]
                     temp_FR = temp_FR[select_good]
 
