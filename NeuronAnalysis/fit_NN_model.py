@@ -5,7 +5,6 @@ from tensorflow.keras.optimizers import SGD
 from NeuronAnalysis.fit_neuron_to_eye import FitNeuronToEye
 from NeuronAnalysis.general import bin_data
 import NeuronAnalysis.activation_functions as af
-from NeuronAnalysis.neuron_tuning import comp_block_scaling_factors
 
 
 
@@ -49,7 +48,7 @@ class FitNNModel(object):
                                     quick_lag_step=10, return_inds=True):
         """ Gets all the firing rate traces for all blocks being fit and then linearly
         scales them to match the best linear fit found during the "primary_block" using
-        neurons.comp_block_scaling_factors.
+        neuron.get_firing_traces_block_adj.
         """
         fr, fr_inds = self.neuron.get_firing_traces_block_adj(self.time_window, self.blocks, 
                                     self.trial_sets, primary_block, fix_time_window=fix_time_window, 
