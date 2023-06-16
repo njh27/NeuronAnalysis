@@ -248,15 +248,25 @@ class Neuron(object):
         
     def get_firing_traces_fix_adj(self, time_window, blocks, trial_sets, fix_time_window=[-300, 0], 
                                   sigma=12.5, cutoff_sigma=4, zscore_sigma=3.0, rate_offset=None,
-                                  return_inds=False):
+                                  use_smooth_fix=True, return_inds=False):
         """ Gets requested firing rate traces then adjusts them using the fixation firing rate
         computed in "fix_time_window" using "self.get_smooth_fr_by_block_gauss". Done by subtracting
         the estimate for each trial and adding back the mean rate offset if no offset is given.
         """
         fr, fr_inds = self.get_firing_traces(time_window, blocks, trial_sets, return_inds=True)
-        fr_fix, fr_inds_all = self.get_smooth_fr_by_block_gauss(blocks, fix_time_window, sigma=sigma,
-                                                          cutoff_sigma=cutoff_sigma, 
-                                                          zscore_sigma=zscore_sigma)
+        if fr.size == 0:
+            # No trials found
+            if return_inds:
+                return fr, fr_inds
+            else:
+                return fr
+        if use_smooth_fix:
+            fr_fix, fr_inds_all = self.get_smooth_fr_by_block_gauss(blocks, fix_time_window, sigma=sigma,
+                                                            cutoff_sigma=cutoff_sigma, 
+                                                            zscore_sigma=zscore_sigma)
+        else:
+            fr_fix, fr_inds_all = self.get_firing_traces(fix_time_window, blocks, fr_inds, return_inds=True)
+            fr_fix = np.nanmean(fr_fix, axis=1)
         # Match the fixation rate trial indices with the firing rate trace indices
         # and perform the subtraction adjustment
         _, _, fix_adj_inds = np.intersect1d(fr_inds, fr_inds_all, return_indices=True)

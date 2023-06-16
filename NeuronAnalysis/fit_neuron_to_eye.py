@@ -197,6 +197,22 @@ class FitNeuronToEye(object):
         ind_stop = ind_start + self.fit_dur_slip
         return slip_data[:, ind_start:ind_stop, :]
 
+    def no_data_to_fit(self, fit_name, n_coeffs, fit_constant, pred_fun):
+        """ Set fit values to zero if there is no data found to fit
+        """
+        print(f"No data available in blocks {self.blocks} and trial sets {self.trial_sets} for current neuron. Cannot fit, setting coefficients to zeros.")
+        n_coeffs = n_coeffs + 1 if fit_constant else n_coeffs
+        self.fit_results[fit_name] = {
+                                        'eye_lag': 0,
+                                        'slip_lag': None,
+                                        'coeffs': np.zeros((n_coeffs)),
+                                        'R2': 0.,
+                                        'all_R2': [0],
+                                        'use_constant': fit_constant,
+                                        'dc_offset': 0.,
+                                        'predict_fun': pred_fun}
+        return
+
     def fit_pcwise_lin_eye_kinematics(self, bin_width=10, bin_threshold=1,
                                 fit_constant=True, fit_avg_data=False,
                                 quick_lag_step=10, fit_fix_adj_fr=False,
@@ -234,6 +250,10 @@ class FitNeuronToEye(object):
             firing_rate = self.get_firing_traces_fix_adj()
         else:
             firing_rate = self.get_firing_traces()
+        if firing_rate.size == 0:
+            # No data 
+            self.no_data_to_fit("pcwise_lin_eye_kinematics", 12, fit_constant, self.predict_pcwise_lin_eye_kinematics)
+            return
         if not fit_constant:
             dc_trial_rate = np.mean(firing_rate[:, self.dc_inds[0]:self.dc_inds[1]], axis=1)
             firing_rate = firing_rate - dc_trial_rate[:, None]
@@ -260,17 +280,8 @@ class FitNeuronToEye(object):
             bin_eye_data = bin_eye_data[select_good, :]
             temp_FR = temp_FR[select_good]
             if temp_FR.shape[0] == 0:
-                print("No data available, cannot fit, setting coefficients to zeros.")
-                coeff_size = 13 if fit_constant else 12
-                self.fit_results['pcwise_lin_eye_kinematics'] = {
-                                                'eye_lag': lag,
-                                                'slip_lag': None,
-                                                'coeffs': np.zeros((coeff_size)),
-                                                'R2': 0.,
-                                                'all_R2': [0],
-                                                'use_constant': fit_constant,
-                                                'dc_offset': 0.,
-                                                'predict_fun': self.predict_pcwise_lin_eye_kinematics}
+                # No data after removing NaNs
+                self.no_data_to_fit("pcwise_lin_eye_kinematics", 12, fit_constant, self.predict_pcwise_lin_eye_kinematics)
                 return
             coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
             y_mean = np.mean(temp_FR)
