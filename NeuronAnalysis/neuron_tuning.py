@@ -91,8 +91,8 @@ def comp_block_scaling_factors(primary_blocks, adj_blocks, neuron, time_window=[
 
     # Get fixation data for all trials and smoothed value for adjusting Offset drift
     all_blocks = primary_blocks + scaled_blocks
-    fr_fix, fr_inds_all = neuron.get_fix_by_block_gauss(all_blocks, fix_time_window, sigma=12.5, 
-                                                        cutoff_sigma=4, zscore_sigma=3.0)
+    fr_fix, fr_inds_all = neuron.get_smooth_fr_by_block_gauss(all_blocks, fix_time_window, sigma=12.5, 
+                                                                cutoff_sigma=4, zscore_sigma=3.0)
 
     # Get the fixation offset for the primary trials
     fr_inds_prim = neuron.session._parse_blocks_trial_sets(primary_blocks, trial_sets)
