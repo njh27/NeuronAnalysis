@@ -400,8 +400,8 @@ def bin_xy_func_z(x, y, z, bin_edges_x, bin_edges_y, z_func=np.mean,
         raise ValueError("x, y, and z must all be the arrays of the same length indicating the 3D point for all observations.")
     n_bins_x = len(bin_edges_x) - 1
     n_bins_y = len(bin_edges_y) - 1
-    x_out = np.empty(n_bins_x, dtype=np.int64)
-    y_out = np.empty(n_bins_y, dtype=np.int64)
+    x_out = np.empty(n_bins_x)
+    y_out = np.empty(n_bins_y)
     z_out = np.zeros((n_bins_x, n_bins_y))
     for edge_x in range(0, n_bins_x):
         x_out[edge_x] = bin_edges_x[edge_x] + (bin_edges_x[edge_x+1] - bin_edges_x[edge_x]) / 2
@@ -418,6 +418,34 @@ def bin_xy_func_z(x, y, z, bin_edges_x, bin_edges_y, z_func=np.mean,
                 z_out[edge_x, edge_y] = z_func(z[xy_index], *z_func_args, **z_func_kwargs)
 
     return x_out, y_out, z_out
+
+
+def bin_xy_z(x, y, z, bin_edges_x, bin_edges_y):
+    """ Bins data in z according to values in (x,y) as in a 2D histogram.
+        Returns the z values as a list of numpy arrays, where the list represents the 
+        flattened 2D binning in the order:
+          [(xbin1, ybin1), (xbin1, ybin2)... (xbinN, ybinN) """
+    if (len(bin_edges_x) < 2) or (len(bin_edges_y) < 2):
+        raise ValueError("Must specify at least 2 edges to define at least 1 bin.")
+    if (len(x) != len(z)) or (len(y) != len(z)):
+        raise ValueError("x, y, and z must all be the arrays of the same length indicating the 3D point for all observations.")
+    n_bins_x = len(bin_edges_x) - 1
+    n_bins_y = len(bin_edges_y) - 1
+    x_out = np.empty(n_bins_x)
+    y_out = np.empty(n_bins_y)
+    z_binned = []
+    for edge_x in range(0, n_bins_x):
+        x_out[edge_x] = bin_edges_x[edge_x] + (bin_edges_x[edge_x+1] - bin_edges_x[edge_x]) / 2
+        x_index = np.logical_and(x >= bin_edges_x[edge_x], x < bin_edges_x[edge_x+1])
+        for edge_y in range(0, n_bins_y):
+            if edge_x == 0:
+                # We only need to do this once for y edges
+                y_out[edge_y] = bin_edges_y[edge_y] + (bin_edges_y[edge_y+1] - bin_edges_y[edge_y]) / 2
+            y_index = np.logical_and(y >= bin_edges_y[edge_y], y < bin_edges_y[edge_y+1])
+            xy_index = x_index & y_index
+            z_binned.append(z[xy_index])
+
+    return x_out, y_out, z_binned
 
 
 def fit_cos_fixed_freq(x_val, y_val):
