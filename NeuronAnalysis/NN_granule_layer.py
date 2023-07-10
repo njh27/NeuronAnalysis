@@ -1,5 +1,10 @@
 import numpy as np
+import tensorflow as tf
+from tensorflow.keras import layers, models, constraints, initializers
+from tensorflow.keras.optimizers import SGD
 from random import choices
+from NeuronAnalysis.fit_NN_model import FitNNModel
+from NeuronAnalysis.general import bin_data
 
 
 
@@ -9,6 +14,59 @@ def relu(x, knee):
 def relu_refl(x, knee):
     return np.maximum(0., knee - x)
 
+
+class FitGCtoPC(FitNNModel):
+    """ A class for fitting  the PC neural network using the granule cell input. This class
+    fits in the simplest possible way, using ONLY granule cell input (no basket inhibition)
+    and allowing negative weights. There are NO LAGS used here either.
+    """
+    def __init__(self, Neuron, time_window=[0, 800], blocks=None, trial_sets=None,
+                    lag_range_pf=[-50, 150], use_series=None):
+        super().__init__(Neuron, time_window, blocks, trial_sets, lag_range_pf, use_series)
+
+    def fit_relu_GCs(self, granule_cells, activation_out="relu", intrinsic_rate0=None, 
+                     bin_width=10, bin_threshold=5, fit_avg_data=False, quick_lag_step=10, 
+                     train_split=1.0, learning_rate=0.02, epochs=200, batch_size=None, 
+                     adjust_block_data=None):
+        """ Fits the input eye data to the input Neuron according to the activations 
+        specified by the input granule_cells using a perceptron neural network.
+        """
+        if train_split > 1.0:
+            raise ValueError("Proportion to fit 'train_split' must be a value less than 1!")
+
+        # Setup all the indices for which trials we will be using and which
+        # subset of trials will be used as training vs. test data
+        if adjust_block_data is not None:
+            firing_rate, all_t_inds = self.get_block_adj_firing_trace(adjust_block_data, fix_time_window=[-300, 0], 
+                                                                    bin_width=bin_width, bin_threshold=bin_threshold, 
+                                                                    quick_lag_step=quick_lag_step, return_inds=True)
+        else:
+            firing_rate, all_t_inds = self.get_firing_traces(return_inds=True)
+        if len(firing_rate) == 0:
+            raise ValueError("No trial data found for input blocks and trial sets.")
+        
+        # Get indices for training and testing data sets
+        select_fit_trials, test_trial_set, train_trial_set, is_test_data = self.split_test_train(
+                                                                                firing_rate.shape[0], train_split)
+        # First get all firing rate data, bin and format
+        binned_FR_train, binned_FR_test = self.get_binned_FR_data(firing_rate, select_fit_trials, bin_width, 
+                                                                  bin_threshold, fit_avg_data)
+
+        # Finally get the eye data at lag 0 for the matching firing rate trials
+        eye_data = self.get_eye_data_traces(self.blocks, all_t_inds, 0)
+        # Now bin and reshape eye data
+        bin_eye_data_train, bin_eye_data_test = self.get_binned_eye_data(eye_data, select_fit_trials, bin_width, 
+                                                                         bin_threshold, fit_avg_data)
+        
+        # Now get all valid firing rate and eye data by removing nans
+        FR_select_train = ~np.isnan(binned_FR_train)
+        select_good_train = np.logical_and(~np.any(np.isnan(bin_eye_data_train), axis=1), FR_select_train)
+        bin_eye_data_train = bin_eye_data_train[select_good_train, :]
+        binned_FR_train = binned_FR_train[select_good_train]
+        FR_select_test = ~np.isnan(binned_FR_test)
+        select_good_test = np.logical_and(~np.any(np.isnan(bin_eye_data_test), axis=1), FR_select_test)
+        bin_eye_data_test = bin_eye_data_test[select_good_test, :]
+        binned_FR_test = binned_FR_test[select_good_test]
 
 class MossyFiber(object):
     """ Very simple mossy fiber class that defines a 2D response profile from the relu functions

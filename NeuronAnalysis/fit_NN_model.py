@@ -112,6 +112,55 @@ class FitNNModel(object):
         ind_start = lag - self.eye_lag_adjust
         ind_stop = ind_start + self.fit_dur
         return eye_data[:, ind_start:ind_stop, :]
+    
+    def split_test_train(self, n_trials, train_split):
+        n_fit_trials = np.int64(np.around(n_trials * train_split))
+        if n_fit_trials < 1:
+            raise ValueError("Proportion to fit 'train_split' is too low to fit the minimum of 1 trial out of {0} total trials available.".format(firing_rate.shape[0]))
+        n_test_trials = firing_rate.shape[0] - n_fit_trials
+        # Now select and remember the trials used for fitting
+        train_trial_set = np.zeros(len(self.neuron.session), dtype='bool')
+        n_test_trials = firing_rate.shape[0] - n_fit_trials
+        is_test_data = False if n_test_trials == 0 else True
+        select_fit_trials = np.zeros(len(all_t_inds), dtype='bool')
+        fit_trial_inds = np.random.choice(np.arange(0, firing_rate.shape[0]), n_fit_trials, replace=False)
+        select_fit_trials[fit_trial_inds] = True # Index into trials used for this fitting object
+        train_trial_set[all_t_inds[select_fit_trials]] = True # Index into all trials in the session
+        test_trial_set = ~train_trial_set
+        return select_fit_trials, test_trial_set, train_trial_set, is_test_data
+    
+    def get_binned_FR_data(self, firing_rate, select_fit_trials, bin_width, bin_threshold, fit_avg_data):
+        """ Does some quick work to get the binned firing rate data for fitting for the test and train
+        data sets and reshape it into 2D array.
+        """
+        if fit_avg_data:
+            mean_rate_train = np.nanmean(firing_rate[select_fit_trials, :], axis=0, keepdims=True)
+            binned_FR_train = bin_data(mean_rate_train, bin_width, bin_threshold)
+            mean_rate_test = np.nanmean(firing_rate[~select_fit_trials, :], axis=0, keepdims=True)
+            binned_FR_test = bin_data(mean_rate_test, bin_width, bin_threshold)
+        else:
+            binned_FR_train = bin_data(firing_rate[select_fit_trials, :], bin_width, bin_threshold)
+            binned_FR_test = bin_data(firing_rate[~select_fit_trials, :], bin_width, bin_threshold)
+        binned_FR_train = binned_FR_train.reshape(binned_FR_train.shape[0]*binned_FR_train.shape[1], order='C')
+        binned_FR_test = binned_FR_test.reshape(binned_FR_test.shape[0]*binned_FR_test.shape[1], order='C')
+        return binned_FR_train, binned_FR_test
+    
+    def get_binned_eye_data(self, eye_data, select_fit_trials, bin_width, bin_threshold, fit_avg_data):
+        """ Does some quick work to get the binned eye data for fitting for the test and train
+        data sets and reshape it into 2D array.
+        """
+        # Use bin smoothing on data before fitting
+        bin_eye_data_train = bin_data(eye_data[select_fit_trials, :, :], bin_width, bin_threshold)
+        bin_eye_data_test = bin_data(eye_data[~select_fit_trials, :, :], bin_width, bin_threshold)
+        if fit_avg_data:
+            bin_eye_data_train = np.nanmean(bin_eye_data_train, axis=0, keepdims=True)
+            bin_eye_data_test = np.nanmean(bin_eye_data_test, axis=0, keepdims=True)
+        # Reshape to 2D matrix
+        bin_eye_data_train = bin_eye_data_train.reshape(
+                                bin_eye_data_train.shape[0]*bin_eye_data_train.shape[1], bin_eye_data_train.shape[2], order='C')
+        bin_eye_data_test = bin_eye_data_test.reshape(
+                                bin_eye_data_test.shape[0]*bin_eye_data_test.shape[1], bin_eye_data_test.shape[2], order='C')
+        return bin_eye_data_train, bin_eye_data_test
 
     def fit_gauss_basis_kinematics(self, gaussian_units,
                                     activation_out="relu",
@@ -148,35 +197,13 @@ class FitNNModel(object):
             firing_rate, all_t_inds = self.get_firing_traces(return_inds=True)
         if len(firing_rate) == 0:
             raise ValueError("No trial data found for input blocks and trial sets.")
-        n_fit_trials = np.int64(np.around(firing_rate.shape[0] * train_split))
-        if n_fit_trials < 1:
-            raise ValueError("Proportion to fit 'train_split' is too low to fit the minimum of 1 trial out of {0} total trials available.".format(firing_rate.shape[0]))
-        n_test_trials = firing_rate.shape[0] - n_fit_trials
-        # Now select and remember the trials used for fitting
-        fit_trial_set = np.zeros(len(self.neuron.session), dtype='bool')
-        n_test_trials = firing_rate.shape[0] - n_fit_trials
-        is_test_data = False if n_test_trials == 0 else True
-        # test_trial_set = np.zeros(len(self.neuron.session), dtype='bool')
-        select_fit_trials = np.zeros(len(all_t_inds), dtype='bool')
-        fit_trial_inds = np.random.choice(np.arange(0, firing_rate.shape[0]), n_fit_trials, replace=False)
-        select_fit_trials[fit_trial_inds] = True # Index into trials used for this fitting object
-        fit_trial_set[all_t_inds[select_fit_trials]] = True # Index into all trials in the session
-        test_trial_set = ~fit_trial_set
-
-        """ Here we have to do some work to get all the data in the correct format """
+        
+        # Get indices for training and testing data sets
+        select_fit_trials, test_trial_set, train_trial_set, is_test_data = self.split_test_train(
+                                                                                firing_rate.shape[0], train_split)
         # First get all firing rate data, bin and format
-        if fit_avg_data:
-            mean_rate_train = np.nanmean(firing_rate[select_fit_trials, :], axis=0, keepdims=True)
-            binned_FR_train = bin_data(mean_rate_train, bin_width, bin_threshold)
-            mean_rate_test = np.nanmean(firing_rate[~select_fit_trials, :], axis=0, keepdims=True)
-            binned_FR_test = bin_data(mean_rate_test, bin_width, bin_threshold)
-        else:
-            binned_FR_train = bin_data(firing_rate[select_fit_trials, :], bin_width, bin_threshold)
-            binned_FR_test = bin_data(firing_rate[~select_fit_trials, :], bin_width, bin_threshold)
-        binned_FR_train = binned_FR_train.reshape(binned_FR_train.shape[0]*binned_FR_train.shape[1], order='C')
-        FR_select_train = ~np.isnan(binned_FR_train)
-        binned_FR_test = binned_FR_test.reshape(binned_FR_test.shape[0]*binned_FR_test.shape[1], order='C')
-        FR_select_test = ~np.isnan(binned_FR_test)
+        binned_FR_train, binned_FR_test = self.get_binned_FR_data(firing_rate, select_fit_trials, bin_width, 
+                                                                  bin_threshold, fit_avg_data)
 
         # Now get all the eye data at correct lags, bin and format
         # Get all the eye data at the desired lags
@@ -185,24 +212,16 @@ class FitNNModel(object):
         eye_data_mli = self.get_eye_data_traces(self.blocks, all_t_inds,
                             mli_lag)
         eye_data = np.concatenate((eye_data_pf, eye_data_mli), axis=2)
-
-        # Use bin smoothing on data before fitting
-        bin_eye_data_train = bin_data(eye_data[select_fit_trials, :, :], bin_width, bin_threshold)
-        bin_eye_data_test = bin_data(eye_data[~select_fit_trials, :, :], bin_width, bin_threshold)
-        if fit_avg_data:
-            bin_eye_data_train = np.nanmean(bin_eye_data_train, axis=0, keepdims=True)
-            bin_eye_data_test = np.nanmean(bin_eye_data_test, axis=0, keepdims=True)
-        # Reshape to 2D matrix
-        bin_eye_data_train = bin_eye_data_train.reshape(
-                                bin_eye_data_train.shape[0]*bin_eye_data_train.shape[1], bin_eye_data_train.shape[2], order='C')
-        bin_eye_data_test = bin_eye_data_test.reshape(
-                                bin_eye_data_test.shape[0]*bin_eye_data_test.shape[1], bin_eye_data_test.shape[2], order='C')
-
+        # Now bin and reshape eye data
+        bin_eye_data_train, bin_eye_data_test = self.get_binned_eye_data(eye_data, select_fit_trials, bin_width, 
+                                                                         bin_threshold, fit_avg_data)
+        
         # Now get all valid firing rate and eye data by removing nans
+        FR_select_train = ~np.isnan(binned_FR_train)
         select_good_train = np.logical_and(~np.any(np.isnan(bin_eye_data_train), axis=1), FR_select_train)
         bin_eye_data_train = bin_eye_data_train[select_good_train, :]
         binned_FR_train = binned_FR_train[select_good_train]
-
+        FR_select_test = ~np.isnan(binned_FR_test)
         select_good_test = np.logical_and(~np.any(np.isnan(bin_eye_data_test), axis=1), FR_select_test)
         bin_eye_data_test = bin_eye_data_test[select_good_test, :]
         binned_FR_test = binned_FR_test[select_good_test]
@@ -260,9 +279,9 @@ class FitNNModel(object):
                                 'bias': model.layers[0].get_weights()[1],
                                 'gaussian_units': gaussian_units,
                                 'R2': None,
-                                'fit_trial_set': fit_trial_set,
-                                'test_trial_set': test_trial_set,
                                 'is_test_data': is_test_data,
+                                'test_trial_set': test_trial_set,
+                                'train_trial_set': train_trial_set,
                                 'test_loss': test_loss,
                                 'train_loss': train_loss,
                                 }
