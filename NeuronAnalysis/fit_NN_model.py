@@ -113,17 +113,22 @@ class FitNNModel(object):
         ind_stop = ind_start + self.fit_dur
         return eye_data[:, ind_start:ind_stop, :]
     
-    def split_test_train(self, n_trials, train_split):
+    def split_test_train(self, all_t_inds, train_split):
+        """ Computes the trial indices for training and test data sets within the current trial
+        indices defined by "all_t_inds" and an additional set of indices that index into all
+        trials found within self.neuron.session.
+        """
+        n_trials = all_t_inds.shape[0]
         n_fit_trials = np.int64(np.around(n_trials * train_split))
         if n_fit_trials < 1:
             raise ValueError("Proportion to fit 'train_split' is too low to fit the minimum of 1 trial out of {0} total trials available.".format(firing_rate.shape[0]))
-        n_test_trials = firing_rate.shape[0] - n_fit_trials
+        n_test_trials = n_trials - n_fit_trials
         # Now select and remember the trials used for fitting
         train_trial_set = np.zeros(len(self.neuron.session), dtype='bool')
-        n_test_trials = firing_rate.shape[0] - n_fit_trials
+        n_test_trials = n_trials - n_fit_trials
         is_test_data = False if n_test_trials == 0 else True
         select_fit_trials = np.zeros(len(all_t_inds), dtype='bool')
-        fit_trial_inds = np.random.choice(np.arange(0, firing_rate.shape[0]), n_fit_trials, replace=False)
+        fit_trial_inds = np.random.choice(np.arange(0, n_trials), n_fit_trials, replace=False)
         select_fit_trials[fit_trial_inds] = True # Index into trials used for this fitting object
         train_trial_set[all_t_inds[select_fit_trials]] = True # Index into all trials in the session
         test_trial_set = ~train_trial_set
@@ -200,7 +205,7 @@ class FitNNModel(object):
         
         # Get indices for training and testing data sets
         select_fit_trials, test_trial_set, train_trial_set, is_test_data = self.split_test_train(
-                                                                                firing_rate.shape[0], train_split)
+                                                                                all_t_inds, train_split)
         # First get all firing rate data, bin and format
         binned_FR_train, binned_FR_test = self.get_binned_FR_data(firing_rate, select_fit_trials, bin_width, 
                                                                   bin_threshold, fit_avg_data)

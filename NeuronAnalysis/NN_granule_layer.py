@@ -47,7 +47,7 @@ class FitGCtoPC(FitNNModel):
         
         # Get indices for training and testing data sets
         select_fit_trials, test_trial_set, train_trial_set, is_test_data = self.split_test_train(
-                                                                                firing_rate.shape[0], train_split)
+                                                                                all_t_inds, train_split)
         # First get all firing rate data, bin and format
         binned_FR_train, binned_FR_test = self.get_binned_FR_data(firing_rate, select_fit_trials, bin_width, 
                                                                   bin_threshold, fit_avg_data)
