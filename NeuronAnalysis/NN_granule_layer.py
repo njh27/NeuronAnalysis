@@ -15,6 +15,17 @@ def relu_refl(x, knee):
     return np.maximum(0., knee - x)
 
 
+def GC_activations(granule_cells, eye_data, threshold=0.):
+    # Compute the activations of each granule cell across the 2D eye data inputs
+    # return eye_data[:, 2:4]
+    gc_activations = np.zeros((eye_data.shape[0], len(granule_cells)))
+    for gc_ind, gc in enumerate(granule_cells):
+        gc_activations[:, gc_ind] = gc.response(eye_data[:, 0], eye_data[:, 1], threshold=threshold)
+    # if np.any(np.any(np.isnan(gc_activations))):
+    #     raise ValueError("FOUND Nans")
+    return gc_activations
+
+
 class FitGCtoPC(FitNNModel):
     """ A class for fitting  the PC neural network using the granule cell input. This class
     fits in the simplest possible way, using ONLY granule cell input (no basket inhibition)
@@ -68,6 +79,160 @@ class FitGCtoPC(FitNNModel):
         bin_eye_data_test = bin_eye_data_test[select_good_test, :]
         binned_FR_test = binned_FR_test[select_good_test]
 
+        # Compute the activations of each granule cell across the eye data inputs
+        gc_activations_train = GC_activations(granule_cells, bin_eye_data_train, threshold=0.)
+        if is_test_data:
+            gc_activations_test = GC_activations(granule_cells, bin_eye_data_test, threshold=0.)
+            val_data = (gc_activations_test, binned_FR_test)
+        else:
+            gc_activations_test = []
+            val_data = None
+        if np.any(np.any(np.isnan(gc_activations_train))):
+            raise ValueError("Nan in here")
+        self.activation_out = activation_out
+        if intrinsic_rate0 is None:
+            intrinsic_rate0 = 0.8 * np.nanmedian(binned_FR_train)
+        # Create the neural network model
+        model = models.Sequential([
+            layers.Input(shape=(gc_activations_train.shape[1],)),
+            layers.Dense(1, activation=activation_out,
+                         kernel_initializer=initializers.RandomNormal(mean=0., stddev=1.),
+                         bias_initializer=initializers.Constant(intrinsic_rate0)),
+        ])
+        clip_value = None
+        optimizer = SGD(learning_rate=learning_rate, clipvalue=clip_value)
+        optimizer_str = "SGD"
+
+        # Compile the model
+        model.compile(optimizer=optimizer_str, loss='mean_squared_error')
+
+        # Train the model
+        if is_test_data:
+            val_data = (gc_activations_test, binned_FR_test)
+            test_data_only = True
+        else:
+            val_data = None
+            test_data_only = False
+        if np.any(np.any(np.isnan(gc_activations_train))):
+            raise ValueError("Nans in GC activation!")
+        if np.any(np.any(np.isnan(binned_FR_train))):
+            raise ValueError("Nans in FR data!")
+        history = model.fit(gc_activations_train, binned_FR_train, epochs=epochs, batch_size=batch_size,
+                                        validation_data=val_data, verbose=0)
+        if is_test_data:
+            test_loss = history.history['val_loss']
+        else:
+            test_loss = None
+        train_loss = history.history['loss']
+
+        # Store this for now so we can call predict_gauss_basis_kinematics
+        # below for computing R2.
+        self.fit_results['relu_GCs'] = {
+                                        'coeffs': model.layers[0].get_weights()[0],
+                                        'bias': model.layers[0].get_weights()[1],
+                                        'granule_cells': granule_cells,
+                                        'R2': None,
+                                        'is_test_data': is_test_data,
+                                        'test_trial_set': test_trial_set,
+                                        'train_trial_set': train_trial_set,
+                                        'test_loss': test_loss,
+                                        'train_loss': train_loss,
+                                        }
+        
+        # Compute R2
+        if self.fit_results['relu_GCs']['is_test_data']:
+            test_firing_rate = firing_rate[~select_fit_trials, :]
+        else:
+            # If no test data are available, you need to just compute over all data
+            test_firing_rate = firing_rate[select_fit_trials, :]
+        if fit_avg_data:
+            test_lag_data = self.get_relu_GCs_predict_data_mean(self.blocks, self.trial_sets, 
+                                                                test_data_only=test_data_only)
+            y_predicted = self.predict_relu_GCs(test_lag_data)
+            test_mean_rate = np.nanmean(test_firing_rate, axis=0, keepdims=True)
+            sum_squares_error = np.nansum((test_mean_rate - y_predicted) ** 2)
+            sum_squares_total = np.nansum((test_mean_rate - np.nanmean(test_mean_rate)) ** 2)
+        else:
+            y_predicted = self.predict_relu_GCs_by_trial(self.blocks, self.trial_sets, 
+                                                         test_data_only=test_data_only)
+            sum_squares_error = np.nansum((test_firing_rate - y_predicted) ** 2)
+            sum_squares_total = np.nansum((test_firing_rate - np.nanmean(test_firing_rate)) ** 2)
+        self.fit_results['relu_GCs']['R2'] = 1 - sum_squares_error/(sum_squares_total)
+        print(f"Fit R2 = {self.fit_results['relu_GCs']['R2']} with SSE {sum_squares_error} of {sum_squares_total} total.")
+
+        return
+    
+    def get_relu_GCs_predict_data_trial(self, blocks, trial_sets,
+                                                      return_shape=False,
+                                                      test_data_only=True,
+                                                      return_inds=False):
+        """ Gets behavioral data from blocks and trial sets and formats in a
+        way that it can be used to predict firing rate according to the model.
+        Data are only retrieved for trials that are valid for the fitted neuron. """
+        trial_sets = self.neuron.append_valid_trial_set(trial_sets)
+        if test_data_only:
+            if self.fit_results['relu_GCs']['is_test_data']:
+                trial_sets = trial_sets + [self.fit_results['relu_GCs']['test_trial_set']]
+            else:
+                print("No test trials are available. Returning everything.")
+        eye_data, t_inds = self.get_eye_data_traces(blocks, trial_sets,
+                                                    0., return_inds=True)
+        initial_shape = eye_data.shape
+        eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
+        if return_shape and return_inds:
+            return eye_data, initial_shape, t_inds
+        elif return_shape and not return_inds:
+            return eye_data, initial_shape
+        elif not return_shape and return_inds:
+            return eye_data, t_inds
+        else:
+            return eye_data
+    
+    def get_relu_GCs_predict_data_mean(self, blocks, trial_sets, test_data_only=True):
+        """ Gets behavioral data from blocks and trial sets and formats in a
+        way that it can be used to predict firing rate according to the linear
+        eye kinematic model using predict_lin_eye_kinematics.
+        Data for predictions are retrieved only for valid neuron trials."""
+        trial_sets = self.neuron.append_valid_trial_set(trial_sets)
+        if test_data_only:
+            if self.fit_results['relu_GCs']['is_test_data']:
+                trial_sets = trial_sets + [self.fit_results['relu_GCs']['test_trial_set']]
+            else:
+                print("No test trials are available. Returning everything.")
+        X = np.ones((self.time_window[1]-self.time_window[0], 4))
+        X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
+                                                "eye position", self.time_window,
+                                                blocks=blocks,
+                                                trial_sets=trial_sets)
+        X[:, 2], X[:, 3] = self.neuron.session.get_mean_xy_traces(
+                                                "eye velocity", self.time_window,
+                                                blocks=blocks,
+                                                trial_sets=trial_sets)
+        return X
+
+    def predict_relu_GCs(self, X):
+        """
+        """
+        if X.shape[1] != 4:
+            raise ValueError("Relu granule cell model is fit for 4 data dimensions but input data dimension is {0}.".format(X.shape[1]))
+        X_input = GC_activations(self.fit_results['relu_GCs']['granule_cells'], X, threshold=0.)
+        W = self.fit_results['relu_GCs']['coeffs']
+        b = self.fit_results['relu_GCs']['bias']
+        y_hat = np.dot(X_input, W) + b
+        if self.activation_out == "relu":
+            y_hat = np.maximum(0, y_hat)
+        return y_hat
+
+    def predict_relu_GCs_by_trial(self, blocks, trial_sets, test_data_only=True):
+        """
+        """
+        X, init_shape = self.get_relu_GCs_predict_data_trial(
+                                blocks, trial_sets, return_shape=True,
+                                test_data_only=test_data_only)
+        y_hat = self.predict_relu_GCs(X)
+        y_hat = y_hat.reshape(init_shape[0], init_shape[1], order='C')
+        return y_hat
+
 class MossyFiber(object):
     """ Very simple mossy fiber class that defines a 2D response profile from the relu functions
     """
@@ -100,10 +265,12 @@ class GranuleCell(object):
         # Normalize the sum of mf weights to 1 to make sure granule cell can be activated
         self.mf_weights = mf_weights / np.sum(mf_weights)
 
-    def response(self, h, v):
+    def response(self, h, v, threshold=0.):
         """ Returns the response of this granule cell given vectors of horizontal and vertical inputs
         by summing the response over its mossy fiber inputs. """
-        output = np.zeros(h.shape[0])
+        # Threshold needs subtracted
+        threshold *= -1.
+        output = np.ones(h.shape[0]) * threshold
         for mf_ind, mf in enumerate(self.mfs):
             output += mf.response(h, v) * self.mf_weights[mf_ind]
         output = self.act_fun(output, 0.)

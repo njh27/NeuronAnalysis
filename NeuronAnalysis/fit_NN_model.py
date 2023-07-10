@@ -308,8 +308,8 @@ class FitNNModel(object):
                                     self.blocks, self.trial_sets, test_data_only=test_data_only, verbose=False)
             sum_squares_error = np.nansum((test_firing_rate - y_predicted) ** 2)
             sum_squares_total = np.nansum((test_firing_rate - np.nanmean(test_firing_rate)) ** 2)
-            print(sum_squares_error, sum_squares_total)
         self.fit_results['gauss_basis_kinematics']['R2'] = 1 - sum_squares_error/(sum_squares_total)
+        print(f"Fit R2 = {self.fit_results['gauss_basis_kinematics']['R2']} with SSE {sum_squares_error} of {sum_squares_total} total.")
 
         return
 
