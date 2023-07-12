@@ -17,12 +17,19 @@ def relu_refl(x, knee):
 
 def GC_activations(granule_cells, eye_data, threshold=0.):
     # Compute the activations of each granule cell across the 2D eye data inputs
-    # return eye_data[:, 2:4]
     gc_activations = np.zeros((eye_data.shape[0], len(granule_cells)))
     for gc_ind, gc in enumerate(granule_cells):
         gc_activations[:, gc_ind] = gc.response(eye_data[:, 0], eye_data[:, 1], threshold=threshold)
-    # if np.any(np.any(np.isnan(gc_activations))):
-    #     raise ValueError("FOUND Nans")
+
+    # t = np.arange(0, gc_activations.shape[0])
+    # phases = np.random.uniform(0, 2*np.pi, gc_activations.shape[1])
+    # frequencies = np.random.uniform(8, 20, gc_activations.shape[1]) / 10000
+    # for golgi_ind in range(0, gc_activations.shape[1]):
+    #     sine_wave = 20 * np.sin(2*np.pi*t*frequencies[golgi_ind] + phases[golgi_ind])
+    #     rectified_sine_wave = np.maximum(sine_wave, 0)
+    #     gc_activations[:, golgi_ind] -= rectified_sine_wave
+    #     gc_activations[:, golgi_ind] = np.maximum(0, gc_activations[:, golgi_ind])
+
     return gc_activations
 
 

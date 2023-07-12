@@ -105,7 +105,7 @@ class FitNeuronToEye(object):
                                                    return_inds=False)
         return fr
 
-    def get_eye_data_traces(self, lag=0):
+    def get_eye_data_traces(self, blocks, trial_sets, lag=0, return_inds=False):
         """ Gets eye position and velocity in array of trial x self.time_window
             3rd dimension of array is ordered as pursuit, learning position,
             then pursuit, learning velocity.
@@ -116,13 +116,16 @@ class FitNeuronToEye(object):
             raise ValueError("time_window[1] must be greater than time_window[0]")
 
         pos_p, pos_l, t_inds = self.neuron.session.get_xy_traces("eye position",
-                                lag_time_window, self.blocks, self.trial_sets,
+                                lag_time_window, blocks, trial_sets,
                                 return_inds=True)
         vel_p, vel_l = self.neuron.session.get_xy_traces("eye velocity",
-                                lag_time_window, self.blocks, self.trial_sets,
+                                lag_time_window, blocks, trial_sets,
                                 return_inds=False)
         eye_data = np.stack((pos_p, pos_l, vel_p, vel_l), axis=2)
-        return eye_data
+        if return_inds:
+            return eye_data, t_inds
+        else:
+            return eye_data
 
     def get_eye_data_traces_all_lags(self):
         """ Gets eye position and velocity in array of trial x
@@ -375,6 +378,42 @@ class FitNeuronToEye(object):
             if X.shape[1] != 12:
                 raise ValueError(f"Piecewise linear eye kinematics is fit with 12 non-constant coefficients and no constant. Input X.shape[1] should be 12 but is {X.shape[1]}")
         y_hat = np.matmul(X, self.fit_results['pcwise_lin_eye_kinematics']['coeffs'])
+        return y_hat
+
+    def get_pcwise_lin_eye_kin_predict_data_by_trial(self, blocks, trial_sets, return_shape=False, return_inds=False):
+        """ Gets behavioral data from blocks and trial sets and formats in a
+        way that it can be used to predict firing rate according to the linear
+        eye kinematic model using predict_lin_eye_kinematics. """
+        eye_data, t_inds = self.get_eye_data_traces(blocks, trial_sets, self.fit_results['pcwise_lin_eye_kinematics']['eye_lag'], return_inds=True)
+        acc_data_p = eye_data_series.acc_from_vel(eye_data[:, :, 2], filter_win=29, axis=1)
+        acc_data_l = eye_data_series.acc_from_vel(eye_data[:, :, 3], filter_win=29, axis=1)
+        eye_data = np.concatenate((eye_data, np.expand_dims(acc_data_p, axis=2), np.expand_dims(acc_data_l, axis=2)), axis=2)
+
+        initial_shape = eye_data.shape
+        eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
+        eye_data = piece_wise_eye_data(eye_data, add_constant=self.fit_results['pcwise_lin_eye_kinematics']['use_constant'])
+        if self.fit_results['pcwise_lin_eye_kinematics']['use_constant']:
+            eye_data = np.hstack((eye_data, np.ones((eye_data.shape[0], 1))))
+        if return_shape and return_inds:
+            return eye_data, initial_shape, t_inds
+        elif return_shape and not return_inds:
+            return eye_data, initial_shape
+        elif not return_shape and return_inds:
+            return eye_data, t_inds
+        else:
+            return eye_data
+    
+    def predict_pcwise_lin_eye_kinematics_by_trial(self, X, x_reshape):
+        """ Predicts the response from the model trial-wise instead of for average data
+        """
+        if self.fit_results['pcwise_lin_eye_kinematics']['use_constant']:
+            if X.shape[1] != 13:
+                raise ValueError(f"Piecewise linear eye kinematics is fit with 12 non-constant coefficients and a constant. Input X.shape[1] should be 13 but is {X.shape[1]}")
+        else:
+            if X.shape[1] != 12:
+                raise ValueError(f"Piecewise linear eye kinematics is fit with 12 non-constant coefficients and no constant. Input X.shape[1] should be 12 but is {X.shape[1]}")
+        y_hat = np.matmul(X, self.fit_results['pcwise_lin_eye_kinematics']['coeffs'])
+        y_hat = y_hat.reshape(x_reshape[0], x_reshape[1], order='C')
         return y_hat
 
     def fit_lin_eye_kinematics(self, bin_width=10, bin_threshold=1,
