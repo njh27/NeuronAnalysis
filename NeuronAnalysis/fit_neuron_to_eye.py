@@ -85,18 +85,22 @@ class FitNeuronToEye(object):
         self.dc_inds = np.array([dc_win[0] - time_window[0], dc_win[1] - time_window[0]], dtype=np.int32)
         self.fit_results = {}
 
-    def get_firing_traces(self):
+    def get_firing_traces(self, trial_sets=None):
         """ Calls the neuron's get firing rate functions using the input blocks
         and time windows used for making the fit object, making this call
         cleaner when used below in other methods.
         """
+        if trial_sets is None:
+            trial_sets = self.trial_sets
         fr = self.neuron.get_firing_traces(self.time_window, self.blocks,
-                            self.trial_sets, return_inds=False)
+                            trial_sets, return_inds=False)
         return fr
     
-    def get_firing_traces_fix_adj(self):
+    def get_firing_traces_fix_adj(self, trial_sets=None):
+        if trial_sets is None:
+            trial_sets = self.trial_sets
         fr = self.neuron.get_firing_traces_fix_adj(self.time_window, 
-                                                   self.blocks, self.trial_sets, 
+                                                   self.blocks, trial_sets, 
                                                    fix_time_window=self.fix_adj['fix_win'], 
                                                    sigma=self.fix_adj['sigma'], 
                                                    cutoff_sigma=self.fix_adj['cutoff_sigma'], 
@@ -127,7 +131,7 @@ class FitNeuronToEye(object):
         else:
             return eye_data
 
-    def get_eye_data_traces_all_lags(self):
+    def get_eye_data_traces_all_lags(self, trial_sets=None):
         """ Gets eye position and velocity in array of trial x
         self.time_window +/- self.lag_range_eye so that all lags of data are
         pulled at once and can later be taken as slices/views for much faster
@@ -135,13 +139,15 @@ class FitNeuronToEye(object):
         3rd dimension of array is ordered as pursuit, learning position,
         then pursuit, learning velocity.
         """
+        if trial_sets is None:
+            trial_sets = self.trial_sets
         lag_time_window = [self.time_window[0] + self.lag_range_eye[0],
                             self.time_window[1] + self.lag_range_eye[1]]
         pos_p, pos_l, t_inds = self.neuron.session.get_xy_traces("eye position",
-                                lag_time_window, self.blocks, self.trial_sets,
+                                lag_time_window, self.blocks, trial_sets,
                                 return_inds=True)
         vel_p, vel_l = self.neuron.session.get_xy_traces("eye velocity",
-                                lag_time_window, self.blocks, self.trial_sets,
+                                lag_time_window, self.blocks, trial_sets,
                                 return_inds=False)
         eye_data = np.stack((pos_p, pos_l, vel_p, vel_l), axis=2)
         self.eye_lag_adjust = self.lag_range_eye[0]
@@ -228,6 +234,11 @@ class FitNeuronToEye(object):
                                       acceleration pursuit, acceleration learning
                                       constant offset
         """
+        if fit_avg_data and (bin_width > 1):
+            raise ValueError("Cannot run with average data and use binning.")
+        if fit_avg_data:
+            self.avg_trial_sets = ["pursuit", "anti_pursuit", "learning", "anti_learning", "instruction"]
+        fr_get_fun = self.get_firing_traces_fix_adj if fit_fix_adj_fr else self.get_firing_traces
         quick_lag_step = int(np.around(quick_lag_step))
         if quick_lag_step < 1:
             raise ValueError("quick_lag_step must be positive integer")
@@ -239,20 +250,29 @@ class FitNeuronToEye(object):
 
         R2 = []
         coefficients = []
-        if fit_fix_adj_fr:
-            fit_constant = False
-            if len(fix_adj_params) == 0:
-                self.fix_adj = {'fix_win': [-300, 0],
-                                'sigma': 12.5,
-                                'cutoff_sigma': 4.0,
-                                'zscore_sigma': 3.0,
-                                'rate_offset': 0.0,
-                                }
-            else:
-                self.fix_adj = fix_adj_params
-            firing_rate = self.get_firing_traces_fix_adj()
+        fit_constant = False
+        if len(fix_adj_params) == 0:
+            self.fix_adj = {'fix_win': [-300, 0],
+                            'sigma': 12.5,
+                            'cutoff_sigma': 4.0,
+                            'zscore_sigma': 3.0,
+                            'rate_offset': 0.0,
+                            }
         else:
-            firing_rate = self.get_firing_traces()
+            self.fix_adj = fix_adj_params
+        if fit_avg_data:
+            # Get data for each trial type in trial_sets
+            firing_rate = []
+            for t_set in self.avg_trial_sets:
+                t_set_data = fr_get_fun(t_set)
+                if t_set_data.size == 0:
+                    # No data so skip
+                    continue
+                t_set_mean = np.nanmean(t_set_data, axis=0, keepdims=True)
+                firing_rate.append(t_set_mean)
+            firing_rate = np.vstack(firing_rate)
+        else:
+            firing_rate = fr_get_fun()
         if firing_rate.size == 0:
             # No data 
             self.no_data_to_fit("pcwise_lin_eye_kinematics", 12, fit_constant, self.predict_pcwise_lin_eye_kinematics)
@@ -260,10 +280,21 @@ class FitNeuronToEye(object):
         if not fit_constant:
             dc_trial_rate = np.mean(firing_rate[:, self.dc_inds[0]:self.dc_inds[1]], axis=1)
             firing_rate = firing_rate - dc_trial_rate[:, None]
-        if fit_avg_data:
-            firing_rate = np.nanmean(firing_rate, axis=0, keepdims=True)
         binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
-        eye_data_all_lags = self.get_eye_data_traces_all_lags()
+
+        if fit_avg_data:
+            # Get data for each trial type in trial_sets
+            eye_data_all_lags = []
+            for t_set in self.avg_trial_sets:
+                t_set_data = self.get_eye_data_traces_all_lags(t_set)
+                if t_set_data.size == 0:
+                    # No data so skip
+                    continue
+                t_set_mean = np.nanmean(t_set_data, axis=0, keepdims=True)
+                eye_data_all_lags.append(t_set_mean)
+            eye_data_all_lags = np.vstack(eye_data_all_lags)
+        else:
+            eye_data_all_lags = self.get_eye_data_traces_all_lags()
         # Initialize empty eye_data array that we can fill from slices of all data
         eye_data = np.ones((eye_data_all_lags.shape[0], self.fit_dur, 6))
         # First loop over lags using quick_lag_step intervals
@@ -273,8 +304,6 @@ class FitNeuronToEye(object):
                             filter_win=self.neuron.session.saccade_ind_cushion, axis=1)
             # Use bin smoothing on data before fitting
             bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-            if fit_avg_data:
-                bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
             bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
             bin_eye_data = piece_wise_eye_data(bin_eye_data, add_constant=fit_constant)
 
@@ -311,9 +340,6 @@ class FitNeuronToEye(object):
                             filter_win=self.neuron.session.saccade_ind_cushion, axis=1)
                 # Use bin smoothing on data before fitting
                 bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
-                if fit_avg_data:
-                    bin_eye_data = np.nanmean(bin_eye_data, axis=0, keepdims=True)
-
                 bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
                 bin_eye_data = piece_wise_eye_data(bin_eye_data, add_constant=fit_constant)
                 
@@ -415,6 +441,271 @@ class FitNeuronToEye(object):
         y_hat = np.matmul(X, self.fit_results['pcwise_lin_eye_kinematics']['coeffs'])
         y_hat = y_hat.reshape(x_reshape[0], x_reshape[1], order='C')
         return y_hat
+    
+    def fit_pcwise_lin_eye_kinematics_acc_x_vel(self, bin_width=10, bin_threshold=1,
+                                fit_constant=True, fit_avg_data=False,
+                                quick_lag_step=10, fit_fix_adj_fr=False,
+                                fix_adj_params={}):
+        """ Fits the input neuron eye data to position, velocity, acceleration
+        linear model (in 2 dimensions -- one pursuit axis and one learing axis)
+        for the blocks and trial_sets input. Adds the acceleration and velocity
+        interaction terms to the linear model.
+        Output "coeffs" are in order: position pursuit, position learning
+                                      velocity pursuit, velocity learning
+                                      acceleration pursuit, acceleration learning
+                                      constant offset
+        """
+        if fit_avg_data and (bin_width > 1):
+            raise ValueError("Cannot run with average data and use binning.")
+        if fit_avg_data:
+            self.avg_trial_sets = ["pursuit", "anti_pursuit", "learning", "anti_learning", "instruction"]
+        fr_get_fun = self.get_firing_traces_fix_adj if fit_fix_adj_fr else self.get_firing_traces
+        quick_lag_step = int(np.around(quick_lag_step))
+        if quick_lag_step < 1:
+            raise ValueError("quick_lag_step must be positive integer")
+        if quick_lag_step > (self.lag_range_eye[1] - self.lag_range_eye[0]):
+            raise ValueError("quick_lag_step is too large relative to lag_range_eye")
+        half_lag_step = np.int32(np.around(quick_lag_step / 2))
+        lags = np.arange(self.lag_range_eye[0], self.lag_range_eye[1] + half_lag_step + 1, quick_lag_step)
+        lags[-1] = self.lag_range_eye[1]
+
+        R2 = []
+        coefficients = []
+        fit_constant = False
+        if len(fix_adj_params) == 0:
+            self.fix_adj = {'fix_win': [-300, 0],
+                            'sigma': 12.5,
+                            'cutoff_sigma': 4.0,
+                            'zscore_sigma': 3.0,
+                            'rate_offset': 0.0,
+                            }
+        else:
+            self.fix_adj = fix_adj_params
+        if fit_avg_data:
+            # Get data for each trial type in trial_sets
+            firing_rate = []
+            for t_set in self.avg_trial_sets:
+                t_set_data = fr_get_fun(t_set)
+                if t_set_data.size == 0:
+                    # No data so skip
+                    continue
+                t_set_mean = np.nanmean(t_set_data, axis=0, keepdims=True)
+                firing_rate.append(t_set_mean)
+            firing_rate = np.vstack(firing_rate)
+        else:
+            firing_rate = fr_get_fun()
+        if firing_rate.size == 0:
+            # No data 
+            self.no_data_to_fit("pcwise_lin_eye_kinematics_acc_x_vel", 12, fit_constant, self.predict_pcwise_lin_eye_kinematics_acc_x_vel)
+            return
+        if not fit_constant:
+            dc_trial_rate = np.mean(firing_rate[:, self.dc_inds[0]:self.dc_inds[1]], axis=1)
+            firing_rate = firing_rate - dc_trial_rate[:, None]
+        binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
+
+        if fit_avg_data:
+            # Get data for each trial type in trial_sets
+            eye_data_all_lags = []
+            for t_set in self.avg_trial_sets:
+                t_set_data = self.get_eye_data_traces_all_lags(t_set)
+                if t_set_data.size == 0:
+                    # No data so skip
+                    continue
+                t_set_mean = np.nanmean(t_set_data, axis=0, keepdims=True)
+                eye_data_all_lags.append(t_set_mean)
+            eye_data_all_lags = np.vstack(eye_data_all_lags)
+        else:
+            eye_data_all_lags = self.get_eye_data_traces_all_lags()
+        # Initialize empty eye_data array that we can fill from slices of all data
+        eye_data = np.ones((eye_data_all_lags.shape[0], self.fit_dur, 6))
+        # First loop over lags using quick_lag_step intervals
+        for lag in lags:
+            eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
+            eye_data[:, :, 4:6] = eye_data_series.acc_from_vel(eye_data[:, :, 2:4],
+                            filter_win=self.neuron.session.saccade_ind_cushion, axis=1)
+            # Use bin smoothing on data before fitting
+            bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
+            bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
+            bin_eye_data = piece_wise_eye_data(bin_eye_data, add_constant=fit_constant)
+
+            # Now compute the interaction terms
+            bin_eye_data = np.hstack((bin_eye_data, np.zeros((bin_eye_data.shape[0], 8))))
+            bin_eye_data[:, 12] = bin_eye_data[:, 4] * bin_eye_data[:, 8]
+            bin_eye_data[:, 13] = bin_eye_data[:, 4] * bin_eye_data[:, 9]
+            bin_eye_data[:, 14] = bin_eye_data[:, 5] * bin_eye_data[:, 8]
+            bin_eye_data[:, 15] = bin_eye_data[:, 5] * bin_eye_data[:, 9]
+            bin_eye_data[:, 16] = bin_eye_data[:, 6] * bin_eye_data[:, 10]
+            bin_eye_data[:, 17] = bin_eye_data[:, 6] * bin_eye_data[:, 11]
+            bin_eye_data[:, 18] = bin_eye_data[:, 7] * bin_eye_data[:, 10]
+            bin_eye_data[:, 19] = bin_eye_data[:, 7] * bin_eye_data[:, 11]
+
+            temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
+            select_good = ~np.any(np.isnan(bin_eye_data), axis=1) & ~np.isnan(temp_FR)
+            bin_eye_data = bin_eye_data[select_good, :]
+            temp_FR = temp_FR[select_good]
+            if temp_FR.shape[0] == 0:
+                # No data after removing NaNs
+                self.no_data_to_fit("pcwise_lin_eye_kinematics_acc_x_vel", 12, fit_constant, self.predict_pcwise_lin_eye_kinematics_acc_x_vel)
+                return
+            coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
+            y_mean = np.mean(temp_FR)
+            y_predicted = np.matmul(bin_eye_data, coefficients[-1])
+            sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+            sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
+            R2.append(1 - sum_squares_error/(sum_squares_total))
+
+        if quick_lag_step > 1:
+            # Do fine resolution loop
+            max_ind = np.where(R2 == np.amax(R2))[0]
+            max_ind = max_ind[np.argmin(np.abs(lags[max_ind]))]
+            best_lag = lags[max_ind]
+            # Make new lags centered on this best_lag
+            lag_start = max(lags[0], best_lag - quick_lag_step)
+            lag_stop = min(lags[-1], best_lag + quick_lag_step)
+            lags = np.arange(lag_start, lag_stop + 1, 1)
+            # Reset fit measures
+            R2 = []
+            coefficients = []
+            for lag in lags:
+                eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
+                eye_data[:, :, 4:6] = eye_data_series.acc_from_vel(eye_data[:, :, 2:4],
+                            filter_win=self.neuron.session.saccade_ind_cushion, axis=1)
+                # Use bin smoothing on data before fitting
+                bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
+                bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
+                bin_eye_data = piece_wise_eye_data(bin_eye_data, add_constant=fit_constant)
+
+                # Now compute the interaction terms
+                bin_eye_data = np.hstack((bin_eye_data, np.zeros((bin_eye_data.shape[0], 8))))
+                bin_eye_data[:, 12] = bin_eye_data[:, 4] * bin_eye_data[:, 8]
+                bin_eye_data[:, 13] = bin_eye_data[:, 4] * bin_eye_data[:, 9]
+                bin_eye_data[:, 14] = bin_eye_data[:, 5] * bin_eye_data[:, 8]
+                bin_eye_data[:, 15] = bin_eye_data[:, 5] * bin_eye_data[:, 9]
+                bin_eye_data[:, 16] = bin_eye_data[:, 6] * bin_eye_data[:, 10]
+                bin_eye_data[:, 17] = bin_eye_data[:, 6] * bin_eye_data[:, 11]
+                bin_eye_data[:, 18] = bin_eye_data[:, 7] * bin_eye_data[:, 10]
+                bin_eye_data[:, 19] = bin_eye_data[:, 7] * bin_eye_data[:, 11]
+                
+                temp_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
+                select_good = ~np.any(np.isnan(bin_eye_data), axis=1) & ~np.isnan(temp_FR)
+                bin_eye_data = bin_eye_data[select_good, :]
+                temp_FR = temp_FR[select_good]
+                coefficients.append(np.linalg.lstsq(bin_eye_data, temp_FR, rcond=None)[0])
+                y_mean = np.mean(temp_FR)
+                y_predicted = np.matmul(bin_eye_data, coefficients[-1])
+                sum_squares_error = np.nansum((temp_FR - y_predicted) ** 2)
+                sum_squares_total = np.nansum((temp_FR - y_mean) ** 2)
+                R2.append(1 - sum_squares_error/(sum_squares_total))
+
+        # Choose peak R2 value with minimum absolute value lag
+        max_ind = np.where(R2 == np.amax(R2))[0]
+        max_ind = max_ind[np.argmin(np.abs(lags[max_ind]))]
+        dc_offset = coefficients[max_ind][-1] if fit_constant else 0.
+        self.fit_results['pcwise_lin_eye_kinematics_acc_x_vel'] = {
+                                'eye_lag': lags[max_ind],
+                                'slip_lag': None,
+                                'coeffs': coefficients[max_ind],
+                                'R2': R2[max_ind],
+                                'all_R2': R2,
+                                'use_constant': fit_constant,
+                                'dc_offset': dc_offset,
+                                'predict_fun': self.predict_pcwise_lin_eye_kinematics_acc_x_vel}
+
+    def get_pcwise_lin_eye_kin_predict_data_acc_x_vel(self, blocks, trial_sets, time_window=None, verbose=False):
+        """ Gets behavioral data from blocks and trial sets and formats in a
+        way that it can be used to predict firing rate according to the linear
+        eye kinematic model using predict_lin_eye_kinematics. """
+        if time_window is None:
+            time_window = self.time_window
+        lagged_eye_win = [time_window[0] + self.fit_results['pcwise_lin_eye_kinematics_acc_x_vel']['eye_lag'],
+                          time_window[1] + self.fit_results['pcwise_lin_eye_kinematics_acc_x_vel']['eye_lag']
+                         ]
+        if verbose: print("EYE lag:", self.fit_results['pcwise_lin_eye_kinematics_acc_x_vel']['eye_lag'])
+        s_dim2 = 21 if self.fit_results['pcwise_lin_eye_kinematics_acc_x_vel']['use_constant'] else 20
+
+        trial_sets = self.neuron.append_valid_trial_set(trial_sets)
+        X = np.ones((time_window[1]-time_window[0], s_dim2))
+        X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
+                                                "eye position", lagged_eye_win,
+                                                blocks=blocks,
+                                                trial_sets=trial_sets)
+        X[:, 2], X[:, 3] = self.neuron.session.get_mean_xy_traces(
+                                                "eye velocity", lagged_eye_win,
+                                                blocks=blocks,
+                                                trial_sets=trial_sets)
+        X[:, 4:6] = eye_data_series.acc_from_vel(X[:,2:4], filter_win=29, axis=0)
+        X = piece_wise_eye_data(X[:, 0:6], add_constant=self.fit_results['pcwise_lin_eye_kinematics_acc_x_vel']['use_constant'])
+        # Now compute the interaction terms
+        X = np.hstack((X, np.zeros((X.shape[0], 8))))
+        X[:, 12] = X[:, 4] * X[:, 8]
+        X[:, 13] = X[:, 4] * X[:, 9]
+        X[:, 14] = X[:, 5] * X[:, 8]
+        X[:, 15] = X[:, 5] * X[:, 9]
+        X[:, 16] = X[:, 6] * X[:, 10]
+        X[:, 17] = X[:, 6] * X[:, 11]
+        X[:, 18] = X[:, 7] * X[:, 10]
+        X[:, 19] = X[:, 7] * X[:, 11]
+        return X
+
+    def predict_pcwise_lin_eye_kinematics_acc_x_vel(self, X):
+        """
+        """
+        if self.fit_results['pcwise_lin_eye_kinematics_acc_x_vel']['use_constant']:
+            if X.shape[1] != 21:
+                raise ValueError(f"Piecewise linear eye kinematics is fit with 12 non-constant coefficients and a constant. Input X.shape[1] should be 13 but is {X.shape[1]}")
+        else:
+            if X.shape[1] != 20:
+                raise ValueError(f"Piecewise linear eye kinematics is fit with 12 non-constant coefficients and no constant. Input X.shape[1] should be 12 but is {X.shape[1]}")
+        y_hat = np.matmul(X, self.fit_results['pcwise_lin_eye_kinematics_acc_x_vel']['coeffs'])
+        return y_hat
+
+    def get_pcwise_lin_eye_kin_predict_data_by_trial_acc_x_vel(self, blocks, trial_sets, return_shape=False, return_inds=False):
+        """ Gets behavioral data from blocks and trial sets and formats in a
+        way that it can be used to predict firing rate according to the linear
+        eye kinematic model using predict_lin_eye_kinematics. """
+        eye_data, t_inds = self.get_eye_data_traces(blocks, trial_sets, self.fit_results['pcwise_lin_eye_kinematics_acc_x_vel']['eye_lag'], return_inds=True)
+        acc_data_p = eye_data_series.acc_from_vel(eye_data[:, :, 2], filter_win=29, axis=1)
+        acc_data_l = eye_data_series.acc_from_vel(eye_data[:, :, 3], filter_win=29, axis=1)
+        eye_data = np.concatenate((eye_data, np.expand_dims(acc_data_p, axis=2), np.expand_dims(acc_data_l, axis=2)), axis=2)
+
+        initial_shape = eye_data.shape
+        eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
+        eye_data = piece_wise_eye_data(eye_data, add_constant=self.fit_results['pcwise_lin_eye_kinematics_acc_x_vel']['use_constant'])
+        # Now compute the interaction terms
+        eye_data = np.hstack((eye_data, np.zeros((eye_data.shape[0], 8))))
+        eye_data[:, 12] = eye_data[:, 4] * eye_data[:, 8]
+        eye_data[:, 13] = eye_data[:, 4] * eye_data[:, 9]
+        eye_data[:, 14] = eye_data[:, 5] * eye_data[:, 8]
+        eye_data[:, 15] = eye_data[:, 5] * eye_data[:, 9]
+        eye_data[:, 16] = eye_data[:, 6] * eye_data[:, 10]
+        eye_data[:, 17] = eye_data[:, 6] * eye_data[:, 11]
+        eye_data[:, 18] = eye_data[:, 7] * eye_data[:, 10]
+        eye_data[:, 19] = eye_data[:, 7] * eye_data[:, 11]
+        if self.fit_results['pcwise_lin_eye_kinematics_acc_x_vel']['use_constant']:
+            eye_data = np.hstack((eye_data, np.ones((eye_data.shape[0], 1))))
+        if return_shape and return_inds:
+            return eye_data, initial_shape, t_inds
+        elif return_shape and not return_inds:
+            return eye_data, initial_shape
+        elif not return_shape and return_inds:
+            return eye_data, t_inds
+        else:
+            return eye_data
+    
+    def predict_pcwise_lin_eye_kinematics_by_trial_acc_x_vel(self, X, x_reshape):
+        """ Predicts the response from the model trial-wise instead of for average data
+        """
+        if self.fit_results['pcwise_lin_eye_kinematics_acc_x_vel']['use_constant']:
+            if X.shape[1] != 21:
+                raise ValueError(f"Piecewise linear eye kinematics is fit with 12 non-constant coefficients and a constant. Input X.shape[1] should be 13 but is {X.shape[1]}")
+        else:
+            if X.shape[1] != 20:
+                raise ValueError(f"Piecewise linear eye kinematics is fit with 12 non-constant coefficients and no constant. Input X.shape[1] should be 12 but is {X.shape[1]}")
+        y_hat = np.matmul(X, self.fit_results['pcwise_lin_eye_kinematics_acc_x_vel']['coeffs'])
+        y_hat = y_hat.reshape(x_reshape[0], x_reshape[1], order='C')
+        return y_hat
+
+
 
     def fit_lin_eye_kinematics(self, bin_width=10, bin_threshold=1,
                                 fit_constant=True, fit_avg_data=False,
