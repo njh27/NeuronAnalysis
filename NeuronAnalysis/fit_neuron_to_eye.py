@@ -225,7 +225,7 @@ class FitNeuronToEye(object):
     def fit_pcwise_lin_eye_kinematics(self, bin_width=10, bin_threshold=1,
                                 fit_constant=True, fit_avg_data=False,
                                 quick_lag_step=10, fit_fix_adj_fr=False,
-                                fix_adj_params={}):
+                                fix_adj_params={}, filter_win=None):
         """ Fits the input neuron eye data to position, velocity, acceleration
         linear model (in 2 dimensions -- one pursuit axis and one learing axis)
         for the blocks and trial_sets input.
@@ -234,6 +234,9 @@ class FitNeuronToEye(object):
                                       acceleration pursuit, acceleration learning
                                       constant offset
         """
+        if filter_win is None:
+            filter_win = self.neuron.session.saccade_ind_cushion
+        self.filter_win = filter_win
         if fit_avg_data and (bin_width > 1):
             raise ValueError("Cannot run with average data and use binning.")
         if fit_avg_data:
@@ -301,7 +304,7 @@ class FitNeuronToEye(object):
         for lag in lags:
             eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
             eye_data[:, :, 4:6] = eye_data_series.acc_from_vel(eye_data[:, :, 2:4],
-                            filter_win=self.neuron.session.saccade_ind_cushion, axis=1)
+                            filter_win=self.filter_win, axis=1)
             # Use bin smoothing on data before fitting
             bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
             bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
@@ -337,7 +340,7 @@ class FitNeuronToEye(object):
             for lag in lags:
                 eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
                 eye_data[:, :, 4:6] = eye_data_series.acc_from_vel(eye_data[:, :, 2:4],
-                            filter_win=self.neuron.session.saccade_ind_cushion, axis=1)
+                            filter_win=self.filter_win, axis=1)
                 # Use bin smoothing on data before fitting
                 bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
                 bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
@@ -368,6 +371,13 @@ class FitNeuronToEye(object):
                                 'dc_offset': dc_offset,
                                 'predict_fun': self.predict_pcwise_lin_eye_kinematics}
 
+    def get_predict_data(self, model, blocks, trial_sets, time_window=None, verbose=False):
+        if model == "pcwise_lin_eye_kinematics":
+            return self.get_pcwise_lin_eye_kin_predict_data(blocks, trial_sets, time_window, verbose)
+        elif model == "pcwise_lin_eye_kinematics_acc_x_vel":
+            return self.get_pcwise_lin_eye_kin_predict_data_acc_x_vel(blocks, trial_sets, time_window, verbose)
+        else:
+            raise ValueError(f"Unrecognized fit model {model}")
     def get_pcwise_lin_eye_kin_predict_data(self, blocks, trial_sets, time_window=None, verbose=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
         way that it can be used to predict firing rate according to the linear
@@ -390,10 +400,17 @@ class FitNeuronToEye(object):
                                                 "eye velocity", lagged_eye_win,
                                                 blocks=blocks,
                                                 trial_sets=trial_sets)
-        X[:, 4:6] = eye_data_series.acc_from_vel(X[:,2:4], filter_win=29, axis=0)
+        X[:, 4:6] = eye_data_series.acc_from_vel(X[:,2:4], filter_win=self.filter_win, axis=0)
         X = piece_wise_eye_data(X[:, 0:6], add_constant=self.fit_results['pcwise_lin_eye_kinematics']['use_constant'])
         return X
 
+    def predict(self, model, X):
+        if model == "pcwise_lin_eye_kinematics":
+            return self.predict_pcwise_lin_eye_kinematics(X)
+        elif model == "pcwise_lin_eye_kinematics_acc_x_vel":
+            return self.predict_pcwise_lin_eye_kinematics_acc_x_vel(X)
+        else:
+            raise ValueError(f"Unrecognized fit model {model}")
     def predict_pcwise_lin_eye_kinematics(self, X):
         """
         """
@@ -406,13 +423,20 @@ class FitNeuronToEye(object):
         y_hat = np.matmul(X, self.fit_results['pcwise_lin_eye_kinematics']['coeffs'])
         return y_hat
 
+    def get_data_by_trial(self, model, blocks, trial_sets, return_shape=False, return_inds=False):
+        if model == "pcwise_lin_eye_kinematics":
+            return self.get_pcwise_lin_eye_kin_predict_data_by_trial(blocks, trial_sets, return_shape, return_inds)
+        elif model == "pcwise_lin_eye_kinematics_acc_x_vel":
+            return self.get_pcwise_lin_eye_kin_predict_data_by_trial_acc_x_vel(blocks, trial_sets, return_shape, return_inds)
+        else:
+            raise ValueError(f"Unrecognized fit model {model}")
     def get_pcwise_lin_eye_kin_predict_data_by_trial(self, blocks, trial_sets, return_shape=False, return_inds=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
         way that it can be used to predict firing rate according to the linear
         eye kinematic model using predict_lin_eye_kinematics. """
         eye_data, t_inds = self.get_eye_data_traces(blocks, trial_sets, self.fit_results['pcwise_lin_eye_kinematics']['eye_lag'], return_inds=True)
-        acc_data_p = eye_data_series.acc_from_vel(eye_data[:, :, 2], filter_win=29, axis=1)
-        acc_data_l = eye_data_series.acc_from_vel(eye_data[:, :, 3], filter_win=29, axis=1)
+        acc_data_p = eye_data_series.acc_from_vel(eye_data[:, :, 2], filter_win=self.filter_win, axis=1)
+        acc_data_l = eye_data_series.acc_from_vel(eye_data[:, :, 3], filter_win=self.filter_win, axis=1)
         eye_data = np.concatenate((eye_data, np.expand_dims(acc_data_p, axis=2), np.expand_dims(acc_data_l, axis=2)), axis=2)
 
         initial_shape = eye_data.shape
@@ -429,6 +453,13 @@ class FitNeuronToEye(object):
         else:
             return eye_data
     
+    def predict_by_trial(self, model, X, x_reshape):
+        if model == "pcwise_lin_eye_kinematics":
+            return self.predict_pcwise_lin_eye_kinematics_by_trial(X, x_reshape)
+        elif model == "pcwise_lin_eye_kinematics_acc_x_vel":
+            return self.predict_pcwise_lin_eye_kinematics_by_trial_acc_x_vel(X, x_reshape)
+        else:
+            raise ValueError(f"Unrecognized fit model {model}")
     def predict_pcwise_lin_eye_kinematics_by_trial(self, X, x_reshape):
         """ Predicts the response from the model trial-wise instead of for average data
         """
@@ -442,10 +473,11 @@ class FitNeuronToEye(object):
         y_hat = y_hat.reshape(x_reshape[0], x_reshape[1], order='C')
         return y_hat
     
+    
     def fit_pcwise_lin_eye_kinematics_acc_x_vel(self, bin_width=10, bin_threshold=1,
                                 fit_constant=True, fit_avg_data=False,
                                 quick_lag_step=10, fit_fix_adj_fr=False,
-                                fix_adj_params={}):
+                                fix_adj_params={}, filter_win=None):
         """ Fits the input neuron eye data to position, velocity, acceleration
         linear model (in 2 dimensions -- one pursuit axis and one learing axis)
         for the blocks and trial_sets input. Adds the acceleration and velocity
@@ -455,8 +487,9 @@ class FitNeuronToEye(object):
                                       acceleration pursuit, acceleration learning
                                       constant offset
         """
-        if fit_avg_data and (bin_width > 1):
-            raise ValueError("Cannot run with average data and use binning.")
+        if filter_win is None:
+            filter_win = self.neuron.session.saccade_ind_cushion
+        self.filter_win = filter_win
         if fit_avg_data:
             self.avg_trial_sets = ["pursuit", "anti_pursuit", "learning", "anti_learning", "instruction"]
         fr_get_fun = self.get_firing_traces_fix_adj if fit_fix_adj_fr else self.get_firing_traces
@@ -489,7 +522,7 @@ class FitNeuronToEye(object):
                 if t_set_data.size == 0:
                     # No data so skip
                     continue
-                t_set_mean = np.nanmean(t_set_data, axis=0, keepdims=True)
+                t_set_mean = np.nanmedian(t_set_data, axis=0, keepdims=True)
                 firing_rate.append(t_set_mean)
             firing_rate = np.vstack(firing_rate)
         else:
@@ -511,7 +544,7 @@ class FitNeuronToEye(object):
                 if t_set_data.size == 0:
                     # No data so skip
                     continue
-                t_set_mean = np.nanmean(t_set_data, axis=0, keepdims=True)
+                t_set_mean = np.nanmedian(t_set_data, axis=0, keepdims=True)
                 eye_data_all_lags.append(t_set_mean)
             eye_data_all_lags = np.vstack(eye_data_all_lags)
         else:
@@ -522,7 +555,7 @@ class FitNeuronToEye(object):
         for lag in lags:
             eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
             eye_data[:, :, 4:6] = eye_data_series.acc_from_vel(eye_data[:, :, 2:4],
-                            filter_win=self.neuron.session.saccade_ind_cushion, axis=1)
+                            filter_win=self.filter_win, axis=1)
             # Use bin smoothing on data before fitting
             bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
             bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
@@ -569,7 +602,7 @@ class FitNeuronToEye(object):
             for lag in lags:
                 eye_data[:, :, 0:4] = self.get_eye_lag_slice(lag, eye_data_all_lags)
                 eye_data[:, :, 4:6] = eye_data_series.acc_from_vel(eye_data[:, :, 2:4],
-                            filter_win=self.neuron.session.saccade_ind_cushion, axis=1)
+                            filter_win=self.filter_win, axis=1)
                 # Use bin smoothing on data before fitting
                 bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
                 bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
@@ -633,7 +666,7 @@ class FitNeuronToEye(object):
                                                 "eye velocity", lagged_eye_win,
                                                 blocks=blocks,
                                                 trial_sets=trial_sets)
-        X[:, 4:6] = eye_data_series.acc_from_vel(X[:,2:4], filter_win=29, axis=0)
+        X[:, 4:6] = eye_data_series.acc_from_vel(X[:,2:4], filter_win=self.filter_win, axis=0)
         X = piece_wise_eye_data(X[:, 0:6], add_constant=self.fit_results['pcwise_lin_eye_kinematics_acc_x_vel']['use_constant'])
         # Now compute the interaction terms
         X = np.hstack((X, np.zeros((X.shape[0], 8))))
@@ -664,8 +697,8 @@ class FitNeuronToEye(object):
         way that it can be used to predict firing rate according to the linear
         eye kinematic model using predict_lin_eye_kinematics. """
         eye_data, t_inds = self.get_eye_data_traces(blocks, trial_sets, self.fit_results['pcwise_lin_eye_kinematics_acc_x_vel']['eye_lag'], return_inds=True)
-        acc_data_p = eye_data_series.acc_from_vel(eye_data[:, :, 2], filter_win=29, axis=1)
-        acc_data_l = eye_data_series.acc_from_vel(eye_data[:, :, 3], filter_win=29, axis=1)
+        acc_data_p = eye_data_series.acc_from_vel(eye_data[:, :, 2], filter_win=self.filter_win, axis=1)
+        acc_data_l = eye_data_series.acc_from_vel(eye_data[:, :, 3], filter_win=self.filter_win, axis=1)
         eye_data = np.concatenate((eye_data, np.expand_dims(acc_data_p, axis=2), np.expand_dims(acc_data_l, axis=2)), axis=2)
 
         initial_shape = eye_data.shape
