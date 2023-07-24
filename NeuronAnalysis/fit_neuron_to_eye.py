@@ -1,6 +1,4 @@
 import numpy as np
-from numpy import linalg as la
-import warnings
 from NeuronAnalysis.general import bin_xy_func_z, bin_data
 from SessionAnalysis.utils import eye_data_series
 

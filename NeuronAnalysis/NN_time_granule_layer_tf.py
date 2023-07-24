@@ -1,5 +1,8 @@
 import numpy as np
 import h5py
+import tensorflow as tf
+from tensorflow.keras import layers, models, constraints, initializers
+from tensorflow.keras.optimizers import SGD
 from random import choices
 from NeuronAnalysis.fit_NN_model import FitNNModel
 
@@ -18,10 +21,13 @@ def GC_activations(granule_cells, t, threshold=0.):
     for gc in granule_cells:
         gc_activations.append(gc.response(t, threshold=threshold))
     gc_activations = np.column_stack(gc_activations)
+    gc_means = np.nanmean(gc_activations, axis=0)
+    gc_stds = np.nanstd(gc_activations, axis=0)
+    gc_activations = (gc_activations - gc_means[None, :]) / gc_stds[None, :]
     return gc_activations
 
 
-class TimeFitGCtoPC(object):
+class timeFitGCtoPC(object):
     """ A class for fitting  the PC neural network using the granule cell input. This class
     fits in the simplest possible way, using ONLY granule cell input (no basket inhibition)
     and allowing negative weights. There are NO LAGS used here either and fits average traces.
@@ -32,7 +38,8 @@ class TimeFitGCtoPC(object):
         self.block = block
         self.fit_results = {}
 
-    def fit_time_GCs(self, granule_cells):
+    def fit_time_GCs(self, granule_cells, activation_out="relu", intrinsic_rate0=None, 
+                     learning_rate=0.01, epochs=200, batch_size=None):
         """ Fits the input eye data to the input Neuron according to the activations 
         specified by the input granule_cells using a perceptron neural network.
         """
@@ -52,20 +59,39 @@ class TimeFitGCtoPC(object):
 
         # Remove any possible NaN values
         firing_rate = firing_rate[FR_select]
+        firing_rate = (firing_rate - np.nanmean(firing_rate)) / np.nanstd(firing_rate)
         gc_activations = gc_activations[FR_select]
 
-        gc_activations = np.hstack((gc_activations, np.ones((gc_activations.shape[0], 1))))
-        coefficients, ssr, _, _ = np.linalg.lstsq(gc_activations, firing_rate, rcond=None)
-        coeffs = coefficients[0:-1]
-        bias = coefficients[-1]
+        self.activation_out = activation_out
+        if intrinsic_rate0 is None:
+            intrinsic_rate0 = 0.8 * np.nanmedian(firing_rate)
+        # Create the neural network model
+        model = models.Sequential([
+            layers.Input(shape=(gc_activations.shape[1],)),
+            layers.Dense(1, activation=activation_out,
+                         kernel_initializer=initializers.RandomNormal(mean=0., stddev=5.),
+                         bias_initializer=initializers.Constant(intrinsic_rate0)),
+        ])
+        clip_value = None
+        optimizer = SGD(learning_rate=learning_rate, clipvalue=clip_value)
+        optimizer_str = "SGD"
+
+        # Compile the model
+        model.compile(optimizer=optimizer_str, loss='mean_squared_error')
+
+        # Train the model
+        history = model.fit(gc_activations, firing_rate, epochs=epochs, batch_size=batch_size,
+                                        validation_data=None, verbose=0)
+        train_loss = history.history['loss']
 
         # Store this for now so we can call prediction funs
         # below for computing R2.
         self.fit_results['time_GCs'] = {
-                                        'coeffs': coeffs,
-                                        'bias': bias,
+                                        'coeffs': model.layers[0].get_weights()[0],
+                                        'bias': model.layers[0].get_weights()[1],
                                         'granule_cells': granule_cells,
                                         'R2': None,
+                                        'train_loss': train_loss,
                                         }
         
         # Compute R2
@@ -86,6 +112,8 @@ class TimeFitGCtoPC(object):
         W = self.fit_results['time_GCs']['coeffs']
         b = self.fit_results['time_GCs']['bias']
         y_hat = np.dot(X_input, W) + b
+        if self.activation_out == "relu":
+            y_hat = np.maximum(0, y_hat)
         return y_hat
 
 

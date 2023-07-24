@@ -1,4 +1,7 @@
 import numpy as np
+import tensorflow as tf
+from tensorflow.keras import layers, models, constraints, initializers
+from tensorflow.keras.optimizers import SGD
 from random import choices
 from NeuronAnalysis.fit_NN_model import FitNNModel
 from NeuronAnalysis.general import bin_data
@@ -16,10 +19,7 @@ def GC_activations(granule_cells, eye_data, threshold=0.):
     # Compute the activations of each granule cell across the 2D eye data inputs
     gc_activations = np.zeros((eye_data.shape[0], len(granule_cells)))
     for gc_ind, gc in enumerate(granule_cells):
-        if gc_ind % 2 == 0:
-            gc_activations[:, gc_ind] = gc.response(eye_data[:, 0], eye_data[:, 1], threshold=threshold)
-        else:
-            gc_activations[:, gc_ind] = gc.response(eye_data[:, 2], eye_data[:, 3], threshold=threshold)
+        gc_activations[:, gc_ind] = gc.response(eye_data[:, 0], eye_data[:, 1], threshold=threshold)
 
     # t = np.arange(0, gc_activations.shape[0])
     # phases = np.random.uniform(0, 2*np.pi, gc_activations.shape[1])
@@ -42,8 +42,10 @@ class FitGCtoPC(FitNNModel):
                     lag_range_pf=[-50, 150], use_series=None):
         super().__init__(Neuron, time_window, blocks, trial_sets, lag_range_pf, use_series)
 
-    def fit_relu_GCs(self, granule_cells, bin_width=10, bin_threshold=5, fit_avg_data=False, quick_lag_step=10, 
-                     train_split=1.0, adjust_block_data=None):
+    def fit_relu_GCs(self, granule_cells, activation_out="relu", intrinsic_rate0=None, 
+                     bin_width=10, bin_threshold=5, fit_avg_data=False, quick_lag_step=10, 
+                     train_split=1.0, learning_rate=0.02, epochs=200, batch_size=None, 
+                     adjust_block_data=None):
         """ Fits the input eye data to the input Neuron according to the activations 
         specified by the input granule_cells using a perceptron neural network.
         """
@@ -94,6 +96,22 @@ class FitGCtoPC(FitNNModel):
             val_data = None
         if np.any(np.any(np.isnan(gc_activations_train))):
             raise ValueError("Nan in here")
+        self.activation_out = activation_out
+        if intrinsic_rate0 is None:
+            intrinsic_rate0 = 0.8 * np.nanmedian(binned_FR_train)
+        # Create the neural network model
+        model = models.Sequential([
+            layers.Input(shape=(gc_activations_train.shape[1],)),
+            layers.Dense(1, activation=activation_out,
+                         kernel_initializer=initializers.RandomNormal(mean=0., stddev=1.),
+                         bias_initializer=initializers.Constant(intrinsic_rate0)),
+        ])
+        clip_value = None
+        optimizer = SGD(learning_rate=learning_rate, clipvalue=clip_value)
+        optimizer_str = "SGD"
+
+        # Compile the model
+        model.compile(optimizer=optimizer_str, loss='mean_squared_error')
 
         # Train the model
         if is_test_data:
@@ -106,25 +124,26 @@ class FitGCtoPC(FitNNModel):
             raise ValueError("Nans in GC activation!")
         if np.any(np.any(np.isnan(binned_FR_train))):
             raise ValueError("Nans in FR data!")
-
-        # Add column of 1's
-        gc_activations_train = np.hstack((gc_activations_train, np.ones((gc_activations_train.shape[0], 1))))
-        coefficients, ssr, _, _ = np.linalg.lstsq(gc_activations_train, binned_FR_train, rcond=None)
-        coeffs = coefficients[0:-1]
-        bias = coefficients[-1]
+        history = model.fit(gc_activations_train, binned_FR_train, epochs=epochs, batch_size=batch_size,
+                                        validation_data=val_data, verbose=0)
+        if is_test_data:
+            test_loss = history.history['val_loss']
+        else:
+            test_loss = None
+        train_loss = history.history['loss']
 
         # Store this for now so we can call predict_gauss_basis_kinematics
         # below for computing R2.
         self.fit_results['relu_GCs'] = {
-                                        'coeffs': coeffs,
-                                        'bias': bias,
+                                        'coeffs': model.layers[0].get_weights()[0],
+                                        'bias': model.layers[0].get_weights()[1],
                                         'granule_cells': granule_cells,
                                         'R2': None,
                                         'is_test_data': is_test_data,
                                         'test_trial_set': test_trial_set,
                                         'train_trial_set': train_trial_set,
-                                        'test_loss': None,
-                                        'train_loss': None,
+                                        'test_loss': test_loss,
+                                        'train_loss': train_loss,
                                         }
         
         # Compute R2
@@ -207,6 +226,8 @@ class FitGCtoPC(FitNNModel):
         W = self.fit_results['relu_GCs']['coeffs']
         b = self.fit_results['relu_GCs']['bias']
         y_hat = np.dot(X_input, W) + b
+        if self.activation_out == "relu":
+            y_hat = np.maximum(0, y_hat)
         return y_hat
 
     def predict_relu_GCs_by_trial(self, blocks, trial_sets, test_data_only=True):
@@ -285,10 +306,10 @@ def make_granule_cells(N, mossy_fibers):
     with random weights. """
     granule_cells = []
     # Get some random numbers up front
-    # n_mfs = np.random.randint(3, 6, size=N)
+    n_mfs = np.random.randint(3, 6, size=N)
     for n_gc in range(0, N):   
         # Choose a set of mossy fibers and some random weights
-        mf_in = choices(mossy_fibers, k=4)
+        mf_in = choices(mossy_fibers, k=n_mfs[n_gc])
         mf_weights = np.random.uniform(size=len(mf_in))
         granule_cells.append(GranuleCell(mf_in, mf_weights))
 
