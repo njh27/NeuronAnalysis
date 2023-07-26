@@ -21,8 +21,31 @@ def get_sim_data_from_neuron(neuron, time_window, blocks, trial_sets, return_ind
     else:
         return SS_dataseries_by_trial, CS_dataseries_by_trial, eye_data
 
+def eye_to_gc_activations(eye_data, granule_cells):
+    """
+    """
+    eye_data_reshape = eye_data.shape
+    eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
+    gc_activations = GC_activations(granule_cells, eye_data)
+    gc_activations = gc_activations.reshape((eye_data_reshape[0], eye_data_reshape[1], gc_activations.shape[1]))
+    return gc_activations
 
-def run_learning_model(weights_0, granule_activations, model_params):
+
+def run_learning_model(weights_0, granule_activations, CS, model_params):
+    """
+    """
+    granule_activations[np.isnan(granule_activations)] = 0.
+    weights = np.copy(weights_0)
+    for trial in range(0, granule_activations.shape[0]):
+        trial_CS_mod_fun = CS[trial, :][None, :] @ granule_activations[trial, :, :]
+        LTP = model_params['alpha'] * trial_CS_mod_fun
+        LTP *= (model_params['w_max'] - weights)
+        LTD = model_params['epsilon'] * trial_CS_mod_fun
+        LTD *= (model_params['w_min'] - weights)
+        delta_w = LTP - LTD
+        weights += delta_w
+
+    return weights
 
 
 class SimPCTuning(object):
@@ -39,4 +62,8 @@ class SimPCTuning(object):
     def run_sim(alpha, epsilon, w_max, w_min):
         """
         """
-        model_params = {'alpha': alpha,}
+        model_params = {'alpha': alpha,
+                        'epsilon': epslilon,
+                        'w_max': w_max,
+                        'w_min': w_min,
+                        }
