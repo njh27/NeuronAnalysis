@@ -39,5 +39,4 @@ class SimPCTuning(object):
     def run_sim(alpha, epsilon, w_max, w_min):
         """
         """
-        model_params = {'alpha': alpha,
-        }
+        model_params = {'alpha': alpha,}
