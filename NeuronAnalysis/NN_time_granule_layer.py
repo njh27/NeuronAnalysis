@@ -71,8 +71,8 @@ class TimeFitGCtoPC(object):
         # Compute R2
         y_predicted = self.predict_time_GCs(slice(None))
         mean_rate = np.nanmean(firing_rate)
-        sum_squares_error = np.nansum((mean_rate - y_predicted) ** 2)
-        sum_squares_total = np.nansum((mean_rate - firing_rate) ** 2)
+        sum_squares_error = np.nansum((firing_rate - y_predicted) ** 2)
+        sum_squares_total = np.nansum((firing_rate - mean_rate) ** 2)
         self.fit_results['time_GCs']['R2'] = 1 - sum_squares_error/(sum_squares_total)
         print(f"Fit R2 = {self.fit_results['time_GCs']['R2']} with SSE {sum_squares_error} of {sum_squares_total} total.")
 

@@ -12,14 +12,12 @@ def relu_refl(x, knee):
     return np.maximum(0., knee - x)
 
 
-def GC_activations(granule_cells, eye_data, threshold=0.):
+def GC_activations(granule_cells, eye_data):
     # Compute the activations of each granule cell across the 2D eye data inputs
     gc_activations = np.zeros((eye_data.shape[0], len(granule_cells)))
     for gc_ind, gc in enumerate(granule_cells):
-        if gc_ind % 2 == 0:
-            gc_activations[:, gc_ind] = gc.response(eye_data[:, 0], eye_data[:, 1], threshold=threshold)
-        else:
-            gc_activations[:, gc_ind] = gc.response(eye_data[:, 2], eye_data[:, 3], threshold=threshold)
+        gc_activations[:, gc_ind] += gc.response(eye_data[:, 0], eye_data[:, 1])
+        # gc_activations[:, gc_ind] += 0.2 * gc.response(eye_data[:, 2], eye_data[:, 3])
 
     # t = np.arange(0, gc_activations.shape[0])
     # phases = np.random.uniform(0, 2*np.pi, gc_activations.shape[1])
@@ -43,73 +41,77 @@ class FitGCtoPC(FitNNModel):
         super().__init__(Neuron, time_window, blocks, trial_sets, lag_range_pf, use_series)
 
     def fit_relu_GCs(self, granule_cells, bin_width=10, bin_threshold=5, fit_avg_data=False, quick_lag_step=10, 
-                     train_split=1.0, adjust_block_data=None):
+                     adjust_block_data=None):
         """ Fits the input eye data to the input Neuron according to the activations 
         specified by the input granule_cells using a perceptron neural network.
         """
-        if train_split > 1.0:
-            raise ValueError("Proportion to fit 'train_split' must be a value less than 1!")
-
-        # Setup all the indices for which trials we will be using and which
-        # subset of trials will be used as training vs. test data
-        if adjust_block_data is not None:
-            firing_rate, all_t_inds = self.get_block_adj_firing_trace(adjust_block_data, fix_time_window=[-300, 0], 
-                                                                    bin_width=bin_width, bin_threshold=bin_threshold, 
-                                                                    quick_lag_step=quick_lag_step, return_inds=True)
-        else:
-            firing_rate, all_t_inds = self.get_firing_traces(return_inds=True)
-        if len(firing_rate) == 0:
-            raise ValueError("No trial data found for input blocks and trial sets.")
-        
-        # Get indices for training and testing data sets
-        select_fit_trials, test_trial_set, train_trial_set, is_test_data = self.split_test_train(
-                                                                                all_t_inds, train_split)
+        self.pf_lag, self.mli_lag = self.get_lags_kinematic_fit(quick_lag_step=quick_lag_step)
+                
         # First get all firing rate data, bin and format
-        binned_FR_train, binned_FR_test = self.get_binned_FR_data(firing_rate, select_fit_trials, bin_width, 
-                                                                  bin_threshold, fit_avg_data)
+        if fit_avg_data:
+            self.avg_trial_sets = ["pursuit", "anti_pursuit", "learning", "anti_learning", "instruction"]
+            self.avg_block = "StabTunePre"
+            firing_rate = []
+            all_t_inds = []
+            bin_eye_data = []
+            for t_set in self.avg_trial_sets:
+                if adjust_block_data is not None:
+                    fr, ati = self.neuron.get_firing_traces_block_adj(self.time_window, self.avg_block, 
+                                                        t_set, adjust_block_data, fix_time_window=[-300, 0], 
+                                                        bin_width=bin_width, bin_threshold=bin_threshold, 
+                                                        lag_range_eye=self.lag_range_pf, quick_lag_step=quick_lag_step, 
+                                                        return_inds=True)
+                else:
+                    fr, ati = self.neuron.get_firing_traces(self.time_window, self.avg_block,
+                                                                            t_set, return_inds=True)
+                if fr.size == 0:
+                    # No data for this so skip
+                    continue
+                firing_rate.append(np.nanmean(fr, axis=0))
+                all_t_inds.append(ati)
 
-        # Finally get the eye data at lag 0 for the matching firing rate trials
-        eye_data = self.get_eye_data_traces(self.blocks, all_t_inds, 0)
-        # Now bin and reshape eye data
-        bin_eye_data_train, bin_eye_data_test = self.get_binned_eye_data(eye_data, select_fit_trials, bin_width, 
-                                                                         bin_threshold, fit_avg_data)
+                # Now get matching eye data
+                eye_data = self.get_eye_data_traces(self.avg_block, ati, self.mli_lag)
+                # Now bin and reshape eye data
+                bin_eye_data.append(self.get_binned_eye_data(eye_data, bin_width, bin_threshold, True))
+
+            firing_rate = np.vstack(firing_rate)
+            if len(firing_rate) == 0:
+                raise ValueError("No trial data found for input blocks and trial sets.")
+            # Set fit_avg_data FALSE here since we already took the average and it will average over trial sets
+            binned_FR = self.get_binned_FR_data(firing_rate, bin_width, bin_threshold, False)
+            bin_eye_data = np.vstack(bin_eye_data)
+        else:
+            if adjust_block_data is not None:
+                firing_rate, all_t_inds = self.neuron.get_firing_traces_block_adj(self.time_window, self.blocks, 
+                                                    self.trial_sets, adjust_block_data, fix_time_window=[-300, 0], 
+                                                    bin_width=bin_width, bin_threshold=bin_threshold, 
+                                                    lag_range_eye=self.lag_range_pf, quick_lag_step=quick_lag_step, 
+                                                    return_inds=True)
+            else:
+                firing_rate, all_t_inds = self.neuron.get_firing_traces(self.time_window, self.blocks,
+                                                                        self.trial_sets, return_inds=True)
+            if len(firing_rate) == 0:
+                raise ValueError("No trial data found for input blocks and trial sets.")
+            binned_FR = self.get_binned_FR_data(firing_rate, bin_width, bin_threshold, fit_avg_data)
+            # Finally get the eye data at lag mli_lag for the matching firing rate trials
+            eye_data = self.get_eye_data_traces(self.blocks, all_t_inds, self.mli_lag)
+            # Now bin and reshape eye data
+            bin_eye_data = self.get_binned_eye_data(eye_data, bin_width, bin_threshold, fit_avg_data)
         
         # Now get all valid firing rate and eye data by removing nans
-        FR_select_train = ~np.isnan(binned_FR_train)
-        select_good_train = np.logical_and(~np.any(np.isnan(bin_eye_data_train), axis=1), FR_select_train)
-        bin_eye_data_train = bin_eye_data_train[select_good_train, :]
-        binned_FR_train = binned_FR_train[select_good_train]
-        FR_select_test = ~np.isnan(binned_FR_test)
-        select_good_test = np.logical_and(~np.any(np.isnan(bin_eye_data_test), axis=1), FR_select_test)
-        bin_eye_data_test = bin_eye_data_test[select_good_test, :]
-        binned_FR_test = binned_FR_test[select_good_test]
+        FR_select = ~np.isnan(binned_FR)
+        select_good= np.logical_and(~np.any(np.isnan(bin_eye_data), axis=1), FR_select)
+        bin_eye_data = bin_eye_data[select_good, :]
+        binned_FR = binned_FR[select_good]
 
         # Compute the activations of each granule cell across the eye data inputs
-        gc_activations_train = GC_activations(granule_cells, bin_eye_data_train, threshold=0.)
-        if is_test_data:
-            gc_activations_test = GC_activations(granule_cells, bin_eye_data_test, threshold=0.)
-            val_data = (gc_activations_test, binned_FR_test)
-        else:
-            gc_activations_test = []
-            val_data = None
-        if np.any(np.any(np.isnan(gc_activations_train))):
-            raise ValueError("Nan in here")
-
-        # Train the model
-        if is_test_data:
-            val_data = (gc_activations_test, binned_FR_test)
-            test_data_only = True
-        else:
-            val_data = None
-            test_data_only = False
-        if np.any(np.any(np.isnan(gc_activations_train))):
-            raise ValueError("Nans in GC activation!")
-        if np.any(np.any(np.isnan(binned_FR_train))):
-            raise ValueError("Nans in FR data!")
+        gc_activations = GC_activations(granule_cells, bin_eye_data)
 
         # Add column of 1's
-        gc_activations_train = np.hstack((gc_activations_train, np.ones((gc_activations_train.shape[0], 1))))
-        coefficients, ssr, _, _ = np.linalg.lstsq(gc_activations_train, binned_FR_train, rcond=None)
+        gc_activations = np.hstack((gc_activations, np.ones((gc_activations.shape[0], 1))))
+        # And do regression
+        coefficients, ssr, _, _ = np.linalg.lstsq(gc_activations, binned_FR, rcond=None)
         coeffs = coefficients[0:-1]
         bias = coefficients[-1]
 
@@ -120,31 +122,11 @@ class FitGCtoPC(FitNNModel):
                                         'bias': bias,
                                         'granule_cells': granule_cells,
                                         'R2': None,
-                                        'is_test_data': is_test_data,
-                                        'test_trial_set': test_trial_set,
-                                        'train_trial_set': train_trial_set,
-                                        'test_loss': None,
-                                        'train_loss': None,
                                         }
-        
-        # Compute R2
-        if self.fit_results['relu_GCs']['is_test_data']:
-            test_firing_rate = firing_rate[~select_fit_trials, :]
-        else:
-            # If no test data are available, you need to just compute over all data
-            test_firing_rate = firing_rate[select_fit_trials, :]
-        if fit_avg_data:
-            test_lag_data = self.get_relu_GCs_predict_data_mean(self.blocks, self.trial_sets, 
-                                                                test_data_only=test_data_only)
-            y_predicted = self.predict_relu_GCs(test_lag_data)
-            test_mean_rate = np.nanmean(test_firing_rate, axis=0, keepdims=True)
-            sum_squares_error = np.nansum((test_mean_rate - y_predicted) ** 2)
-            sum_squares_total = np.nansum((test_mean_rate - np.nanmean(test_mean_rate)) ** 2)
-        else:
-            y_predicted = self.predict_relu_GCs_by_trial(self.blocks, self.trial_sets, 
-                                                         test_data_only=test_data_only)
-            sum_squares_error = np.nansum((test_firing_rate - y_predicted) ** 2)
-            sum_squares_total = np.nansum((test_firing_rate - np.nanmean(test_firing_rate)) ** 2)
+        y_predicted = self.predict_relu_GCs(bin_eye_data)
+        mean_rate = np.nanmean(binned_FR, axis=0)
+        sum_squares_error = np.nansum((binned_FR - y_predicted) ** 2)
+        sum_squares_total = np.nansum((binned_FR - mean_rate) ** 2)
         self.fit_results['relu_GCs']['R2'] = 1 - sum_squares_error/(sum_squares_total)
         print(f"Fit R2 = {self.fit_results['relu_GCs']['R2']} with SSE {sum_squares_error} of {sum_squares_total} total.")
 
@@ -152,19 +134,13 @@ class FitGCtoPC(FitNNModel):
     
     def get_relu_GCs_predict_data_trial(self, blocks, trial_sets,
                                                       return_shape=False,
-                                                      test_data_only=True,
                                                       return_inds=False):
         """ Gets behavioral data from blocks and trial sets and formats in a
         way that it can be used to predict firing rate according to the model.
         Data are only retrieved for trials that are valid for the fitted neuron. """
         trial_sets = self.neuron.append_valid_trial_set(trial_sets)
-        if test_data_only:
-            if self.fit_results['relu_GCs']['is_test_data']:
-                trial_sets = trial_sets + [self.fit_results['relu_GCs']['test_trial_set']]
-            else:
-                print("No test trials are available. Returning everything.")
         eye_data, t_inds = self.get_eye_data_traces(blocks, trial_sets,
-                                                    0., return_inds=True)
+                                                    self.mli_lag, return_inds=True)
         initial_shape = eye_data.shape
         eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
         if return_shape and return_inds:
@@ -176,24 +152,21 @@ class FitGCtoPC(FitNNModel):
         else:
             return eye_data
     
-    def get_relu_GCs_predict_data_mean(self, blocks, trial_sets, test_data_only=True):
+    def get_relu_GCs_predict_data_mean(self, blocks, trial_sets):
         """ Gets behavioral data from blocks and trial sets and formats in a
         way that it can be used to predict firing rate according to the linear
         eye kinematic model using predict_lin_eye_kinematics.
         Data for predictions are retrieved only for valid neuron trials."""
+        lag_win = [self.time_window[0] + self.mli_lag,
+                   self.time_window[1] + self.mli_lag]
         trial_sets = self.neuron.append_valid_trial_set(trial_sets)
-        if test_data_only:
-            if self.fit_results['relu_GCs']['is_test_data']:
-                trial_sets = trial_sets + [self.fit_results['relu_GCs']['test_trial_set']]
-            else:
-                print("No test trials are available. Returning everything.")
         X = np.ones((self.time_window[1]-self.time_window[0], 4))
         X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
-                                                "eye position", self.time_window,
+                                                "eye position", lag_win,
                                                 blocks=blocks,
                                                 trial_sets=trial_sets)
         X[:, 2], X[:, 3] = self.neuron.session.get_mean_xy_traces(
-                                                "eye velocity", self.time_window,
+                                                "eye velocity", lag_win,
                                                 blocks=blocks,
                                                 trial_sets=trial_sets)
         return X
@@ -203,18 +176,17 @@ class FitGCtoPC(FitNNModel):
         """
         if X.shape[1] != 4:
             raise ValueError("Relu granule cell model is fit for 4 data dimensions but input data dimension is {0}.".format(X.shape[1]))
-        X_input = GC_activations(self.fit_results['relu_GCs']['granule_cells'], X, threshold=0.)
+        X_input = GC_activations(self.fit_results['relu_GCs']['granule_cells'], X)
         W = self.fit_results['relu_GCs']['coeffs']
         b = self.fit_results['relu_GCs']['bias']
         y_hat = np.dot(X_input, W) + b
         return y_hat
 
-    def predict_relu_GCs_by_trial(self, blocks, trial_sets, test_data_only=True):
+    def predict_relu_GCs_by_trial(self, blocks, trial_sets):
         """
         """
         X, init_shape = self.get_relu_GCs_predict_data_trial(
-                                blocks, trial_sets, return_shape=True,
-                                test_data_only=test_data_only)
+                                blocks, trial_sets, return_shape=True)
         y_hat = self.predict_relu_GCs(X)
         y_hat = y_hat.reshape(init_shape[0], init_shape[1], order='C')
         return y_hat
@@ -243,27 +215,28 @@ class MossyFiber(object):
 class GranuleCell(object):
     """ Granule cell class that gets inputs from mossy fibers and computes activation response
     """
-    def __init__(self, mossy_fibers, mf_weights, activation="relu"):
-        """ Construct response function given the input parameters. """
+    def __init__(self, mossy_fibers, mf_weights, activation="relu", threshold=0.):
+        """ Construct response function given the input parameters. Note that negative thresholds
+        will "work" but should yield tonic activity since all weights and inputs are positive.
+        """
         if activation == "relu":
             self.act_fun = relu
         self.mfs = mossy_fibers
-        # Normalize the sum of mf weights to 1 to make sure granule cell can be activated
-        self.mf_weights = mf_weights / np.sum(mf_weights)
+        self.mf_weights = mf_weights 
+        self.threshold = threshold
 
     def response(self, h, v, threshold=0.):
         """ Returns the response of this granule cell given vectors of horizontal and vertical inputs
         by summing the response over its mossy fiber inputs. """
-        # Threshold needs subtracted
-        threshold *= -1.
-        output = np.ones(h.shape[0]) * threshold
+        # Threshold needs subtracted so use negative
+        output = np.full((h.shape[0], ), -1*self.threshold)
         for mf_ind, mf in enumerate(self.mfs):
             output += mf.response(h, v) * self.mf_weights[mf_ind]
         output = self.act_fun(output, 0.)
         return output
     
 
-def make_mossy_fibers(N, knee_win=[-30, 30]):
+def make_mossy_fibers(N, knee_win=[-10, 10]):
     """ Makes N mossy fibers for both the horizontal and vertical axis with random response parameters
     and an even distribution of positive and negative sloped activation functions.
     """
@@ -286,10 +259,12 @@ def make_granule_cells(N, mossy_fibers):
     granule_cells = []
     # Get some random numbers up front
     # n_mfs = np.random.randint(3, 6, size=N)
+    # All the weights and thresholds are positive
+    thresholds = np.abs(np.random.normal(1.5, 0.5, N))
     for n_gc in range(0, N):   
         # Choose a set of mossy fibers and some random weights
         mf_in = choices(mossy_fibers, k=4)
         mf_weights = np.random.uniform(size=len(mf_in))
-        granule_cells.append(GranuleCell(mf_in, mf_weights))
+        granule_cells.append(GranuleCell(mf_in, mf_weights, threshold=thresholds[n_gc]))
 
     return granule_cells

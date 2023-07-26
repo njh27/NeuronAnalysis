@@ -133,8 +133,33 @@ class FitNNModel(object):
         train_trial_set[all_t_inds[select_fit_trials]] = True # Index into all trials in the session
         test_trial_set = ~train_trial_set
         return select_fit_trials, test_trial_set, train_trial_set, is_test_data
+
+    def get_binned_FR_data(self, firing_rate, bin_width, bin_threshold, fit_avg_data):
+        """ Does some quick work to get the binned firing rate data for fitting the firing rates
+         and reshape it into 2D array.
+        """
+        if fit_avg_data:
+            mean_rate = np.nanmean(firing_rate, axis=0, keepdims=True)
+            binned_FR = bin_data(mean_rate, bin_width, bin_threshold)
+        else:
+            binned_FR = bin_data(firing_rate, bin_width, bin_threshold)
+        binned_FR = binned_FR.reshape(binned_FR.shape[0]*binned_FR.shape[1], order='C')
+        return binned_FR
+
+    def get_binned_eye_data(self, eye_data, bin_width, bin_threshold, fit_avg_data):
+        """ Does some quick work to get the binned eye data for fitting and reshape it into 2D array.
+        """
+        if fit_avg_data:
+            # Need to get mean over each eye type before doing binning
+            mean_eye_data = np.nanmean(eye_data, axis=0, keepdims=True)
+            bin_eye_data = bin_data(mean_eye_data, bin_width, bin_threshold)
+        else:
+            bin_eye_data = bin_data(eye_data, bin_width, bin_threshold)
+        # Reshape to 2D matrix
+        bin_eye_data = bin_eye_data.reshape(bin_eye_data.shape[0]*bin_eye_data.shape[1], bin_eye_data.shape[2], order='C')
+        return bin_eye_data
     
-    def get_binned_FR_data(self, firing_rate, select_fit_trials, bin_width, bin_threshold, fit_avg_data):
+    def get_binned_FR_data_split(self, firing_rate, select_fit_trials, bin_width, bin_threshold, fit_avg_data):
         """ Does some quick work to get the binned firing rate data for fitting for the test and train
         data sets and reshape it into 2D array.
         """
@@ -150,7 +175,7 @@ class FitNNModel(object):
         binned_FR_test = binned_FR_test.reshape(binned_FR_test.shape[0]*binned_FR_test.shape[1], order='C')
         return binned_FR_train, binned_FR_test
     
-    def get_binned_eye_data(self, eye_data, select_fit_trials, bin_width, bin_threshold, fit_avg_data):
+    def get_binned_eye_data_split(self, eye_data, select_fit_trials, bin_width, bin_threshold, fit_avg_data):
         """ Does some quick work to get the binned eye data for fitting for the test and train
         data sets and reshape it into 2D array.
         """
