@@ -16,8 +16,8 @@ def GC_activations(granule_cells, eye_data):
     # Compute the activations of each granule cell across the 2D eye data inputs
     gc_activations = np.zeros((eye_data.shape[0], len(granule_cells)))
     for gc_ind, gc in enumerate(granule_cells):
-        gc_activations[:, gc_ind] += gc.response(eye_data[:, 0], eye_data[:, 1])
-        # gc_activations[:, gc_ind] += 0.2 * gc.response(eye_data[:, 2], eye_data[:, 3])
+        gc_activations[:, gc_ind] += 1. * gc.response(eye_data[:, 0], eye_data[:, 1])
+        # gc_activations[:, gc_ind] += 0.1 * gc.response(eye_data[:, 2], eye_data[:, 3])
 
     # t = np.arange(0, gc_activations.shape[0])
     # phases = np.random.uniform(0, 2*np.pi, gc_activations.shape[1])
@@ -225,14 +225,13 @@ class GranuleCell(object):
         self.mf_weights = mf_weights 
         self.threshold = threshold
 
-    def response(self, h, v, threshold=0.):
+    def response(self, h, v):
         """ Returns the response of this granule cell given vectors of horizontal and vertical inputs
         by summing the response over its mossy fiber inputs. """
-        # Threshold needs subtracted so use negative
-        output = np.full((h.shape[0], ), -1*self.threshold)
+        output = np.zeros((h.shape[0], ))
         for mf_ind, mf in enumerate(self.mfs):
             output += mf.response(h, v) * self.mf_weights[mf_ind]
-        output = self.act_fun(output, 0.)
+        output = self.act_fun(output, self.threshold)
         return output
     
 
@@ -257,14 +256,32 @@ def make_granule_cells(N, mossy_fibers):
     """ Make granule cells by choosing 3-5 mossy fibers from "mossy_fibers" and combining them
     with random weights. """
     granule_cells = []
+    n_mf_per_gc = 4
     # Get some random numbers up front
     # n_mfs = np.random.randint(3, 6, size=N)
     # All the weights and thresholds are positive
-    thresholds = np.abs(np.random.normal(1.5, 0.5, N))
+    thresholds = np.abs(np.random.normal(10, 2, N))
+    # thresholds = np.zeros(N)
     for n_gc in range(0, N):   
         # Choose a set of mossy fibers and some random weights
-        mf_in = choices(mossy_fibers, k=4)
+        mf_in = choices(mossy_fibers, k=n_mf_per_gc)
+        # if n_gc % 2 == 0:
+        #     # Every other gc will be horizontal/vertical
+        #     choose_h = True
+        # else:
+        #     choose_h = False
+        # mf_in = []
+        # while len(mf_in) < n_mf_per_gc:
+        #     mf_check = choices(mossy_fibers, k=n_mf_per_gc-len(mf_in))
+        #     for mf in mf_check:
+        #         if choose_h:
+        #             if mf.h_weight == 1.:
+        #                 mf_in.append(mf)
+        #         else:
+        #             if mf.v_weight == 1.:
+        #                 mf_in.append(mf)
         mf_weights = np.random.uniform(size=len(mf_in))
+        # mf_weights = np.ones(len(mf_in))
         granule_cells.append(GranuleCell(mf_in, mf_weights, threshold=thresholds[n_gc]))
 
     return granule_cells
