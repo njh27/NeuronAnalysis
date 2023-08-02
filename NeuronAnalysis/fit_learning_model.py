@@ -599,7 +599,7 @@ def init_learn_fit_params(CS_LTD_win, CS_LTP_win, bin_width,
                  'log_transform': log_trans,
                  'log_keys': log_keys,
                  }
-    # Format of p0, upper, lower,
+    # Format of p0, lower, upper,
     param_conds = {"alpha": (0.01, 0.0, 0.1),
                    "beta": (0.001, 0.0, 0.1),
                    "gamma": (0.001, 0.0, 0.1),

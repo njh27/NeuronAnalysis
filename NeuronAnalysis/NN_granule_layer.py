@@ -17,7 +17,7 @@ def GC_activations(granule_cells, eye_data):
     gc_activations = np.zeros((eye_data.shape[0], len(granule_cells)))
     for gc_ind, gc in enumerate(granule_cells):
         gc_activations[:, gc_ind] += 1. * gc.response(eye_data[:, 0], eye_data[:, 1])
-        # gc_activations[:, gc_ind] += 0.1 * gc.response(eye_data[:, 2], eye_data[:, 3])
+        # gc_activations[:, gc_ind] += 1. * gc.response(eye_data[:, 2], eye_data[:, 3])
 
     # t = np.arange(0, gc_activations.shape[0])
     # phases = np.random.uniform(0, 2*np.pi, gc_activations.shape[1])
@@ -41,16 +41,20 @@ class FitGCtoPC(FitNNModel):
         super().__init__(Neuron, time_window, blocks, trial_sets, lag_range_pf, use_series)
 
     def fit_relu_GCs(self, granule_cells, bin_width=10, bin_threshold=5, fit_avg_data=False, quick_lag_step=10, 
-                     adjust_block_data=None):
+                     adjust_block_data=None, fit_avg_blocks=None):
         """ Fits the input eye data to the input Neuron according to the activations 
         specified by the input granule_cells using a perceptron neural network.
         """
         self.pf_lag, self.mli_lag = self.get_lags_kinematic_fit(quick_lag_step=quick_lag_step)
-                
         # First get all firing rate data, bin and format
         if fit_avg_data:
             self.avg_trial_sets = ["pursuit", "anti_pursuit", "learning", "anti_learning", "instruction"]
-            self.avg_block = "StabTunePre"
+            if fit_avg_blocks is None:
+                self.avg_block = ["StabTunePre"]
+            else:
+                self.avg_block = fit_avg_blocks
+            if not isinstance(self.avg_block, list):
+                self.avg_block = list(self.avg_block)
             firing_rate = []
             all_t_inds = []
             bin_eye_data = []
@@ -71,7 +75,7 @@ class FitGCtoPC(FitNNModel):
                 all_t_inds.append(ati)
 
                 # Now get matching eye data
-                eye_data = self.get_eye_data_traces(self.avg_block, ati, self.mli_lag)
+                eye_data = self.get_eye_data_traces(self.avg_block, ati, self.pf_lag)
                 # Now bin and reshape eye data
                 bin_eye_data.append(self.get_binned_eye_data(eye_data, bin_width, bin_threshold, True))
 
@@ -110,6 +114,7 @@ class FitGCtoPC(FitNNModel):
 
         # Add column of 1's
         gc_activations = np.hstack((gc_activations, np.ones((gc_activations.shape[0], 1))))
+        # return gc_activations, binned_FR
         # And do regression
         coefficients, ssr, _, _ = np.linalg.lstsq(gc_activations, binned_FR, rcond=None)
         coeffs = coefficients[0:-1]
@@ -260,7 +265,7 @@ def make_granule_cells(N, mossy_fibers):
     # Get some random numbers up front
     # n_mfs = np.random.randint(3, 6, size=N)
     # All the weights and thresholds are positive
-    thresholds = np.abs(np.random.normal(10, 2, N))
+    thresholds = np.abs(np.random.normal(10, 3, N))
     # thresholds = np.zeros(N)
     for n_gc in range(0, N):   
         # Choose a set of mossy fibers and some random weights
