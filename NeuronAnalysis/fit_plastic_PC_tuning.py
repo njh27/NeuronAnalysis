@@ -101,24 +101,29 @@ def shuffle_CS(CS_train, min_offset=-10, max_offset=10):
 def run_learning_model(weights_0, granule_activations, CS, model_params):
     """
     """
-    granule_activations[np.isnan(granule_activations)] = 0.
     weights = np.copy(weights_0)
+    # Allocate CS_trial
+    # CS_trial = np.zeros((CS.shape[1]))
     for trial in range(0, granule_activations.shape[0]):
         CS_trial = np.copy(CS[trial, :])
         CS_trial = box_windows(CS_trial, -50, 50, scale=1.0)[None, :]
-        LTD = CS_trial @ granule_activations[trial, :, :]
-        LTD /= CS_trial.size
+        gc_trial = np.copy(granule_activations[trial, :, :])
+        n_obs_trial = np.count_nonzero(~np.any(np.isnan(gc_trial), axis=1))
+        gc_trial[np.isnan(gc_trial)] = 0.
+        LTD = CS_trial @ gc_trial
+        LTD /= n_obs_trial
         LTD *= model_params['epsilon']
-        LTD *= (model_params['w_min'] - weights)
+        LTD *= -1.
+        # LTD *= (model_params['w_min'] - weights)
         
         # Then LTP
         CS_trial_inv = CS_trial > 0.
         CS_trial[CS_trial_inv] = 0.
         CS_trial[~CS_trial_inv] = 1.
-        LTP = CS_trial @ granule_activations[trial, :, :]
-        LTP /= CS_trial.size
+        LTP = CS_trial @ gc_trial
+        LTP /= n_obs_trial
         LTP *= model_params['alpha'] 
-        LTP *= (model_params['w_max'] - weights)
+        # LTP *= (model_params['w_max'] - weights)
 
         # Then add them up and adjust weights
         delta_w = LTP + LTD
@@ -150,21 +155,18 @@ def predict_learning_model(weights, granule_activations, intrinsic_rate, SS, ret
         nan_ss[:] = np.isnan(trial_SS)
         nan_inds[:] = (nan_gc | nan_ss)
         trial_n_obs = np.count_nonzero(~nan_inds)
-        trial_gc_activation[nan_inds, :] = 0.
+        # trial_gc_activation[nan_inds, :] = 0.
 
         # Setting to intrinsic rate will make this equal to y_hat_trial and not affect residuals
-        trial_SS[nan_inds] = intrinsic_rate
-        y_hat_trial = weights @ trial_gc_activation.T + intrinsic_rate
-
-        if np.any(np.isnan(y_hat_trial)):
-            print("NAN IN Y HAT")
-        if np.any(np.isnan(trial_SS)):
-            print("NAN IN INPUT SS")
+        # trial_SS[nan_inds] = intrinsic_rate
+        y_hat_trial = trial_gc_activation @ weights.T + intrinsic_rate
+        y_hat_trial = np.squeeze(y_hat_trial)
 
         # Store requested outputs as needed
         if return_residuals:
             # Add residuals for current trial
-            residuals_trial = np.sum((y_hat_trial - trial_SS) ** 2) / trial_n_obs
+            # print(f"y hat {y_hat_trial.shape}, SS {trial_SS.shape} nan inds {nan_inds.shape}")
+            residuals_trial = np.sum(np.sqrt((y_hat_trial[~nan_inds] - trial_SS[~nan_inds]) ** 2)) / trial_n_obs
             residuals += residuals_trial
         if return_y_hat:
             # Store y_hat for this trial
@@ -188,30 +190,40 @@ def obj_learning_model(params, granule_activations, SS, CS, *args):
     """
     # Unpack all the extra args needed here to pass into learning function
     param_conds = args[0]
-    model_const = args[1]
-    t_set_select = args[2]
+    t_set_select = args[1]
+    short_gc_activations = args[2]
+    short_CS = args[3]
 
     # Dictionary of all possible parameters for learning model set to dummy
     # null values that will have no effect on learning model
     model_params = {"alpha": 0.0,
                     "epsilon": 0.0,
                     "intrinsic_rate": 0.0,
-                    "w_max": 100.,
-                    "w_min": -100.,
+                    # "w_max": 100.,
+                    # "w_min": -100.,
                     }
     # Build dictionary of params being fit to pass to learning function
     # according to the initialization dictionary param_conds
     for p in param_conds.keys():
         model_params[p] = params[param_conds[p][3]]
-        # print(f"{p}: {model_params[p]}")
+        
     # Compute the weights given the current model parameters
     weights_0 = np.zeros((1, granule_activations.shape[2]))
-    weights = run_learning_model(weights_0, granule_activations, CS, model_params)
+
+    
+    if short_gc_activations is None:
+        # Use the regular full activations for weights
+        weights = run_learning_model(weights_0, granule_activations, CS, model_params)
+    else:
+        # Use the random shortened activations to compute weights
+        weights = run_learning_model(weights_0, granule_activations, CS, model_params)
+        weights = run_learning_model(weights, short_gc_activations, short_CS, model_params)
+        # weights = run_learning_model(weights_0, short_gc_activations, short_CS, model_params)
+
     if len(t_set_select) > 0:
         granule_activations, SS = convert_predict_to_mean(granule_activations, SS, t_set_select)
     residuals = predict_learning_model(weights, granule_activations, model_params['intrinsic_rate'], 
                                        SS, return_residuals=True, return_y_hat=False)
-    # print(f"Residuals {residuals}")
     return residuals
 
 
@@ -229,11 +241,11 @@ def init_learn_fit_params():
     """
     """
     # Format of p0, lower, upper,
-    param_conds = {"alpha": (1e-7, 0.0, 1e-2),
-                   "epsilon": (1e-5, 0.0, 1e-2),
-                   "intrinsic_rate": (0., -np.inf, np.inf),
-                   "w_max": (1., 0.5, 100),
-                   "w_min": (-1., -100, -0.5),
+    param_conds = {"alpha": (1e-3, 0.0, 1e-1),
+                   "epsilon": (1e-3, 0.0, 1e-1),
+                   "intrinsic_rate": (50., 0., 100.),
+                #    "w_max": (1., 0.5, 100),
+                #    "w_min": (-1., -100, -0.5),
                     }
     # index order for each variable
     param_ind = 0
@@ -250,19 +262,59 @@ def init_learn_fit_params():
     return param_conds, p0, lower_bounds, upper_bounds
 
 
-def compute_response(eye_data, granule_cells, weights):
+def generate_short_trials(eye_data, granule_cells, CS, N_trials=1000, ind_mean=100, ind_min_max=[200, 700]):
     """
     """
+    all_durs = []
+    n_durs = 0
+    while n_durs < N_trials:
+        trial_durs = np.random.exponential(ind_mean, size=N_trials-n_durs)
+        trial_durs = np.clip(trial_durs, 0, ind_min_max[1] - ind_min_max[0])
+        n_durs += trial_durs.shape[0]
+        all_durs.append(np.int64(trial_durs))
+    all_durs = np.hstack(all_durs, dtype=np.int64)
+
+    short_eye_data = np.full((N_trials, eye_data.shape[1], eye_data.shape[2]), np.nan)
+    short_CS = np.full((N_trials, CS.shape[1]), np.nan)
+    trial_select = np.random.randint(0, eye_data.shape[0], size=N_trials)
+    for st in range(0, N_trials):
+        # Calculate the indices for cutting and new duration
+        cut_ind_1 = int(ind_min_max[0] + all_durs[st] // 2)
+        cut_ind_2 = int(ind_min_max[1] - all_durs[st] // 2)
+        total_dur = cut_ind_1 + (eye_data.shape[1] - cut_ind_2)
+        # Select shortened velocity profile
+        short_eye_data[st, 0:cut_ind_1, 2] = eye_data[trial_select[st], 0:cut_ind_1, 2]
+        short_eye_data[st, cut_ind_1:total_dur, 2] = eye_data[trial_select[st], cut_ind_2:, 2]
+        short_eye_data[st, 0:cut_ind_1, 3] = eye_data[trial_select[st], 0:cut_ind_1, 3]
+        short_eye_data[st, cut_ind_1:total_dur, 3] = eye_data[trial_select[st], cut_ind_2:, 3]
+            
+        # Then compute new shortened position from velocity. 
+        # 1.25 scaling empirically works well to accomodate velocity filtering
+        short_eye_data[st, :, 0] = 1.25*np.cumsum(short_eye_data[st, :, 2]) / 1000
+        short_eye_data[st, :, 1] = 1.25*np.cumsum(short_eye_data[st, :, 3]) / 1000
+        # Finally grab shortened CS
+        short_CS[st, 0:cut_ind_1] = CS[trial_select[st], 0:cut_ind_1]
+        short_CS[st, cut_ind_1:total_dur] = CS[trial_select[st], cut_ind_2:]
+
+    gc_activations = eye_to_gc_activations(short_eye_data, granule_cells)
+    return gc_activations, short_CS
+
+
+def fit_plastic_tuning_model(eye_data, granule_cells, SS, CS, t_set_select={}):
+    """
+    """
+    fit_short = True
+    # Convert eye data to granule cell activations
+    if fit_short:
+        short_gc_activations, short_CS = generate_short_trials(eye_data, granule_cells, CS, 
+                                                            N_trials=1000, ind_mean=100, ind_min_max=[200, 700])
+    else:
+        short_gc_activations = None
+        short_CS = None
     gc_activations = eye_to_gc_activations(eye_data, granule_cells)
-    response = None
-
-
-def fit_plastic_tuning_model(gc_activations, SS, CS, t_set_select={}):
-    """
-    """
+    
     param_conds, p0, lower_bounds, upper_bounds = init_learn_fit_params()
-    model_const = {}
-    lf_args = (param_conds, model_const, t_set_select)
+    lf_args = (param_conds, t_set_select, short_gc_activations, short_CS)
     # Note that differential_evolution() does not allow method specification
     # for the minimization step because it has its own mechanism.
     # We now define the bounds as a list of (min, max) pairs for each element in x
@@ -271,7 +323,7 @@ def fit_plastic_tuning_model(gc_activations, SS, CS, t_set_select={}):
     result = differential_evolution(func=obj_learning_model,
                                     bounds=bounds,
                                     args=(gc_activations, SS, CS, *lf_args),
-                                    workers=4, updating='deferred', popsize=12,
+                                    workers=8, updating='deferred', popsize=12,
                                     disp=True) # Display status messages
 
     return result
@@ -287,12 +339,3 @@ class FitPlasticPCTuning(object):
         self.weights = np.zeros((len(granule_cells), )) # One weight for each granule cell
         self.eye_data = eye_data
         self.CS_data = CS_data
-
-    def run_sim(alpha, epsilon, w_max, w_min):
-        """
-        """
-        model_params = {'alpha': alpha,
-                        'epsilon': epslilon,
-                        'w_max': w_max,
-                        'w_min': w_min,
-                        }

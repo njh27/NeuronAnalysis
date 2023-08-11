@@ -16,8 +16,8 @@ def GC_activations(granule_cells, eye_data):
     # Compute the activations of each granule cell across the 2D eye data inputs
     gc_activations = np.zeros((eye_data.shape[0], len(granule_cells)))
     for gc_ind, gc in enumerate(granule_cells):
-        gc_activations[:, gc_ind] += 1. * gc.response(eye_data[:, 0], eye_data[:, 1])
-        # gc_activations[:, gc_ind] += 1. * gc.response(eye_data[:, 2], eye_data[:, 3])
+        gc_activations[:, gc_ind] += 0.5 * gc.response(eye_data[:, 0], eye_data[:, 1])
+        gc_activations[:, gc_ind] += 0.25 * gc.response(eye_data[:, 2], eye_data[:, 3])
 
     # t = np.arange(0, gc_activations.shape[0])
     # phases = np.random.uniform(0, 2*np.pi, gc_activations.shape[1])
