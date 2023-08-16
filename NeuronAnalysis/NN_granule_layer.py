@@ -16,17 +16,10 @@ def GC_activations(granule_cells, eye_data):
     # Compute the activations of each granule cell across the 2D eye data inputs
     gc_activations = np.zeros((eye_data.shape[0], len(granule_cells)))
     for gc_ind, gc in enumerate(granule_cells):
-        gc_activations[:, gc_ind] += 0.5 * gc.response(eye_data[:, 0], eye_data[:, 1])
-        gc_activations[:, gc_ind] += 0.25 * gc.response(eye_data[:, 2], eye_data[:, 3])
-
-    # t = np.arange(0, gc_activations.shape[0])
-    # phases = np.random.uniform(0, 2*np.pi, gc_activations.shape[1])
-    # frequencies = np.random.uniform(8, 20, gc_activations.shape[1]) / 10000
-    # for golgi_ind in range(0, gc_activations.shape[1]):
-    #     sine_wave = 20 * np.sin(2*np.pi*t*frequencies[golgi_ind] + phases[golgi_ind])
-    #     rectified_sine_wave = np.maximum(sine_wave, 0)
-    #     gc_activations[:, golgi_ind] -= rectified_sine_wave
-    #     gc_activations[:, golgi_ind] = np.maximum(0, gc_activations[:, golgi_ind])
+        # gc_activations[:, gc_ind] += 0.5 * gc.response(eye_data[:, 0], eye_data[:, 1])
+        # gc_activations[:, gc_ind] += 0.5 * gc.response(eye_data[:, 2], eye_data[:, 3])
+        gc_activations[:, gc_ind] += gc.response(eye_data[:, 0], eye_data[:, 1],
+                                                       eye_data[:, 2], eye_data[:, 3])
 
     return gc_activations
 
@@ -98,8 +91,8 @@ class FitGCtoPC(FitNNModel):
             if len(firing_rate) == 0:
                 raise ValueError("No trial data found for input blocks and trial sets.")
             binned_FR = self.get_binned_FR_data(firing_rate, bin_width, bin_threshold, fit_avg_data)
-            # Finally get the eye data at lag mli_lag for the matching firing rate trials
-            eye_data = self.get_eye_data_traces(self.blocks, all_t_inds, self.mli_lag)
+            # Finally get the eye data at lag pf_lag for the matching firing rate trials
+            eye_data = self.get_eye_data_traces(self.blocks, all_t_inds, self.pf_lag)
             # Now bin and reshape eye data
             bin_eye_data = self.get_binned_eye_data(eye_data, bin_width, bin_threshold, fit_avg_data)
         
@@ -145,7 +138,7 @@ class FitGCtoPC(FitNNModel):
         Data are only retrieved for trials that are valid for the fitted neuron. """
         trial_sets = self.neuron.append_valid_trial_set(trial_sets)
         eye_data, t_inds = self.get_eye_data_traces(blocks, trial_sets,
-                                                    self.mli_lag, return_inds=True)
+                                                    self.pf_lag, return_inds=True)
         initial_shape = eye_data.shape
         eye_data = eye_data.reshape(eye_data.shape[0]*eye_data.shape[1], eye_data.shape[2], order='C')
         if return_shape and return_inds:
@@ -162,8 +155,8 @@ class FitGCtoPC(FitNNModel):
         way that it can be used to predict firing rate according to the linear
         eye kinematic model using predict_lin_eye_kinematics.
         Data for predictions are retrieved only for valid neuron trials."""
-        lag_win = [self.time_window[0] + self.mli_lag,
-                   self.time_window[1] + self.mli_lag]
+        lag_win = [self.time_window[0] + self.pf_lag,
+                   self.time_window[1] + self.pf_lag]
         trial_sets = self.neuron.append_valid_trial_set(trial_sets)
         X = np.ones((self.time_window[1]-self.time_window[0], 4))
         X[:, 0], X[:, 1] = self.neuron.session.get_mean_xy_traces(
@@ -207,13 +200,16 @@ class MossyFiber(object):
         self.v_refl = v_refl
         self.h_weight = h_weight
         self.v_weight = v_weight
+        self.vel_scale = 0.1
         self.h_fun = relu_refl if self.h_refl else relu
         self.v_fun = relu_refl if self.v_refl else relu
 
-    def response(self, h, v):
+    def response(self, h_pos, v_pos, h_vel=0., v_vel=0.):
         """ Returns the response of this mossy fiber given vectors of horizontal and vertical inputs. """
-        output = self.h_fun(h, self.h_knee) * self.h_weight
-        output += self.v_fun(v, self.v_knee) * self.v_weight
+        output = self.h_fun(h_pos, self.h_knee) * self.h_weight
+        output += self.h_fun(h_vel, self.h_knee) * self.h_weight * self.vel_scale
+        output += self.v_fun(v_pos, self.v_knee) * self.v_weight
+        output += self.v_fun(v_vel, self.v_knee) * self.v_weight * self.vel_scale
         return output
     
 
@@ -230,12 +226,12 @@ class GranuleCell(object):
         self.mf_weights = mf_weights 
         self.threshold = threshold
 
-    def response(self, h, v):
+    def response(self, h_pos, v_pos, h_vel=0., v_vel=0.):
         """ Returns the response of this granule cell given vectors of horizontal and vertical inputs
         by summing the response over its mossy fiber inputs. """
-        output = np.zeros((h.shape[0], ))
+        output = np.zeros((h_pos.shape[0], ))
         for mf_ind, mf in enumerate(self.mfs):
-            output += mf.response(h, v) * self.mf_weights[mf_ind]
+            output += mf.response(h_pos, v_pos, h_vel, v_vel) * self.mf_weights[mf_ind]
         output = self.act_fun(output, self.threshold)
         return output
     

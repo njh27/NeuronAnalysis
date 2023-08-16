@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.optimize import differential_evolution
+from scipy.optimize import differential_evolution, minimize
 from NeuronAnalysis.NN_granule_layer import GC_activations
 from NeuronAnalysis.general import box_windows
 
@@ -210,18 +210,18 @@ def obj_learning_model(params, granule_activations, SS, CS, *args):
     # Compute the weights given the current model parameters
     weights_0 = np.zeros((1, granule_activations.shape[2]))
 
-    
     if short_gc_activations is None:
         # Use the regular full activations for weights
         weights = run_learning_model(weights_0, granule_activations, CS, model_params)
     else:
         # Use the random shortened activations to compute weights
-        weights = run_learning_model(weights_0, granule_activations, CS, model_params)
-        weights = run_learning_model(weights, short_gc_activations, short_CS, model_params)
-        # weights = run_learning_model(weights_0, short_gc_activations, short_CS, model_params)
+        # weights = run_learning_model(weights_0, granule_activations, CS, model_params)
+        # weights = run_learning_model(weights, short_gc_activations, short_CS, model_params)
+        weights = run_learning_model(weights_0, short_gc_activations, short_CS, model_params)
 
     if len(t_set_select) > 0:
         granule_activations, SS = convert_predict_to_mean(granule_activations, SS, t_set_select)
+
     residuals = predict_learning_model(weights, granule_activations, model_params['intrinsic_rate'], 
                                        SS, return_residuals=True, return_y_hat=False)
     return residuals
@@ -234,7 +234,7 @@ def convert_predict_to_mean(granule_activations, SS, t_set_select):
     ss_out = np.zeros((len(t_set_select), SS.shape[1]))
     for t_ind, t_set in enumerate(t_set_select.keys()):
         ga_out[t_ind, :, :] = np.nanmean(granule_activations[t_set_select[t_set], :, :], axis=0)
-        ss_out[t_ind, :] = np.nanmean(SS[t_set_select[t_set], :])
+        ss_out[t_ind, :] = np.nanmean(SS[t_set_select[t_set], :], axis=0)
     return ga_out, ss_out
 
 def init_learn_fit_params():
@@ -242,8 +242,8 @@ def init_learn_fit_params():
     """
     # Format of p0, lower, upper,
     param_conds = {"alpha": (1e-3, 0.0, 1e-1),
-                   "epsilon": (1e-3, 0.0, 1e-1),
-                   "intrinsic_rate": (50., 0., 100.),
+                   "epsilon": (1e-2, 0.0, 1e-1),
+                   "intrinsic_rate": (75., 20., 100.),
                 #    "w_max": (1., 0.5, 100),
                 #    "w_min": (-1., -100, -0.5),
                     }
@@ -300,14 +300,48 @@ def generate_short_trials(eye_data, granule_cells, CS, N_trials=1000, ind_mean=1
     return gc_activations, short_CS
 
 
+def generate_truncated_trials(eye_data, granule_cells, CS, N_trials=1000, ind_mean=100, ind_min=200):
+    """
+    """
+    ind_min_max = [ind_min, eye_data.shape[1]]
+    all_durs = []
+    n_durs = 0
+    while n_durs < N_trials:
+        trial_durs = np.random.exponential(ind_mean, size=N_trials-n_durs)
+        trial_durs = np.clip(trial_durs, 0, ind_min_max[1] - ind_min_max[0])
+        n_durs += trial_durs.shape[0]
+        all_durs.append(np.int64(trial_durs))
+    all_durs = np.hstack(all_durs, dtype=np.int64)
+
+    short_eye_data = np.full((N_trials, eye_data.shape[1], eye_data.shape[2]), np.nan)
+    short_CS = np.full((N_trials, CS.shape[1]), np.nan)
+    trial_select = np.random.randint(0, eye_data.shape[0], size=N_trials)
+    for st in range(0, N_trials):
+        # Calculate the indices for cutting and new duration
+        cut_ind_1 = int(ind_min_max[0] + all_durs[st])
+        # Select shortened eye profile
+        short_eye_data[st, 0:cut_ind_1, 0] = eye_data[trial_select[st], 0:cut_ind_1, 0]
+        short_eye_data[st, 0:cut_ind_1, 1] = eye_data[trial_select[st], 0:cut_ind_1, 1]
+        short_eye_data[st, 0:cut_ind_1, 2] = eye_data[trial_select[st], 0:cut_ind_1, 2]
+        short_eye_data[st, 0:cut_ind_1, 3] = eye_data[trial_select[st], 0:cut_ind_1, 3]
+        # Finally grab shortened CS
+        short_CS[st, 0:cut_ind_1] = CS[trial_select[st], 0:cut_ind_1]
+
+    gc_activations = eye_to_gc_activations(short_eye_data, granule_cells)
+    return gc_activations, short_CS
+
+
 def fit_plastic_tuning_model(eye_data, granule_cells, SS, CS, t_set_select={}):
     """
     """
+    use_diff_evolution = True
     fit_short = True
     # Convert eye data to granule cell activations
     if fit_short:
         short_gc_activations, short_CS = generate_short_trials(eye_data, granule_cells, CS, 
-                                                            N_trials=1000, ind_mean=100, ind_min_max=[200, 700])
+                                                            N_trials=1000, ind_mean=200, ind_min_max=[250, 1000])
+        # short_gc_activations, short_CS = generate_truncated_trials(eye_data, granule_cells, CS, 
+        #                                                            N_trials=1000, ind_mean=100, ind_min=200)
     else:
         short_gc_activations = None
         short_CS = None
@@ -315,18 +349,31 @@ def fit_plastic_tuning_model(eye_data, granule_cells, SS, CS, t_set_select={}):
     
     param_conds, p0, lower_bounds, upper_bounds = init_learn_fit_params()
     lf_args = (param_conds, t_set_select, short_gc_activations, short_CS)
-    # Note that differential_evolution() does not allow method specification
-    # for the minimization step because it has its own mechanism.
-    # We now define the bounds as a list of (min, max) pairs for each element in x
-    bounds = [(lb, ub) for lb, ub in zip(lower_bounds, upper_bounds)]
-    # differential_evolution function takes the objective function and the bounds as main arguments.
-    result = differential_evolution(func=obj_learning_model,
-                                    bounds=bounds,
-                                    args=(gc_activations, SS, CS, *lf_args),
-                                    workers=8, updating='deferred', popsize=12,
-                                    disp=True) # Display status messages
 
-    return result
+    if use_diff_evolution:
+        # Note that differential_evolution() does not allow method specification
+        # for the minimization step because it has its own mechanism.
+        # We now define the bounds as a list of (min, max) pairs for each element in x
+        bounds = [(lb, ub) for lb, ub in zip(lower_bounds, upper_bounds)]
+        # differential_evolution function takes the objective function and the bounds as main arguments.
+        result = differential_evolution(func=obj_learning_model,
+                                        bounds=bounds,
+                                        args=(gc_activations, SS, CS, *lf_args),
+                                        workers=8, updating='deferred', popsize=12,
+                                        disp=True) # Display status messages
+    else:
+        p0 = [v[0] for v in param_conds.values()]
+        lower = [v[1] for v in param_conds.values()]
+        upper = [v[2] for v in param_conds.values()]
+        bounds = list(zip(lower, upper))
+
+        # Additional arguments
+        additional_args = (gc_activations, SS, CS) + lf_args
+
+        # Call the optimizer
+        result = minimize(obj_learning_model, p0, args=additional_args, bounds=bounds, method='L-BFGS-B')
+
+    return result, (gc_activations, SS, CS, lf_args)
 
 
 class FitPlasticPCTuning(object):
